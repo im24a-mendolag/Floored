@@ -1,57 +1,36 @@
-# Floored
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-> A roguelike casino survival game. Start with 1,000 chips. Survive as long as you can.
+## Getting Started
 
-![Next.js](https://img.shields.io/badge/Next.js_14-black?style=flat-square&logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
-![Vercel](https://img.shields.io/badge/Vercel-black?style=flat-square&logo=vercel)
-
-## What is this
-
-Floored is a browser-based roguelike casino game. Each run starts with 1,000 chips. Every floor you survive raises the minimum bet — eventually forcing all-or-nothing plays that can save or end your run. Earn Sparks between games, spend them on upgrades and modifiers, and stack them until it all falls apart.
-
-Eight games. Two modes. One leaderboard.
-
-## Games
-
-Blackjack · Crash · Plinko · HiLo · Dice · Run Dice · Mines · Chicken Road · Slots
-
-## Modes
-
-**Survival** — Endless floors with rising minimum bets. Run ends when you go broke. Leaderboard tracks your highest floor.
-
-**Freeplay** — All 8 games, no floors, no economy, no pressure.
-
-## Stack
-
-- **Framework** — Next.js 14 (App Router)
-- **Language** — TypeScript (strict)
-- **Database** — Supabase (Postgres + Auth)
-- **ORM** — Prisma
-- **Styling** — Tailwind CSS + shadcn/ui
-- **Animation** — Framer Motion + PixiJS
-- **State** — Zustand
-- **Hosting** — Vercel
-
-## Getting started
+First, run the development server:
 
 ```bash
-git clone https://github.com/you/floored
-cd floored
-pnpm install
-cp .env.example .env.local
+npm run dev
+# or
+yarn dev
+# or
 pnpm dev
+# or
+bun dev
 ```
 
-## Environment variables
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-DATABASE_URL=
-```
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-## Project status
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-Early development. Game design complete, build in progress.
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
