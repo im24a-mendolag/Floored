@@ -34,6 +34,17 @@ export interface GameResult {
 export interface DiceConfig {
   win: number[]
   loss: number[]
+  neutral: number[]
+}
+
+export interface RunSummary {
+  endedAt: string
+  endBankroll: number
+  floorsReached: number
+  gamesPlayed: number
+  peakBankroll: number
+  sparksEarned: number
+  difficulty: Difficulty | null
 }
 
 export interface SurvivalStore {
@@ -54,6 +65,8 @@ export interface SurvivalStore {
   difficulty: Difficulty | null
   modifiers: Modifier[]
   history: GameResult[]
+  peakBankroll: number
+  lastRun: RunSummary | null
   startRun: (difficulty: Difficulty) => void
   endRun: () => void
   advanceFloor: () => void

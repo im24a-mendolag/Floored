@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { SurvivalStore, Difficulty, GameResult } from './types'
 import { getFloorMinBet } from '@/utils/math'
+import { generateRunDiceConfig } from '@/games/run-dice/engine'
 
 function generateSeed(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -28,11 +29,13 @@ export const useSurvivalStore = create<SurvivalStore>()(
       slotsUsed: 0,
       floorMinBet: getFloorMinBet(1),
 
-      diceConfig: { win: [], loss: [] },
+      diceConfig: { win: [], loss: [], neutral: [] },
       jackpotMeter: 0,
       difficulty: null,
       modifiers: [],
       history: [],
+      peakBankroll: 1000,
+      lastRun: null,
 
       startRun: (difficulty: Difficulty) =>
         set({
@@ -45,18 +48,29 @@ export const useSurvivalStore = create<SurvivalStore>()(
           currentFloor: 1,
           slotsUsed: 0,
           floorMinBet: getFloorMinBet(1),
-          diceConfig: { win: [], loss: [] },
+          diceConfig: generateRunDiceConfig(),
           jackpotMeter: 0,
           difficulty,
           modifiers: [],
           history: [],
+          peakBankroll: 1000,
+          lastRun: null,
         }),
 
       endRun: () =>
-        set({
+        set((s) => ({
           runActive: false,
           runSeed: null,
-        }),
+          lastRun: {
+            endedAt: new Date().toISOString(),
+            endBankroll: s.bankroll,
+            floorsReached: s.currentFloor,
+            gamesPlayed: s.gamesPlayed,
+            peakBankroll: s.peakBankroll,
+            sparksEarned: s.sparks,
+            difficulty: s.difficulty,
+          },
+        })),
 
       advanceFloor: () =>
         set((s) => {
@@ -69,14 +83,18 @@ export const useSurvivalStore = create<SurvivalStore>()(
         }),
 
       recordResult: (result: GameResult) =>
-        set((s) => ({
-          gamesPlayed: s.gamesPlayed + 1,
-          slotsUsed: s.slotsUsed + 1,
-          streak: result.outcome === 'win' ? s.streak + 1 : 0,
-          jackpotMeter: Math.min(100, s.jackpotMeter + (result.game === 'slots' ? 5 : 1)),
-          history: [...s.history, result],
-          bankroll: s.bankroll - result.betAmount + result.payout,
-        })),
+        set((s) => {
+          const newBankroll = s.bankroll - result.betAmount + result.payout
+          return {
+            gamesPlayed: s.gamesPlayed + 1,
+            slotsUsed: s.slotsUsed + 1,
+            streak: result.outcome === 'win' ? s.streak + 1 : 0,
+            jackpotMeter: Math.min(100, s.jackpotMeter + (result.game === 'slots' ? 5 : 1)),
+            history: [...s.history, result],
+            bankroll: newBankroll,
+            peakBankroll: Math.max(s.peakBankroll, newBankroll),
+          }
+        }),
     }),
     { name: 'floored-survival' }
   )

@@ -11,14 +11,14 @@ interface GameEntry {
 }
 
 const GAMES: GameEntry[] = [
-  { name: 'blackjack',    label: 'Blackjack',    available: false },
-  { name: 'crash',        label: 'Crash',        available: false },
-  { name: 'plinko',       label: 'Plinko',       available: false },
-  { name: 'hilo',         label: 'Hi-Lo',        available: false },
-  { name: 'dice',         label: 'Dice',         available: false },
-  { name: 'run-dice',     label: 'Run Dice',     available: false },
-  { name: 'mines',        label: 'Mines',        available: false },
-  { name: 'chicken-road', label: 'Chicken Road', available: false },
+  { name: 'blackjack',    label: 'Blackjack',    available: true },
+  { name: 'crash',        label: 'Crash',        available: true },
+  { name: 'plinko',       label: 'Plinko',       available: true },
+  { name: 'hilo',         label: 'Hi-Lo',        available: true },
+  { name: 'dice',         label: 'Dice',         available: true },
+  { name: 'run-dice',     label: 'Run Dice',     available: true },
+  { name: 'mines',        label: 'Mines',        available: true },
+  { name: 'chicken-road', label: 'Chicken Road', available: true },
   { name: 'slots',        label: 'Slots',        available: false },
 ]
 
