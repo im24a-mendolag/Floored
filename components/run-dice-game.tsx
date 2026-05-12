@@ -1,9 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { BetPanel } from '@/components/bet-panel'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import {
   getRunDicePayout,
@@ -12,6 +10,15 @@ import {
   startRunDiceRound,
 } from '@/games/run-dice/engine'
 import type { RunDiceConfig, RunDiceState } from '@/games/run-dice/types'
+
+const CHIPS = [
+  { value: 10,  label: '$10',  bg: 'bg-red-600 hover:bg-red-500',        border: 'border-red-300' },
+  { value: 25,  label: '$25',  bg: 'bg-emerald-600 hover:bg-emerald-500', border: 'border-emerald-300' },
+  { value: 100, label: '$100', bg: 'bg-blue-600 hover:bg-blue-500',       border: 'border-blue-300' },
+  { value: 500, label: '$500', bg: 'bg-zinc-700 hover:bg-zinc-600',       border: 'border-zinc-400' },
+]
+
+const DICE_WEIGHT: Record<number, number> = {2:1,3:2,4:3,5:4,6:5,7:6,8:5,9:4,10:3,11:2,12:1}
 
 interface RunDiceResult {
   outcome: 'win' | 'loss' | 'push'
@@ -28,15 +35,30 @@ interface RunDiceGameProps {
 }
 
 export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGameProps) {
+  const { floorMinBet } = useSurvivalStore()
+  const minBet = mode === 'survival' ? floorMinBet : 1
+
   const [round, setRound] = useState<RunDiceState>(initRunDice(config))
+  const [currentBet, setCurrentBet] = useState(0)
 
   const winChance = useMemo(() => {
-    const total = round.config.win.reduce((sum, value) => sum + ({2:1,3:2,4:3,5:4,6:5,7:6,8:5,9:4,10:3,11:2,12:1}[value] ?? 0), 0)
+    const total = round.config.win.reduce((sum, v) => sum + (DICE_WEIGHT[v] ?? 0), 0)
     return total / 36
   }, [round.config.win])
 
-  function handlePlaceBet(amount: number) {
-    setRound(startRunDiceRound(amount, round.config))
+  const isBetting    = round.stage === 'betting'
+  const isInProgress = round.stage === 'inProgress'
+  const isSettled    = round.stage === 'settled'
+  const canStart     = currentBet >= minBet && currentBet <= bankroll
+
+  function addChip(value: number) {
+    setCurrentBet((prev) => Math.min(prev + value, bankroll))
+  }
+
+  function handleStart() {
+    if (!canStart) return
+    setRound(startRunDiceRound(currentBet, round.config))
+    setCurrentBet(0)
   }
 
   function handleRoll() {
@@ -54,82 +76,164 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
 
   function handleNewRound() {
     setRound(initRunDice(config))
+    setCurrentBet(0)
   }
 
+  function outcomeColor(val: number): string {
+    if (round.config.win.includes(val))     return 'bg-emerald-700/80 border-emerald-500 text-emerald-200'
+    if (round.config.loss.includes(val))    return 'bg-red-900/80 border-red-700 text-red-300'
+    return 'bg-white/10 border-white/20 text-white/50'
+  }
+
+  const lastRoll = round.rollResult
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Run Dice</CardTitle>
-          <CardDescription>{round.message}</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm uppercase text-muted-foreground">Bankroll</p>
-              <p className="font-semibold">{formatChips(bankroll)}</p>
+    <div className="rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ background: 'linear-gradient(160deg, #2a1500 0%, #1a0d00 100%)' }}>
+      {/* Status bar */}
+      <div className="px-4 py-2 bg-black/20 flex items-center justify-between text-xs text-white/50 border-b border-white/5">
+        <span className="font-semibold tracking-widest uppercase text-white/30">Run Dice</span>
+        <span>{round.message}</span>
+      </div>
+
+      {/* Game board */}
+      <div className="flex-1 p-4 md:p-6 relative">
+
+        {/* Dice result display */}
+        <div className="flex items-center justify-center mb-5 min-h-[100px]">
+          {lastRoll !== null ? (
+            <div className="text-center">
+              <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto shadow-2xl text-4xl font-black ${
+                round.config.win.includes(lastRoll)  ? 'bg-emerald-500 text-white' :
+                round.config.loss.includes(lastRoll) ? 'bg-red-600 text-white' :
+                'bg-white text-gray-900'
+              }`}>
+                {lastRoll}
+              </div>
+              <p className="text-white/40 text-xs mt-2">
+                {round.config.win.includes(lastRoll) ? 'Win roll' : round.config.loss.includes(lastRoll) ? 'Loss roll' : 'Neutral'}
+              </p>
             </div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm uppercase text-muted-foreground">Win chance</p>
-              <p className="font-semibold">{(winChance * 100).toFixed(1)}%</p>
+          ) : (
+            <div className="w-20 h-20 rounded-2xl border-2 border-white/20 bg-white/5 flex items-center justify-center">
+              <span className="text-4xl text-white/20">?</span>
             </div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm uppercase text-muted-foreground">Payout</p>
-              <p className="font-semibold">{formatMultiplier(round.payoutMultiplier)}</p>
-            </div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm uppercase text-muted-foreground">Neutral rolls</p>
-              <p className="font-semibold">{round.rollCount}/3</p>
+          )}
+        </div>
+
+        {/* Dice value grid (2–12) */}
+        <div>
+          <p className="text-white/30 text-xs uppercase tracking-wider mb-2">Outcome map</p>
+          <div className="grid grid-cols-11 gap-1">
+            {Array.from({ length: 11 }, (_, i) => i + 2).map((val) => (
+              <div key={val} className={`rounded-md border px-1 py-2 text-center text-xs font-bold transition-all ${outcomeColor(val)} ${
+                lastRoll === val ? 'ring-2 ring-yellow-400 scale-110 shadow-lg' : ''
+              }`}>
+                <p className="text-[10px] leading-none opacity-60 mb-0.5">{val}</p>
+                <p className="leading-none">
+                  {round.config.win.includes(val) ? 'W' : round.config.loss.includes(val) ? 'L' : 'N'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="bg-white/5 rounded-lg p-3 text-center">
+            <p className="text-white/40 text-xs mb-1">Win chance</p>
+            <p className="text-white font-semibold text-sm">{(winChance * 100).toFixed(1)}%</p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3 text-center">
+            <p className="text-white/40 text-xs mb-1">Payout</p>
+            <p className="text-white font-semibold text-sm">{formatMultiplier(round.payoutMultiplier)}</p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3 text-center">
+            <p className="text-white/40 text-xs mb-1">Rolls</p>
+            <p className="text-white font-semibold text-sm">{round.rollCount} / 3</p>
+          </div>
+        </div>
+
+        {/* Result overlay */}
+        {isSettled && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/65">
+            <div className="text-center">
+              <p className={`text-4xl font-black ${
+                round.outcome === 'win' ? 'text-yellow-400' :
+                round.outcome === 'push' ? 'text-white' : 'text-red-400'
+              }`}>
+                {round.outcome === 'win' ? 'WIN' : round.outcome === 'push' ? 'PUSH' : 'LOSS'}
+              </p>
+              <p className="text-white/60 mt-1 text-sm">
+                {round.outcome === 'win'
+                  ? `+${formatChips(getRunDicePayout(round))}`
+                  : round.outcome === 'push'
+                  ? `${formatChips(round.betAmount)} returned`
+                  : `-${formatChips(round.betAmount)}`}
+              </p>
             </div>
           </div>
+        )}
+      </div>
 
-          <div className="space-y-3">
-            <div className="rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground">
-              <p className="font-semibold">Run Dice Config</p>
-              <p className="mt-2">Win: {round.config.win.join(', ')}</p>
-              <p>Loss: {round.config.loss.join(', ')}</p>
-              <p>Neutral: {round.config.neutral.join(', ')}</p>
-            </div>
+      {/* ── Control zone ── */}
+      <div className="border-t border-white/10 bg-black/30 p-4">
+
+        {/* BETTING */}
+        <div style={{ opacity: isBetting ? 1 : 0, pointerEvents: isBetting ? 'auto' : 'none', maxHeight: isBetting ? '160px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+          <div className="flex gap-2 flex-wrap justify-center mb-3">
+            {CHIPS.map((chip) => (
+              <button key={chip.value} onClick={() => addChip(chip.value)} disabled={chip.value > bankroll - currentBet}
+                className={`w-14 h-14 rounded-full ${chip.bg} ${chip.border} border-2 text-white font-bold text-xs shadow-lg transition-transform active:scale-90 disabled:opacity-25 disabled:cursor-not-allowed`}>
+                {chip.label}
+              </button>
+            ))}
+            <button
+              onClick={() => setCurrentBet(bankroll)}
+              disabled={currentBet >= bankroll || bankroll <= 0}
+              className="h-14 px-3 rounded-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 border-2 border-amber-300 text-black font-bold text-xs shadow-lg transition-transform active:scale-90 disabled:opacity-25 disabled:cursor-not-allowed"
+            >
+              All In
+            </button>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-white">
+              <span className="text-white/50 text-sm">Bet</span>
+              <span className="font-bold text-lg">{currentBet > 0 ? formatChips(currentBet) : '—'}</span>
+              {currentBet > 0 && <button onClick={() => setCurrentBet(0)} className="text-white/35 text-xs hover:text-white/70 ml-1 transition-colors">✕ Clear</button>}
+            </div>
+            <button onClick={handleStart} disabled={!canStart}
+              className="px-5 py-2 bg-yellow-500 hover:bg-yellow-400 disabled:bg-white/10 disabled:text-white/25 text-black font-bold rounded-lg text-sm shadow-lg transition-all">
+              Roll →
+            </button>
+          </div>
+          {minBet > 1 && <p className="text-white/25 text-xs mt-1">Min bet: {formatChips(minBet)}</p>}
+        </div>
 
-      {round.stage === 'betting' ? (
-        <BetPanel mode={mode} freeplayBankroll={bankroll} onBet={handlePlaceBet} />
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Roll Result</CardTitle>
-            <CardDescription>
-              {round.rollResult !== null ? `Rolled a ${round.rollResult}.` : 'Press roll to begin.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
-                <p className="text-muted-foreground">Outcome</p>
-                <p className="font-semibold capitalize">{round.outcome ?? 'Pending'}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
-                <p className="text-muted-foreground">Payout</p>
-                <p className="font-semibold">{formatChips(getRunDicePayout(round))}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm">
-                <p className="text-muted-foreground">Rolls used</p>
-                <p className="font-semibold">{round.rollCount}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={handleRoll} disabled={round.stage === 'settled'}>
-                {round.stage === 'settled' ? 'Resolved' : 'Roll'}
-              </Button>
-              <Button variant="outline" onClick={handleNewRound}>
-                New Round
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        {/* IN PROGRESS */}
+        <div style={{ opacity: isInProgress ? 1 : 0, pointerEvents: isInProgress ? 'auto' : 'none', maxHeight: isInProgress ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-white/50 text-sm">
+              Bet <span className="text-white font-semibold">{formatChips(round.betAmount)}</span>
+              <span className="text-white/30 mx-2">·</span>
+              <span className="text-white/50">{round.rollCount}/3 rolls used</span>
+            </span>
+            <button onClick={handleRoll} disabled={isSettled}
+              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold rounded-lg text-sm transition-colors shadow-lg">
+              Roll
+            </button>
+          </div>
+        </div>
+
+        {/* SETTLED */}
+        <div style={{ opacity: isSettled ? 1 : 0, pointerEvents: isSettled ? 'auto' : 'none', maxHeight: isSettled ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+          <div className="flex justify-center">
+            <button onClick={handleNewRound} className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg text-sm shadow-lg transition-colors">
+              New Round →
+            </button>
+          </div>
+        </div>
+
+      </div>
     </div>
   )
 }

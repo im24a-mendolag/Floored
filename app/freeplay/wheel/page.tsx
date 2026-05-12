@@ -1,16 +1,16 @@
 'use client'
 
-import { DiceGame } from '@/components/dice-game'
+import { WheelGame } from '@/components/wheel-game'
 import { BankruptModal } from '@/components/bankrupt-modal'
 import { useFreeplayStore } from '@/store/freeplay-store'
 
-export default function FreeplayDicePage() {
+export default function FreeplayWheelPage() {
   const bankroll = useFreeplayStore((s) => s.bankroll)
   const setBankroll = useFreeplayStore((s) => s.setBankroll)
   const reset = useFreeplayStore((s) => s.reset)
 
   function handleResolve(result: {
-    outcome: 'win' | 'loss' | 'push'
+    outcome: 'win' | 'loss'
     betAmount: number
     payout: number
     multiplier: number
@@ -21,12 +21,12 @@ export default function FreeplayDicePage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Dice</h1>
+        <h1 className="text-2xl font-bold">Wheel</h1>
         <p className="text-muted-foreground text-sm mt-0.5">Freeplay — no floors, no pressure.</p>
       </div>
 
       {bankroll <= 0 && <BankruptModal onReset={reset} />}
-      <DiceGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
+      <WheelGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
     </div>
   )
 }

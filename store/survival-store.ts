@@ -95,6 +95,8 @@ export const useSurvivalStore = create<SurvivalStore>()(
             peakBankroll: Math.max(s.peakBankroll, newBankroll),
           }
         }),
+
+      resetJackpotMeter: () => set({ jackpotMeter: 0 }),
     }),
     { name: 'floored-survival' }
   )

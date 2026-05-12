@@ -7,7 +7,7 @@ export type GameName =
   | 'crash'
   | 'plinko'
   | 'hilo'
-  | 'dice'
+  | 'wheel'
   | 'run-dice'
   | 'mines'
   | 'chicken-road'
@@ -71,6 +71,7 @@ export interface SurvivalStore {
   endRun: () => void
   advanceFloor: () => void
   recordResult: (result: GameResult) => void
+  resetJackpotMeter: () => void
 }
 
 export interface FreeplayStore {

@@ -18,7 +18,7 @@ export function FloorPanel() {
 
         <div className="flex flex-col">
           <span className="text-xs text-muted-foreground uppercase tracking-wider">Min Bet</span>
-          <span className="text-xl font-semibold text-yellow-400">
+          <span className="text-xl font-semibold text-foreground">
             {formatChips(floorMinBet)}
           </span>
         </div>
@@ -32,7 +32,7 @@ export function FloorPanel() {
               <div
                 key={i}
                 className={`w-4 h-4 rounded-sm ${
-                  i < slotsRemaining ? 'bg-emerald-500' : 'bg-muted'
+                  i < slotsRemaining ? 'bg-foreground' : 'bg-muted'
                 }`}
               />
             ))}

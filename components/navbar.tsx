@@ -1,47 +1,81 @@
 'use client'
 
 import Link from 'next/link'
-import { useSurvivalStore } from '@/store/survival-store'
+import { usePathname } from 'next/navigation'
+import { useFreeplayStore } from '@/store/freeplay-store'
 import { formatChips } from '@/utils/format'
-import { Badge } from '@/components/ui/badge'
 
 export function Navbar() {
-  const { bankroll, sparks, streak, jackpotMeter, currentFloor, runActive } =
-    useSurvivalStore()
+  const pathname = usePathname()
+  const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
+
+  const inFreeplay = pathname?.startsWith('/freeplay')
 
   return (
-    <nav className="border-b border-border bg-card px-4 py-3 flex items-center justify-between">
-      <Link href="/" className="text-xl font-bold tracking-tight">
-        FLOORED
-      </Link>
+    <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur-md">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
 
-      {runActive ? (
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-muted-foreground">Floor</span>
-          <Badge variant="outline">{currentFloor}</Badge>
+          {/* ── Left: brand + nav links ── */}
+          <div className="flex items-center gap-4">
+            <Link href="/" className="text-lg font-black tracking-[0.2em] uppercase text-white hover:text-white/80 transition-colors">
+              FLOORED
+            </Link>
 
-          <span className="text-muted-foreground">Bankroll</span>
-          <span className="font-mono font-semibold text-emerald-400">
-            {formatChips(bankroll)}
-          </span>
+            <div className="hidden sm:flex items-center gap-1">
+              {/* Survival — disabled until ready */}
+              <span
+                title="Coming soon"
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white/20 cursor-not-allowed select-none"
+              >
+                Survival
+              </span>
 
-          <span className="text-muted-foreground">Sparks</span>
-          <span className="font-mono text-yellow-400">{sparks}</span>
-
-          <span className="text-muted-foreground">Streak</span>
-          <span className="font-mono text-orange-400">{streak}</span>
-
-          <span className="text-muted-foreground">Jackpot</span>
-          <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-purple-500 transition-all duration-300"
-              style={{ width: `${jackpotMeter}%` }}
-            />
+              <Link
+                href="/freeplay"
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  inFreeplay
+                    ? 'bg-white/15 text-white'
+                    : 'text-white/60 hover:text-white hover:bg-white/8'
+                }`}
+              >
+                Freeplay
+              </Link>
+            </div>
           </div>
+
+          {/* ── Right: bankroll chip ── */}
+          {inFreeplay && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+              <div className="text-right">
+                <p className="text-white/40 text-[10px] uppercase tracking-wider leading-none mb-0.5">
+                  Freeplay
+                </p>
+                <p className="text-white font-bold text-sm leading-none tabular-nums">
+                  {formatChips(freeplayBankroll)}
+                </p>
+              </div>
+              <div className="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50 flex-shrink-0" />
+            </div>
+          )}
+
         </div>
-      ) : (
-        <span className="text-muted-foreground text-sm">No active run</span>
-      )}
+
+        {/* Mobile nav strip */}
+        <div className="sm:hidden flex gap-1 pb-2">
+          <span className="flex-1 text-center py-1.5 rounded-lg text-sm font-medium text-white/20 cursor-not-allowed select-none">
+            Survival
+          </span>
+          <Link
+            href="/freeplay"
+            className={`flex-1 text-center py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              inFreeplay ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white/80'
+            }`}
+          >
+            Freeplay
+          </Link>
+        </div>
+      </div>
     </nav>
   )
 }

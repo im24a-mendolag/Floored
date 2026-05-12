@@ -31,8 +31,8 @@ export default function SurvivalDicePage() {
   }) {
     const shouldAdvance = slotsUsed >= 2
     recordResult({
-      id: `dice-${Date.now()}`,
-      game: 'dice',
+      id: `wheel-${Date.now()}`,
+      game: 'wheel',
       floor: currentFloor,
       betAmount: result.betAmount,
       payout: result.payout,

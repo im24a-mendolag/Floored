@@ -26,7 +26,10 @@
       "Bash(awk '{print $2}')",
       "Bash(xargs wc -l)",
       "Bash(git check-ignore *)",
-      "Bash(xargs -0 wc -l)"
+      "Bash(xargs -0 wc -l)",
+      "Bash(xargs cat *)",
+      "Bash(python3 *)",
+      "Bash(npx tsc *)"
     ]
   }
 }
