@@ -137,6 +137,7 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
   const [lastBet, setLastBet] = useState(0)
   const [showResult, setShowResult] = useState(false)
   const [dealerDisplayHand, setDealerDisplayHand] = useState<BlackjackCard[] | null>(null)
+  const [settling, setSettling] = useState(false)
   const cancelDealerAnim = useRef<(() => void) | null>(null)
 
   const displayedDealerHand = dealerDisplayHand ?? round.dealerHand
@@ -156,9 +157,10 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
     return () => clearTimeout(t)
   }, [displayedDealerHand.length])
 
-  const isBetting    = round.stage === 'betting'
-  const isInProgress = round.stage === 'inProgress'
-  const canDouble    = round.canDouble && round.betAmount * 2 <= bankroll
+  const isBetting     = round.stage === 'betting'
+  const isInProgress  = round.stage === 'inProgress'
+  const playerCanAct  = isInProgress && !settling
+  const canDouble     = round.canDouble && round.betAmount * 2 <= bankroll
   const canDeal      = currentBet >= minBet && currentBet <= bankroll
 
   function addChip(value: number) {
@@ -210,7 +212,24 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
 
   function handleHit() {
     const next = hitBlackjack(round)
-    if (next.stage === 'settled') { settleRound(next); return }
+    if (next.stage === 'settled') {
+      // Show the busting card first; keep round.stage='inProgress' so the
+      // dealer hole card stays hidden until the deal animation finishes.
+      setSettling(true)
+      setRound(prev => ({
+        ...prev,
+        playerHand: next.playerHand,
+        deck: next.deck,
+        canDouble: false,
+        message: next.message,
+      }))
+      const t = setTimeout(() => {
+        setSettling(false)
+        settleRound(next)
+      }, 600)
+      cancelDealerAnim.current = () => clearTimeout(t)
+      return
+    }
     setRound(next)
   }
 
@@ -247,6 +266,7 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
     setRound(initBlackjack())
     setCurrentBet(Math.min(lastBet, bankroll))
     setShowResult(false)
+    setSettling(false)
     setPlayerVisibleLen(0)
     setDealerVisibleLen(0)
   }
@@ -420,9 +440,9 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
         {/* IN PROGRESS */}
         <div
           style={{
-            opacity: isInProgress ? 1 : 0,
-            pointerEvents: isInProgress ? 'auto' : 'none',
-            maxHeight: isInProgress ? '100px' : '0',
+            opacity: playerCanAct ? 1 : 0,
+            pointerEvents: playerCanAct ? 'auto' : 'none',
+            maxHeight: playerCanAct ? '100px' : '0',
             overflow: 'hidden',
             transition: 'opacity 250ms ease, max-height 300ms ease',
           }}
