@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { Slider } from '@/components/ui/slider'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import {
@@ -39,12 +40,14 @@ interface DiceGameProps {
 
 export function DiceGame({ mode, bankroll, onResolve }: DiceGameProps) {
   const { floorMinBet } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [threshold, setThreshold] = useState(7)
   const [side, setSide] = useState<DiceSide>('under')
   const [round, setRound] = useState(initDice())
   const [currentBet, setCurrentBet] = useState(0)
+  const [lastBet, setLastBet] = useState(0)
 
   const chance     = useMemo(() => getWinProbability(threshold, side), [threshold, side])
   const pushChance = useMemo(() => getPushProbability(threshold), [threshold])
@@ -61,6 +64,7 @@ export function DiceGame({ mode, bankroll, onResolve }: DiceGameProps) {
 
   function handleStart() {
     if (!canStart) return
+    setLastBet(currentBet)
     setRound(startDiceRound(currentBet, threshold, side))
     setCurrentBet(0)
   }
@@ -80,7 +84,7 @@ export function DiceGame({ mode, bankroll, onResolve }: DiceGameProps) {
 
   function handleNewRound() {
     setRound(initDice())
-    setCurrentBet(0)
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }
 
   const resultPayout = isSettled

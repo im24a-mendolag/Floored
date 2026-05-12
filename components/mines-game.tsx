@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import { cashOutMines, getMinesPayout, initMines, revealMineTile, startMinesRound } from '@/games/mines/engine'
 import type { MinesState } from '@/games/mines/types'
@@ -33,11 +34,13 @@ interface MinesGameProps {
 
 export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
   const { floorMinBet } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [difficulty, setDifficulty] = useState<MinesState['difficulty']>('easy')
   const [round, setRound] = useState<MinesState>(initMines())
   const [currentBet, setCurrentBet] = useState(0)
+  const [lastBet, setLastBet] = useState(0)
 
   const payout    = useMemo(() => getMinesPayout(round), [round])
   const safeCount = useMemo(() => round.remainingSafe, [round.remainingSafe])
@@ -53,6 +56,7 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
 
   function handleStart() {
     if (!canStart) return
+    setLastBet(currentBet)
     setRound(startMinesRound(currentBet, difficulty))
     setCurrentBet(0)
   }
@@ -84,7 +88,7 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
 
   function handleNewRound() {
     setRound(initMines())
-    setCurrentBet(0)
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }
 
   return (

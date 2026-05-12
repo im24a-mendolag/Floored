@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { formatChips } from '@/utils/format'
 import { getSlotsResultPayout, initSlots, PAYTABLE, spinSlots } from '@/games/slots/engine'
 import type { SlotsState, SlotsSymbol } from '@/games/slots/types'
@@ -80,11 +81,13 @@ function Reel({ symbol, spinning, landed }: { symbol: SlotsSymbol | null; spinni
 
 export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
   const { floorMinBet, jackpotMeter, runActive, resetJackpotMeter } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
   const jackpotReady = mode === 'survival' && runActive && jackpotMeter >= 100
 
   const [round, setRound] = useState<SlotsState>(initSlots())
   const [currentBet, setCurrentBet] = useState(0)
+  const [lastBet, setLastBet] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [landed, setLanded] = useState(false)
   const spinTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -104,6 +107,7 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
   function handleSpin() {
     if (!canSpin || spinning) return
 
+    setLastBet(currentBet)
     setSpinning(true)
     setLanded(false)
 
@@ -134,6 +138,7 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
   function handleNewRound() {
     setRound(initSlots())
     setLanded(false)
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }
 
   const resultPayout = getSlotsResultPayout(round)

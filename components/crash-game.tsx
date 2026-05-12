@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import { computeMultiplier, getCrashPayout, initCrash, startCrashRound } from '@/games/crash/engine'
 import type { CrashState } from '@/games/crash/types'
@@ -137,6 +138,7 @@ function CrashCurve({
 
 export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
   const { floorMinBet } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound]         = useState<CrashState>(initCrash())
@@ -213,7 +215,7 @@ export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
 
   function handleNewRound() {
     setRound(initCrash())
-    setCurrentBet(Math.min(lastBet, bankroll))
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
     setElapsedMs(0)
     setShowResult(false)
   }

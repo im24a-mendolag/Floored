@@ -3,11 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useFreeplayStore } from '@/store/freeplay-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { formatChips } from '@/utils/format'
 
 export function Navbar() {
   const pathname = usePathname()
   const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
+  const { autoReBet, setAutoReBet } = useSettingsStore()
 
   const inFreeplay = pathname?.startsWith('/freeplay')
 
@@ -44,20 +46,36 @@ export function Navbar() {
             </div>
           </div>
 
-          {/* ── Right: bankroll chip ── */}
-          {inFreeplay && (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
-              <div className="text-right">
-                <p className="text-white/40 text-[10px] uppercase tracking-wider leading-none mb-0.5">
-                  Freeplay
-                </p>
-                <p className="text-white font-bold text-sm leading-none tabular-nums">
-                  {formatChips(freeplayBankroll)}
-                </p>
+          {/* ── Right: settings + bankroll ── */}
+          <div className="flex items-center gap-3">
+
+            {/* Auto Re-bet toggle */}
+            <button
+              onClick={() => setAutoReBet(!autoReBet)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              title={autoReBet ? 'Auto Re-bet: ON' : 'Auto Re-bet: OFF'}
+            >
+              <span className="text-white/50 text-[10px] uppercase tracking-wider leading-none">Re-bet</span>
+              <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${autoReBet ? 'bg-emerald-500' : 'bg-white/20'}`}>
+                <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${autoReBet ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
               </div>
-              <div className="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50 flex-shrink-0" />
-            </div>
-          )}
+            </button>
+
+            {/* Freeplay bankroll chip */}
+            {inFreeplay && (
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+                <div className="text-right">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wider leading-none mb-0.5">
+                    Freeplay
+                  </p>
+                  <p className="text-white font-bold text-sm leading-none tabular-nums">
+                    {formatChips(freeplayBankroll)}
+                  </p>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50 flex-shrink-0" />
+              </div>
+            )}
+          </div>
 
         </div>
 

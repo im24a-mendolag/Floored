@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { Slider } from '@/components/ui/slider'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import { getHiloPayout, initHilo, resolveHiloRound, startHiloRound } from '@/games/hilo/engine'
@@ -29,11 +30,13 @@ interface HiloGameProps {
 
 export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
   const { floorMinBet } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [safeZone, setSafeZone] = useState(40)
   const [round, setRound] = useState<HiloState>(initHilo())
   const [currentBet, setCurrentBet] = useState(0)
+  const [lastBet, setLastBet] = useState(0)
 
   const payout      = useMemo(() => getHiloPayout(round), [round])
   const winChance   = useMemo(() => round.safeZone, [round.safeZone])
@@ -50,6 +53,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
 
   function handleStart() {
     if (!canStart) return
+    setLastBet(currentBet)
     setRound(startHiloRound(currentBet, safeZone))
     setCurrentBet(0)
   }
@@ -69,7 +73,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
 
   function handleNewRound() {
     setRound(initHilo())
-    setCurrentBet(0)
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }
 
   // The zone percentage to display in the bar

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { formatChips } from '@/utils/format'
 import {
   getTargetRotation,
@@ -44,10 +45,12 @@ interface WheelGameProps {
 
 export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
   const { floorMinBet } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<WheelState>(initWheel())
   const [currentBet, setCurrentBet] = useState(0)
+  const [lastBet, setLastBet] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [wheelRotation, setWheelRotation] = useState(0)
 
@@ -71,6 +74,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
   function handleSpin() {
     if (!canSpin || spinning) return
 
+    setLastBet(currentBet)
     setSpinning(true)
 
     // Calculate result synchronously
@@ -97,6 +101,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
     const newState = initWheel()
     newState.betColor = selectedColor // keep last selected color
     setRound(newState)
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }
 
   const resultPayout = getWheelPayout(round)

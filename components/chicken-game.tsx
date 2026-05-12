@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import {
   cashOutChicken,
@@ -36,10 +37,12 @@ interface ChickenGameProps {
 
 export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
   const { floorMinBet } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<ChickenState>(initChicken())
   const [currentBet, setCurrentBet] = useState(0)
+  const [lastBet, setLastBet] = useState(0)
 
   const isBetting    = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
@@ -52,6 +55,7 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
 
   function handleStart() {
     if (!canStart) return
+    setLastBet(currentBet)
     setRound(startChickenRound(currentBet))
     setCurrentBet(0)
   }
@@ -82,7 +86,7 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
 
   function handleNewRound() {
     setRound(initChicken())
-    setCurrentBet(0)
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }
 
   const currentStep = round.step

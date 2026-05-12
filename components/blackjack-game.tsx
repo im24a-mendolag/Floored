@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { formatChips } from '@/utils/format'
 import type { BlackjackCard, BlackjackOutcome, BlackjackState } from '@/games/blackjack/types'
 import {
@@ -130,6 +131,7 @@ function CardBack() {
 
 export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps) {
   const { floorMinBet } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<BlackjackState>(initBlackjack())
@@ -264,7 +266,7 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
     cancelDealerAnim.current = null
     setDealerDisplayHand(null)
     setRound(initBlackjack())
-    setCurrentBet(Math.min(lastBet, bankroll))
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
     setShowResult(false)
     setSettling(false)
     setPlayerVisibleLen(0)

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import {
   getRunDicePayout,
@@ -36,10 +37,12 @@ interface RunDiceGameProps {
 
 export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGameProps) {
   const { floorMinBet } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<RunDiceState>(initRunDice(config))
   const [currentBet, setCurrentBet] = useState(0)
+  const [lastBet, setLastBet] = useState(0)
 
   const winChance = useMemo(() => {
     const total = round.config.win.reduce((sum, v) => sum + (DICE_WEIGHT[v] ?? 0), 0)
@@ -57,6 +60,7 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
 
   function handleStart() {
     if (!canStart) return
+    setLastBet(currentBet)
     setRound(startRunDiceRound(currentBet, round.config))
     setCurrentBet(0)
   }
@@ -76,7 +80,7 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
 
   function handleNewRound() {
     setRound(initRunDice(config))
-    setCurrentBet(0)
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }
 
   function outcomeColor(val: number): string {

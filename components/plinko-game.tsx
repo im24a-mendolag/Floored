@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import { formatChips } from '@/utils/format'
 import { getSlotMultipliers, getPlinkoPayout, initPlinko, resolvePlinkoRound, startPlinkoRound } from '@/games/plinko/engine'
 import type { PlinkoState } from '@/games/plinko/types'
@@ -35,10 +36,12 @@ function slotColor(multiplier: number): string {
 
 export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
   const { floorMinBet } = useSurvivalStore()
+  const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<PlinkoState>(initPlinko())
   const [currentBet, setCurrentBet] = useState(0)
+  const [lastBet, setLastBet] = useState(0)
   const slots = useMemo(() => getSlotMultipliers(), [])
 
   const isBetting    = round.stage === 'betting'
@@ -52,6 +55,7 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
 
   function handleStart() {
     if (!canStart) return
+    setLastBet(currentBet)
     setRound(startPlinkoRound(currentBet))
     setCurrentBet(0)
   }
@@ -71,7 +75,7 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
 
   function handleNewRound() {
     setRound(initPlinko())
-    setCurrentBet(0)
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }
 
   return (
