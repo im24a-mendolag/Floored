@@ -92,7 +92,6 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
   const [landed, setLanded] = useState(false)
   const spinTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const _isBetting = round.stage === 'betting' && !spinning
   const isSettled = round.stage === 'settled' && !spinning
   const canSpin   = currentBet >= minBet && currentBet <= bankroll
 
@@ -142,7 +141,6 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
   }
 
   const resultPayout = getSlotsResultPayout(round)
-  const _isWin = isSettled && round.outcome === 'win'
   const isJackpot = isSettled && round.isJackpotSpin
 
   return (
