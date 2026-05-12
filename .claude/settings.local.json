@@ -38,7 +38,9 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(pnpm run *)",
-      "Bash(pnpm exec *)"
+      "Bash(pnpm exec *)",
+      "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\anmel\\\\GithubRepos\\\\Floored\\\\.next\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Done\")"
     ]
   }
 }
