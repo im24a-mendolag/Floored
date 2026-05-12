@@ -7,27 +7,24 @@ import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips } from '@/utils/format'
 
 export default function SurvivalCrashPage() {
-  const router = useRouter()
-  const runActive = useSurvivalStore((s) => s.runActive)
-  const bankroll = useSurvivalStore((s) => s.bankroll)
-  const slotsUsed = useSurvivalStore((s) => s.slotsUsed)
+  const router       = useRouter()
+  const runActive    = useSurvivalStore((s) => s.runActive)
+  const bankroll     = useSurvivalStore((s) => s.bankroll)
+  const slotsUsed    = useSurvivalStore((s) => s.slotsUsed)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
-  const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
+  const floorMinBet  = useSurvivalStore((s) => s.floorMinBet)
   const recordResult = useSurvivalStore((s) => s.recordResult)
   const advanceFloor = useSurvivalStore((s) => s.advanceFloor)
-  const endRun = useSurvivalStore((s) => s.endRun)
+  const endRun       = useSurvivalStore((s) => s.endRun)
 
   useEffect(() => {
-    if (!runActive) {
-      router.replace('/survival')
-    }
+    if (!runActive) router.replace('/survival')
   }, [runActive, router])
 
   if (!runActive) return null
 
   function handleResolve(result: { outcome: 'win' | 'loss'; betAmount: number; payout: number; multiplier: number }) {
     const shouldAdvance = slotsUsed >= 2
-
     recordResult({
       id: `crash-${Date.now()}`,
       game: 'crash',
@@ -38,39 +35,27 @@ export default function SurvivalCrashPage() {
       multiplier: result.multiplier,
       playedAt: new Date(),
     })
-
-    if (shouldAdvance) {
-      advanceFloor()
-    }
-
+    if (shouldAdvance) advanceFloor()
     const nextBankroll = bankroll - result.betAmount + result.payout
-    if (nextBankroll <= 0) {
-      endRun()
-    }
+    if (nextBankroll <= 0) endRun()
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col flex-1 min-h-0 gap-3">
+      <div className="shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Crash</h1>
-          <p className="text-muted-foreground mt-1">Survival mode Crash game. Cash out before the crash to stay alive.</p>
+          <h1 className="text-xl font-bold">Crash</h1>
+          <p className="text-muted-foreground text-xs mt-0.5">Cash out before the crash hits.</p>
         </div>
-
-        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          <div className="mb-1">Floor {currentFloor}</div>
-          <div className="mb-1">Min bet {formatChips(floorMinBet)}</div>
-          <div>Slots used {slotsUsed}/3</div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>Floor {currentFloor}</span>
+          <span className="text-zinc-700">·</span>
+          <span>Min {formatChips(floorMinBet)}</span>
+          <span className="text-zinc-700">·</span>
+          <span>{slotsUsed}/3 slots</span>
         </div>
       </div>
-
-      {bankroll > 0 ? (
-        <CrashGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
-      ) : (
-        <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-          Your survival bankroll is empty. Return to the lobby to end the run or choose another game.
-        </div>
-      )}
+      <CrashGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
     </div>
   )
 }
