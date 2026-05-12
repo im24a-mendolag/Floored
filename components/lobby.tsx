@@ -33,7 +33,7 @@ const GAMES: GameEntry[] = [
     name: 'plinko',
     label: 'Plinko',
     sub: 'Drop the puck',
-    available: true,
+    available: false,
     gradient: 'from-sky-950 to-blue-950',
     accent: 'border-sky-700 hover:border-sky-500',
   },
@@ -41,7 +41,7 @@ const GAMES: GameEntry[] = [
     name: 'hilo',
     label: 'Hi-Lo',
     sub: 'Pick your safe zone',
-    available: true,
+    available: false,
     gradient: 'from-teal-950 to-cyan-950',
     accent: 'border-teal-700 hover:border-teal-500',
   },
@@ -49,7 +49,7 @@ const GAMES: GameEntry[] = [
     name: 'wheel',
     label: 'Wheel',
     sub: '2× to 5× — pick your color',
-    available: true,
+    available: false,
     gradient: 'from-rose-950 to-red-950',
     accent: 'border-rose-700 hover:border-rose-500',
   },
@@ -57,7 +57,7 @@ const GAMES: GameEntry[] = [
     name: 'run-dice',
     label: 'Run Dice',
     sub: 'Roll to survive',
-    available: true,
+    available: false,
     gradient: 'from-orange-950 to-amber-950',
     accent: 'border-orange-700 hover:border-orange-500',
   },
@@ -65,7 +65,7 @@ const GAMES: GameEntry[] = [
     name: 'mines',
     label: 'Mines',
     sub: 'Find the safe tiles',
-    available: true,
+    available: false,
     gradient: 'from-lime-950 to-green-950',
     accent: 'border-lime-700 hover:border-lime-500',
   },
@@ -73,7 +73,7 @@ const GAMES: GameEntry[] = [
     name: 'chicken-road',
     label: 'Chicken Road',
     sub: 'Cross without getting hit',
-    available: true,
+    available: false,
     gradient: 'from-yellow-950 to-amber-950',
     accent: 'border-yellow-700 hover:border-yellow-500',
   },
@@ -81,7 +81,7 @@ const GAMES: GameEntry[] = [
     name: 'slots',
     label: 'Slots',
     sub: '3 reels · jackpot meter',
-    available: true,
+    available: false,
     gradient: 'from-violet-950 to-purple-950',
     accent: 'border-violet-700 hover:border-violet-400',
   },
@@ -115,7 +115,7 @@ export function Lobby({ mode }: Props) {
               g.accent,
               g.available
                 ? 'cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group'
-                : 'opacity-40 cursor-not-allowed',
+                : 'cursor-default',
             ].join(' ')}
           >
             {/* Felt texture overlay */}
@@ -132,10 +132,22 @@ export function Lobby({ mode }: Props) {
                 <p className="text-white/40 text-xs mt-1">{g.sub}</p>
               </div>
 
-              {g.available && (
-                <div className="flex items-center gap-1 text-white/30 text-xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                  Play now
+              {g.available ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
+                    <svg viewBox="0 0 10 10" className="w-3 h-3 fill-white translate-x-px" aria-hidden>
+                      <polygon points="2,1 9,5 2,9" />
+                    </svg>
+                  </div>
+                  <span className="text-white/50 text-xs font-medium group-hover:text-white/80 transition-colors">Play now</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-white/20 text-xs">
+                  <svg viewBox="0 0 12 12" className="w-3 h-3 fill-white/20" aria-hidden>
+                    <rect x="2" y="5" width="8" height="6" rx="1" />
+                    <path d="M4 5V3.5a2 2 0 0 1 4 0V5" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                  </svg>
+                  Coming soon
                 </div>
               )}
             </div>
