@@ -1,21 +1,58 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
-import { formatChips } from '@/utils/format'
-import { getSlotMultipliers, getPlinkoPayout, initPlinko, resolvePlinkoRound, startPlinkoRound } from '@/games/plinko/engine'
-import type { PlinkoState } from '@/games/plinko/types'
+import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
+import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
+import { formatChips, formatMultiplier } from '@/utils/format'
+import { PLINKO_ROWS, computePlinkoPayout, generatePlinkoPath, getSlotMultipliers } from '@/games/plinko/engine'
+import {
+  BOARD_MARGIN,
+  SLOT_BAND_HEIGHT,
+  SLOT_RECT_Y,
+  SLOT_WIDTH,
+  VIEWBOX_HEIGHT,
+  VIEWBOX_WIDTH,
+  getBallCenterY,
+  getBallX,
+  getPinX,
+  getPinY,
+  slotRectX,
+} from '@/games/plinko/board-geometry'
+import type { PlinkoOutcome } from '@/games/plinko/types'
 
 const CHIPS = [
-  { value: 10,  label: '$10',  bg: 'bg-red-600 hover:bg-red-500',        border: 'border-red-300' },
-  { value: 25,  label: '$25',  bg: 'bg-emerald-600 hover:bg-emerald-500', border: 'border-emerald-300' },
-  { value: 100, label: '$100', bg: 'bg-blue-600 hover:bg-blue-500',       border: 'border-blue-300' },
-  { value: 500, label: '$500', bg: 'bg-zinc-700 hover:bg-zinc-600',       border: 'border-zinc-400' },
-]
+  { value: 10, label: '$10', cls: 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200' },
+  { value: 25, label: '$25', cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
+  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
+  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
+] as const
+
+const STAGGER_MS = 100
+const STEP_MS = 130
+/** One ball per drop — spam Drop for rapid low-stake plays. */
+const BALLS_PER_DROP = 1
+const PIN_R = 4
+const BALL_R = 9
+
+interface PlinkoBall {
+  id: string
+  path: number[]
+  ballIndex: number
+  currentStep: number
+}
+
+interface PlinkoSession {
+  id: string
+  betAmount: number
+  ballCount: number
+  balls: PlinkoBall[]
+  startedAt: number
+}
 
 interface PlinkoResult {
-  outcome: 'win' | 'loss' | 'push'
+  outcome: PlinkoOutcome
   betAmount: number
   payout: number
   multiplier: number
@@ -27,196 +64,391 @@ interface PlinkoGameProps {
   onResolve: (result: PlinkoResult) => void
 }
 
-function slotColor(multiplier: number): string {
-  if (multiplier === 0)   return 'bg-red-900/80 border-red-700 text-red-300'
-  if (multiplier >= 5)    return 'bg-yellow-600/80 border-yellow-400 text-yellow-200'
-  if (multiplier >= 2)    return 'bg-emerald-700/80 border-emerald-500 text-emerald-200'
-  return 'bg-white/10 border-white/20 text-white/70'
+function formatSlotMult(m: number): string {
+  if (Number.isInteger(m)) return `${m}x`
+  return `${m}x`
+}
+
+function maxEndMs(ballCount: number) {
+  return (ballCount - 1) * STAGGER_MS + PLINKO_ROWS * STEP_MS
 }
 
 export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
+  const uid = useId().replace(/:/g, '')
+  const slotGradId = `plinko-slot-${uid}`
+  const ballGlowId = `plinko-ball-${uid}`
+
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
-  const [round, setRound] = useState<PlinkoState>(initPlinko())
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
+  const [sessions, setSessions] = useState<PlinkoSession[]>([])
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
+  const [statusHint, setStatusHint] = useState('Place chips — Drop anytime, even while balls are falling.')
+
+  const sessionsRef = useRef<PlinkoSession[]>([])
+  const rafRef = useRef<number | null>(null)
+  const reportedSessionIdsRef = useRef<Set<string>>(new Set())
+  const onResolveRef = useRef(onResolve)
+  onResolveRef.current = onResolve
+
+  const lastBetRef = useRef(lastBet)
+  const bankrollRef = useRef(bankroll)
+  const autoReBetRef = useRef(autoReBet)
+  lastBetRef.current = lastBet
+  bankrollRef.current = bankroll
+  autoReBetRef.current = autoReBet
+
   const slots = useMemo(() => getSlotMultipliers(), [])
 
-  const isBetting    = round.stage === 'betting'
-  const isInProgress = round.stage === 'inProgress'
-  const isSettled    = round.stage === 'settled'
-  const canStart     = currentBet >= minBet && currentBet <= bankroll
+  const pendingBet = useMemo(() => sessions.reduce((a, s) => a + s.betAmount, 0), [sessions])
 
-  function addChip(value: number) {
-    setCurrentBet((prev) => Math.min(prev + value, bankroll))
-  }
+  /** Staged chips, or last stake for rapid repeat drops while balls are in flight. */
+  const commitBet = useMemo(() => {
+    if (currentBet >= minBet) return currentBet
+    if (lastBet >= minBet) return lastBet
+    return 0
+  }, [currentBet, lastBet, minBet])
 
-  function handleStart() {
-    if (!canStart) return
-    setLastBet(currentBet)
-    setRound(startPlinkoRound(currentBet))
-    setCurrentBet(0)
-  }
+  const canDrop = commitBet >= minBet && commitBet + pendingBet <= bankroll && bankroll > 0
 
-  function handleDrop() {
-    const next = resolvePlinkoRound(round)
-    setRound(next)
-    if (next.stage === 'settled' && next.outcome) {
-      onResolve({
-        outcome: next.outcome,
-        betAmount: next.betAmount,
-        payout: getPlinkoPayout(next),
-        multiplier: next.payoutMultiplier,
-      })
+  const stopLoop = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
     }
-  }
+  }, [])
 
-  function handleNewRound() {
-    setRound(initPlinko())
-    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
-  }
+  const kickLoop = useCallback(() => {
+    if (rafRef.current != null) return
+
+    const tick = (now: number) => {
+      const list = sessionsRef.current
+      if (list.length === 0) {
+        rafRef.current = null
+        setStatusHint('Place chips — Drop anytime, even while balls are falling.')
+        return
+      }
+
+      const completions: {
+        sessionId: string
+        betAmount: number
+        ballCount: number
+        paths: number[][]
+      }[] = []
+
+      const next: PlinkoSession[] = []
+
+      for (const s of list) {
+        const elapsed = now - s.startedAt
+        const n = s.balls.length
+        const endMs = maxEndMs(n)
+        const newBalls = s.balls.map((b) => {
+          const t = elapsed - b.ballIndex * STAGGER_MS
+          const step = t < 0 ? 0 : Math.min(PLINKO_ROWS, Math.floor(t / STEP_MS))
+          return { ...b, currentStep: step }
+        })
+
+        if (elapsed >= endMs) {
+          if (!reportedSessionIdsRef.current.has(s.id)) {
+            reportedSessionIdsRef.current.add(s.id)
+            completions.push({
+              sessionId: s.id,
+              betAmount: s.betAmount,
+              ballCount: s.ballCount,
+              paths: newBalls.map((b) => b.path),
+            })
+          }
+        } else {
+          next.push({ ...s, balls: newBalls })
+        }
+      }
+
+      const changed =
+        next.length !== list.length ||
+        next.some((s, si) => {
+          const o = list[si]
+          if (!o || s.id !== o.id) return true
+          return s.balls.some((b, bi) => b.currentStep !== o.balls[bi]?.currentStep)
+        })
+
+      if (changed) {
+        sessionsRef.current = next
+        setSessions(next)
+      }
+
+      for (const c of completions) {
+        const result = computePlinkoPayout(c.betAmount, c.ballCount, c.paths)
+        const { totalPayout, outcome, effectiveMultiplier } = result
+        const bet = c.betAmount
+        const net = bet - totalPayout
+
+        onResolveRef.current({
+          outcome,
+          betAmount: bet,
+          payout: totalPayout,
+          multiplier: effectiveMultiplier,
+        })
+
+        let title: string
+        let tone: MatchHistoryTone
+        if (outcome === 'win') {
+          title = `+${formatChips(totalPayout)}`
+          tone = 'win'
+        } else if (outcome === 'push') {
+          title = `Push ${formatChips(totalPayout)}`
+          tone = 'push'
+        } else if (totalPayout > 0) {
+          title = `+${formatChips(totalPayout)} · net −${formatChips(net)}`
+          tone = 'partial'
+        } else {
+          title = `Lost ${formatChips(bet)}`
+          tone = 'loss'
+        }
+
+        const subtitle = `${formatChips(bet)} bet · ${formatMultiplier(effectiveMultiplier)}`
+
+        setMatchHistory((prev) =>
+          [
+            {
+              id: `${c.sessionId}-log`,
+              at: new Date(),
+              title,
+              subtitle,
+              tone,
+            },
+            ...prev,
+          ].slice(0, 80),
+        )
+      }
+
+      if (completions.length) {
+        const remaining = sessionsRef.current.length
+        setStatusHint(
+          remaining > 0
+            ? `${remaining} drop${remaining === 1 ? '' : 's'} in flight…`
+            : 'Round finished — bet again or drop again.',
+        )
+        if (remaining === 0 && autoReBetRef.current) {
+          const cap = bankrollRef.current
+          setCurrentBet(() => Math.min(lastBetRef.current, cap))
+        }
+      }
+
+      if (sessionsRef.current.length > 0) {
+        rafRef.current = requestAnimationFrame(tick)
+      } else {
+        rafRef.current = null
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
+  }, [stopLoop])
+
+  useEffect(() => {
+    return () => stopLoop()
+  }, [stopLoop])
+
+  const addChip = useCallback(
+    (value: number) => {
+      setCurrentBet((prev) => Math.min(prev + value, Math.max(0, bankroll - pendingBet)))
+    },
+    [bankroll, pendingBet],
+  )
+
+  const handleDrop = useCallback(() => {
+    const bet =
+      currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
+    if (bet < minBet || bet + pendingBet > bankroll) return
+
+    const paths = generatePlinkoPath(BALLS_PER_DROP)
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const startedAt = performance.now()
+    const balls: PlinkoBall[] = paths.map((path, ballIndex) => ({
+      id: `${id}-b${ballIndex}`,
+      path,
+      ballIndex,
+      currentStep: 0,
+    }))
+    const session: PlinkoSession = {
+      id,
+      betAmount: bet,
+      ballCount: BALLS_PER_DROP,
+      balls,
+      startedAt,
+    }
+
+    setLastBet(bet)
+    if (currentBet >= minBet) setCurrentBet(0)
+
+    setSessions((prev) => {
+      const merged = [...prev, session]
+      sessionsRef.current = merged
+      return merged
+    })
+    const n = sessionsRef.current.length
+    setStatusHint(`${n} ball${n === 1 ? '' : 's'} in flight — keep dropping if you like.`)
+    kickLoop()
+  }, [bankroll, currentBet, kickLoop, lastBet, minBet, pendingBet])
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ background: 'linear-gradient(160deg, #0d1b3e 0%, #070e24 100%)' }}>
-      {/* Status bar */}
-      <div className="px-4 py-2 bg-black/20 flex items-center justify-between text-xs text-white/50 border-b border-white/5">
-        <span className="font-semibold tracking-widest uppercase text-white/30">Plinko</span>
-        <span>{round.message}</span>
+    <div className={GAME_CARD_SHELL}>
+      <div className={GAME_STATUS_BAR}>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Plinko</span>
+        <span className="text-sm text-zinc-600 truncate max-w-[60%] text-right">{statusHint}</span>
       </div>
 
-      {/* Game board */}
-      <div className="flex-1 p-4 md:p-6 relative">
+      <GameFieldWithHistory
+        className={GAME_BOARD_ARENA}
+        boardClassName="relative flex min-h-0 items-center justify-center"
+        entries={matchHistory}
+        gameLabel="Plinko"
+        emptyHint="No drops yet — results appear after each ball lands."
+      >
+        <div className="absolute inset-0 flex items-center justify-center px-4 py-3">
+          <svg
+            viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+            className="h-full w-full max-h-full select-none"
+            preserveAspectRatio="xMidYMid meet"
+            aria-hidden
+          >
+              <defs>
+                <linearGradient
+                  id={slotGradId}
+                  x1={BOARD_MARGIN}
+                  y1="0"
+                  x2={VIEWBOX_WIDTH - BOARD_MARGIN}
+                  y2="0"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="50%" stopColor="#27272a" />
+                  <stop offset="100%" stopColor="#3b82f6" />
+                </linearGradient>
+                <filter id={ballGlowId} x="-80%" y="-80%" width="260%" height="260%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="2.8" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
 
-        {/* Puck / path display */}
-        <div className="flex items-center justify-center mb-6 min-h-[80px]">
-          {round.path.length > 0 ? (
-            <div className="flex items-center gap-1 flex-wrap justify-center max-w-xs">
-              {round.path.map((pos, i) => (
-                <div key={i} className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                  i === round.path.length - 1 ? 'bg-yellow-400 text-black scale-110 shadow-lg' : 'bg-white/20 text-white/60'
-                }`}>
-                  {pos}
-                </div>
+              {Array.from({ length: PLINKO_ROWS }, (_, row) =>
+                Array.from({ length: row + 1 }, (_, col) => (
+                  <circle key={`pin-${row}-${col}`} cx={getPinX(row, col)} cy={getPinY(row)} r={PIN_R} fill="#3f3f46" />
+                )),
+              )}
+
+              {slots.map((mult, i) => (
+                <g key={`slot-${i}`}>
+                  <rect
+                    x={slotRectX(i)}
+                    y={SLOT_RECT_Y}
+                    width={SLOT_WIDTH}
+                    height={SLOT_BAND_HEIGHT}
+                    fill={`url(#${slotGradId})`}
+                    stroke="#27272a"
+                    strokeWidth={1}
+                  />
+                  <text
+                    x={getBallX(0, i)}
+                    y={SLOT_RECT_Y + SLOT_BAND_HEIGHT / 2 + 5}
+                    textAnchor="middle"
+                    className="fill-zinc-300 font-bold"
+                    style={{ fontSize: 15 }}
+                  >
+                    {formatSlotMult(mult)}
+                  </text>
+                </g>
               ))}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center">
-              <div className="w-10 h-10 rounded-full bg-yellow-400/20 border-2 border-yellow-400/40 flex items-center justify-center">
-                <div className="w-4 h-4 rounded-full bg-yellow-400/60" />
-              </div>
-              <p className="text-white/30 text-sm ml-3">Drop a puck to play</p>
-            </div>
-          )}
-        </div>
 
-        {/* Slot multiplier display — always visible */}
-        <div>
-          <p className="text-white/30 text-xs uppercase tracking-wider mb-2">Slots</p>
-          <div className="grid grid-cols-7 gap-1.5">
-            {slots.map((multiplier, index) => (
-              <div
-                key={index}
-                className={`rounded-lg border px-1 py-2 text-center text-xs font-bold transition-all ${slotColor(multiplier)} ${
-                  isSettled && round.finalSlot === index ? 'ring-2 ring-yellow-400 scale-110 shadow-lg shadow-yellow-900/50' : ''
-                }`}
+              {sessions.flatMap((session) =>
+                session.balls.map((ball) => {
+                  const step = Math.min(ball.currentStep, ball.path.length - 1)
+                  const slotIdx = ball.path[step] ?? 0
+                  const cx = getBallX(step, slotIdx)
+                  const cy = getBallCenterY(step)
+                  return (
+                    <circle
+                      key={`${session.id}-${ball.id}`}
+                      cx={cx}
+                      cy={cy}
+                      r={BALL_R}
+                      fill="#fafafa"
+                      stroke="#60a5fa"
+                      strokeWidth={2}
+                      filter={`url(#${ballGlowId})`}
+                    />
+                  )
+                }),
+              )}
+            </svg>
+        </div>
+      </GameFieldWithHistory>
+
+      <div className={GAME_CONTROL_DOCK_M}>
+          <div className="space-y-3">
+            <div className="flex gap-3 flex-wrap justify-center">
+              {CHIPS.map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => addChip(chip.value)}
+                  disabled={chip.value > bankroll - pendingBet - currentBet}
+                  className={`w-14 h-14 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentBet(Math.max(0, bankroll - pendingBet))}
+                disabled={currentBet >= bankroll - pendingBet || bankroll <= 0}
+                className="h-14 px-4 rounded-full bg-zinc-200 hover:bg-white border-2 border-zinc-100 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                <p className="text-white/40 text-[10px] leading-none mb-0.5">{index}</p>
-                <p>{multiplier === 0 ? 'L' : `${multiplier}x`}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Stats */}
-        {!isBetting && (
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <div className="bg-white/5 rounded-lg p-3 text-center">
-              <p className="text-white/40 text-xs mb-1">Bet</p>
-              <p className="text-white font-semibold text-sm">{formatChips(round.betAmount)}</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-3 text-center">
-              <p className="text-white/40 text-xs mb-1">Slot</p>
-              <p className="text-white font-semibold text-sm">{round.finalSlot ?? '—'}</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-3 text-center">
-              <p className="text-white/40 text-xs mb-1">Payout</p>
-              <p className="text-white font-semibold text-sm">{isSettled ? formatChips(getPlinkoPayout(round)) : '—'}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Result overlay */}
-        {isSettled && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-            <div className="text-center">
-              <p className={`text-4xl font-black ${round.outcome === 'win' ? 'text-yellow-400' : round.outcome === 'push' ? 'text-white' : 'text-red-400'}`}>
-                {round.outcome === 'win' ? 'WIN' : round.outcome === 'push' ? 'PUSH' : 'LOSE'}
-              </p>
-              <p className="text-white/60 mt-1 text-sm">
-                Slot {round.finalSlot} · {round.payoutMultiplier}x
-                {round.outcome === 'win' && ` · +${formatChips(getPlinkoPayout(round))}`}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Control zone ── */}
-      <div className="border-t border-white/10 bg-black/30 p-4">
-
-        {/* BETTING */}
-        <div style={{ opacity: isBetting ? 1 : 0, pointerEvents: isBetting ? 'auto' : 'none', maxHeight: isBetting ? '160px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
-          <div className="flex gap-2 flex-wrap justify-center mb-3">
-            {CHIPS.map((chip) => (
-              <button key={chip.value} onClick={() => addChip(chip.value)} disabled={chip.value > bankroll - currentBet}
-                className={`w-14 h-14 rounded-full ${chip.bg} ${chip.border} border-2 text-white font-bold text-xs shadow-lg transition-transform active:scale-90 disabled:opacity-25 disabled:cursor-not-allowed`}>
-                {chip.label}
+                All In
               </button>
-            ))}
-            <button
-              onClick={() => setCurrentBet(bankroll)}
-              disabled={currentBet >= bankroll || bankroll <= 0}
-              className="h-14 px-3 rounded-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 border-2 border-amber-300 text-black font-bold text-xs shadow-lg transition-transform active:scale-90 disabled:opacity-25 disabled:cursor-not-allowed"
-            >
-              All In
-            </button>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-white">
-              <span className="text-white/50 text-sm">Bet</span>
-              <span className="font-bold text-lg">{currentBet > 0 ? formatChips(currentBet) : '—'}</span>
-              {currentBet > 0 && <button onClick={() => setCurrentBet(0)} className="text-white/35 text-xs hover:text-white/70 ml-1 transition-colors">✕ Clear</button>}
             </div>
-            <button onClick={handleStart} disabled={!canStart}
-              className="px-5 py-2 bg-yellow-500 hover:bg-yellow-400 disabled:bg-white/10 disabled:text-white/25 text-black font-bold rounded-lg text-sm shadow-lg transition-all">
-              Drop →
-            </button>
-          </div>
-          {minBet > 1 && <p className="text-white/25 text-xs mt-1">Min bet: {formatChips(minBet)}</p>}
-        </div>
 
-        {/* IN PROGRESS */}
-        <div style={{ opacity: isInProgress ? 1 : 0, pointerEvents: isInProgress ? 'auto' : 'none', maxHeight: isInProgress ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <span className="text-white/50 text-sm">Bet <span className="text-white font-semibold">{formatChips(round.betAmount)}</span></span>
-            <button onClick={handleDrop} className="px-5 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg text-sm transition-colors shadow-lg">
-              Drop Puck
-            </button>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5">
+                <span className="text-zinc-500 text-base">Bet</span>
+                <span className="font-bold text-xl text-white">
+                  {commitBet > 0 ? formatChips(commitBet) : '—'}
+                </span>
+                {currentBet < minBet && lastBet >= minBet && commitBet > 0 && (
+                  <span className="text-xs text-zinc-500 font-normal ml-1">(repeat)</span>
+                )}
+                {currentBet > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentBet(0)}
+                    className="px-3 py-1.5 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ml-1"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleDrop}
+                disabled={!canDrop}
+                className="px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Drop →
+              </button>
+            </div>
+            {minBet > 1 && <p className="text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>}
+            {sessions.length === 0 && pendingBet === 0 && (
+            <p className="text-zinc-600 text-xs">
+              Each row is a fair 50/50. The sim uses a Galton (binomial) slot model so the grid center hits most often — fewer 10×/5× than with a wall-clamped walk.
+            </p>
+            )}
           </div>
         </div>
-
-        {/* SETTLED */}
-        <div style={{ opacity: isSettled ? 1 : 0, pointerEvents: isSettled ? 'auto' : 'none', maxHeight: isSettled ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
-          <div className="flex justify-center">
-            <button onClick={handleNewRound} className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg text-sm shadow-lg transition-colors">
-              New Round →
-            </button>
-          </div>
-        </div>
-
-      </div>
     </div>
   )
 }
