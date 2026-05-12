@@ -19,10 +19,10 @@ export default function FreeplayBlackjackPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Blackjack</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Freeplay — no floors, no pressure.</p>
+    <div className="flex flex-col flex-1 min-h-0 gap-3">
+      <div className="shrink-0">
+        <h1 className="text-xl font-bold">Blackjack</h1>
+        <p className="text-muted-foreground text-xs mt-0.5">Freeplay — no floors, no pressure.</p>
       </div>
 
       {bankroll <= 0 && <BankruptModal onReset={reset} />}

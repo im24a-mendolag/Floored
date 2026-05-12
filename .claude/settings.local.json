@@ -29,7 +29,10 @@
       "Bash(xargs -0 wc -l)",
       "Bash(xargs cat *)",
       "Bash(python3 *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\anmel\\\\GithubRepos\\\\Floored\" -Recurse -File)",
+      "Bash(Sort-Object FullName)",
+      "Bash(ConvertTo-Json)"
     ]
   }
 }
