@@ -84,7 +84,7 @@ function CardFace({
   if (hidden) {
     return (
       <div
-        className={`rounded-xl bg-zinc-800 border border-zinc-700 shadow-2xl flex items-center justify-center ${animCls}`}
+        className={`rounded-xl bg-zinc-800 border border-zinc-700 shadow-2xl flex items-center justify-center overflow-hidden ${animCls}`}
         style={{ ...cardShell, ...dealStyle }}
       >
         <div className="rounded-lg border border-zinc-700" style={{ ...cardInner, background: CARD_BACK_PATTERN }} />
@@ -96,22 +96,22 @@ function CardFace({
 
   return (
     <div
-      className={`rounded-xl bg-white shadow-2xl flex flex-col justify-between border border-zinc-200 select-none ${animCls}`}
-      style={{ ...cardShell, ...dealStyle, padding: 'clamp(0.4rem, 0.7vh, 0.85rem)' }}
+      className={`rounded-xl bg-white shadow-2xl flex flex-col justify-between border border-zinc-200 select-none overflow-hidden ${animCls}`}
+      style={{ ...cardShell, ...dealStyle, padding: 'calc(var(--card-h) * 0.07)' }}
     >
       <div className={`flex flex-col items-start leading-none ${color}`}>
-        <span className="font-black leading-none" style={{ fontSize: 'clamp(0.75rem, 1.9vh, 1.5rem)' }}>{card.rank}</span>
-        <span className="leading-none"            style={{ fontSize: 'clamp(0.65rem, 1.6vh, 1.1rem)' }}>{card.suit}</span>
+        <span className="font-black leading-none" style={{ fontSize: 'calc(var(--card-h) * 0.13)' }}>{card.rank}</span>
+        <span className="leading-none"            style={{ fontSize: 'calc(var(--card-h) * 0.11)' }}>{card.suit}</span>
       </div>
       <span
         className={`leading-none self-center ${color}`}
-        style={{ fontSize: 'clamp(1.75rem, 5vh, 3.75rem)' }}
+        style={{ fontSize: 'calc(var(--card-h) * 0.35)' }}
       >
         {card.suit}
       </span>
       <div className={`flex flex-col items-start rotate-180 leading-none ${color}`}>
-        <span className="font-black leading-none" style={{ fontSize: 'clamp(0.75rem, 1.9vh, 1.5rem)' }}>{card.rank}</span>
-        <span className="leading-none"            style={{ fontSize: 'clamp(0.65rem, 1.6vh, 1.1rem)' }}>{card.suit}</span>
+        <span className="font-black leading-none" style={{ fontSize: 'calc(var(--card-h) * 0.13)' }}>{card.rank}</span>
+        <span className="leading-none"            style={{ fontSize: 'calc(var(--card-h) * 0.11)' }}>{card.suit}</span>
       </div>
     </div>
   )
@@ -140,6 +140,21 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
   const cancelDealerAnim = useRef<(() => void) | null>(null)
 
   const displayedDealerHand = dealerDisplayHand ?? round.dealerHand
+
+  // Delayed hand lengths — scores only appear after deal animation completes (~300ms)
+  const [playerVisibleLen, setPlayerVisibleLen] = useState(0)
+  const [dealerVisibleLen, setDealerVisibleLen] = useState(0)
+
+  useEffect(() => {
+    const t = setTimeout(() => setPlayerVisibleLen(round.playerHand.length), 300)
+    return () => clearTimeout(t)
+  }, [round.playerHand.length])
+
+  useEffect(() => {
+    const len = displayedDealerHand.length
+    const t = setTimeout(() => setDealerVisibleLen(len), 300)
+    return () => clearTimeout(t)
+  }, [displayedDealerHand.length])
 
   const isBetting    = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
@@ -232,6 +247,8 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
     setRound(initBlackjack())
     setCurrentBet(Math.min(lastBet, bankroll))
     setShowResult(false)
+    setPlayerVisibleLen(0)
+    setDealerVisibleLen(0)
   }
 
   const outcomeLabel =
@@ -251,11 +268,11 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
 
   return (
     <div
-      className="flex-1 min-h-0 rounded-2xl overflow-hidden shadow-2xl flex flex-col bg-zinc-950 border border-zinc-800"
+      className="flex-1 min-h-0 rounded-2xl shadow-2xl flex flex-col bg-zinc-950 border border-zinc-800"
       style={CARD_CSS}
     >
       {/* Status bar */}
-      <div className="shrink-0 px-5 py-2 bg-black flex items-center justify-between border-b border-zinc-800">
+      <div className="shrink-0 px-5 py-2 bg-black flex items-center justify-between border-b border-zinc-800 rounded-t-2xl">
         <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Blackjack</span>
         <span className="text-sm text-zinc-600">{round.message}</span>
       </div>
@@ -267,9 +284,9 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
         <div className="flex-1 flex flex-col items-center justify-center">
           <p className="text-sm uppercase tracking-widest text-zinc-600 mb-2">
             Dealer
-            {!isBetting && displayedDealerHand.length > 0 && !isInProgress && (
+            {!isBetting && !isInProgress && dealerVisibleLen > 0 && (
               <span className="ml-2 text-zinc-300 font-bold">
-                {calculateHandValue(displayedDealerHand)}
+                {calculateHandValue(displayedDealerHand.slice(0, dealerVisibleLen))}
               </span>
             )}
           </p>
@@ -314,9 +331,9 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
         <div className="flex-1 flex flex-col items-center justify-center">
           <p className="text-sm uppercase tracking-widest text-zinc-600 mb-2">
             You
-            {round.playerHand.length > 0 && (
+            {playerVisibleLen > 0 && (
               <span className="ml-2 text-zinc-300 font-bold">
-                {calculateHandValue(round.playerHand)}
+                {calculateHandValue(round.playerHand.slice(0, playerVisibleLen))}
               </span>
             )}
           </p>
@@ -345,7 +362,7 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
       </div>
 
       {/* Control zone */}
-      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 py-3">
+      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 py-3 rounded-b-2xl">
 
         {/* BETTING */}
         <div
