@@ -40,7 +40,13 @@
       "Bash(pnpm run *)",
       "Bash(pnpm exec *)",
       "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\anmel\\\\GithubRepos\\\\Floored\\\\.next\" -ErrorAction SilentlyContinue)",
-      "Bash(Write-Host \"Done\")"
+      "Bash(Write-Host \"Done\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\anmel\\\\GithubRepos\\\\Floored\" -Recurse -Directory)",
+      "Bash(Select-Object -First 30)",
+      "Bash(Format-Table FullName)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\anmel\\\\GithubRepos\\\\Floored\\\\app\" -Recurse -Directory | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\anmel\\\\GithubRepos\\\\Floored\\\\components\" -Recurse -File | Where-Object { $_.Extension -eq \".tsx\" -or $_.Extension -eq \".css\" } | Select-Object FullName | Select-Object -First 20)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
     ]
   }
 }

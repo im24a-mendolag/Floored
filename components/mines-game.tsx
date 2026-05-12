@@ -1,8 +1,17 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
+import {
+  GAME_BOARD_ARENA,
+  GAME_CARD_FRAME,
+  GAME_CONTROL_DOCK_S,
+  GAME_STATUS_BAR,
+} from '@/components/game-layout'
+import { appendPlay } from '@/components/game-history-utils'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
+import { GameOutcomeToast, type GameOutcomeToastSnap } from '@/components/game-outcome-toast'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import { cashOutMines, getMinesPayout, initMines, revealMineTile, startMinesRound } from '@/games/mines/engine'
 import type { MinesState } from '@/games/mines/types'
@@ -41,6 +50,10 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
   const [round, setRound] = useState<MinesState>(initMines())
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
+  const [minesToastOpen, setMinesToastOpen] = useState(false)
+  const [minesToastSnap, setMinesToastSnap] = useState<GameOutcomeToastSnap | null>(null)
+  const lastMinesToastKey = useRef('')
 
   const payout    = useMemo(() => getMinesPayout(round), [round])
   const safeCount = useMemo(() => round.remainingSafe, [round.remainingSafe])
@@ -66,11 +79,19 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
     const next = revealMineTile(round, tileId)
     setRound(next)
     if (next.stage === 'settled' && next.outcome) {
+      const payout = getMinesPayout(next)
       onResolve({
         outcome: next.outcome,
         betAmount: next.betAmount,
-        payout: getMinesPayout(next),
+        payout,
         multiplier: next.multiplier,
+      })
+      appendPlay(setMatchHistory, {
+        bet: next.betAmount,
+        payout,
+        mult: next.multiplier,
+        outcome: next.outcome,
+        titlePrefix: next.outcome === 'loss' ? 'Mine hit' : 'Cash out',
       })
     }
   }
@@ -78,29 +99,61 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
   function handleCashOut() {
     const next = cashOutMines(round)
     setRound(next)
+    const payout = getMinesPayout(next)
     onResolve({
       outcome: 'win',
       betAmount: next.betAmount,
-      payout: getMinesPayout(next),
+      payout,
       multiplier: next.multiplier,
+    })
+    appendPlay(setMatchHistory, {
+      bet: next.betAmount,
+      payout,
+      mult: next.multiplier,
+      outcome: 'win',
+      titlePrefix: 'Cash out',
     })
   }
 
-  function handleNewRound() {
+  const dismissMinesToast = useCallback(() => {
+    setMinesToastOpen(false)
+    setMinesToastSnap(null)
+  }, [])
+
+  const handleNewRound = useCallback(() => {
     setRound(initMines())
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
-  }
+  }, [autoReBet, lastBet, bankroll])
 
-  return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ background: 'linear-gradient(160deg, #0f4c2a 0%, #0a3d22 100%)' }}>
-      {/* Status bar */}
-      <div className="px-4 py-2 bg-black/20 flex items-center justify-between text-xs text-white/50 border-b border-white/5">
-        <span className="font-semibold tracking-widest uppercase text-white/30">Mines</span>
-        <span>{round.message}</span>
+  useEffect(() => {
+    if (isBetting) lastMinesToastKey.current = ''
+  }, [isBetting])
+
+  useEffect(() => {
+    if (!isSettled || !round.outcome) return
+    const key = `${round.outcome}-${round.betAmount}-${round.multiplier}`
+    if (lastMinesToastKey.current === key) return
+    lastMinesToastKey.current = key
+    const payout = getMinesPayout(round)
+    const title = round.outcome === 'win' ? 'Cashed out' : 'Mine hit'
+    const subtitle = round.outcome === 'win' ? `+${formatChips(payout)}` : `−${formatChips(round.betAmount)}`
+    const tone = round.outcome === 'win' ? 'win' : 'loss'
+    setMinesToastSnap({ title, subtitle, tone })
+    setMinesToastOpen(true)
+    queueMicrotask(() => handleNewRound())
+  }, [isSettled, round.outcome, round.betAmount, round.multiplier, handleNewRound])
+    <div className={GAME_CARD_FRAME} style={{ background: 'linear-gradient(160deg, #0f4c2a 0%, #0a3d22 100%)' }}>
+      <div className={GAME_STATUS_BAR}>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Mines</span>
+        <span className="text-sm text-zinc-600">{round.message}</span>
       </div>
 
-      {/* Game board */}
-      <div className="flex-1 p-4 md:p-5 relative">
+      <GameFieldWithHistory
+        className={GAME_BOARD_ARENA}
+        boardClassName="relative min-h-0 p-4 md:p-5"
+        entries={matchHistory}
+        gameLabel="Mines"
+      >
 
         {/* Stats row */}
         <div className="flex gap-3 mb-4 flex-wrap">
@@ -163,26 +216,19 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
           )}
         </div>
 
-        {/* Result overlay */}
-        {isSettled && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-none">
-            <div className="text-center">
-              <p className={`text-4xl font-black ${round.outcome === 'win' ? 'text-yellow-400' : 'text-red-400'}`}>
-                {round.outcome === 'win' ? 'CASHED OUT' : 'MINE HIT'}
-              </p>
-              <p className="text-white/60 mt-1 text-sm">
-                {round.outcome === 'win' ? `+${formatChips(payout)}` : `-${formatChips(round.betAmount)}`}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+      </GameFieldWithHistory>
 
-      {/* ── Control zone ── */}
-      <div className="border-t border-white/10 bg-black/30 p-4">
+      <GameOutcomeToast
+        open={minesToastOpen && !!minesToastSnap}
+        title={minesToastSnap?.title ?? ''}
+        subtitle={minesToastSnap?.subtitle}
+        tone={minesToastSnap?.tone ?? 'neutral'}
+        onDismiss={dismissMinesToast}
+      />
 
-        {/* BETTING */}
-        <div style={{ opacity: isBetting ? 1 : 0, pointerEvents: isBetting ? 'auto' : 'none', maxHeight: isBetting ? '160px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+      <div className={GAME_CONTROL_DOCK_S}>
+        {isBetting && (
+          <div className="relative z-10">
           <div className="flex gap-2 flex-wrap justify-center mb-3">
             {CHIPS.map((chip) => (
               <button key={chip.value} onClick={() => addChip(chip.value)} disabled={chip.value > bankroll - currentBet}
@@ -210,10 +256,11 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
             </button>
           </div>
           {minBet > 1 && <p className="text-white/25 text-xs mt-1">Min bet: {formatChips(minBet)}</p>}
-        </div>
+          </div>
+        )}
 
-        {/* IN PROGRESS */}
-        <div style={{ opacity: isInProgress ? 1 : 0, pointerEvents: isInProgress ? 'auto' : 'none', maxHeight: isInProgress ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+        {isInProgress && (
+          <div className="relative z-10">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-white/50 text-sm">
               Bet <span className="text-white font-semibold">{formatChips(round.betAmount)}</span>
@@ -224,16 +271,8 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
               Cash Out
             </button>
           </div>
-        </div>
-
-        {/* SETTLED */}
-        <div style={{ opacity: isSettled ? 1 : 0, pointerEvents: isSettled ? 'auto' : 'none', maxHeight: isSettled ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
-          <div className="flex justify-center">
-            <button onClick={handleNewRound} className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg text-sm shadow-lg transition-colors">
-              New Round →
-            </button>
           </div>
-        </div>
+        )}
 
       </div>
     </div>

@@ -6,11 +6,11 @@ import { useFreeplayStore } from '@/store/freeplay-store'
 
 export default function FreeplayPlinkoPage() {
   const bankroll = useFreeplayStore((s) => s.bankroll)
-  const setBankroll = useFreeplayStore((s) => s.setBankroll)
   const reset = useFreeplayStore((s) => s.reset)
 
   function handleResolve(result: { outcome: 'win' | 'loss' | 'push'; betAmount: number; payout: number; multiplier: number }) {
-    setBankroll(bankroll - result.betAmount + result.payout)
+    const b = useFreeplayStore.getState().bankroll
+    useFreeplayStore.getState().setBankroll(b - result.betAmount + result.payout)
   }
 
   return (
@@ -21,7 +21,9 @@ export default function FreeplayPlinkoPage() {
       </div>
 
       {bankroll <= 0 && <BankruptModal onReset={reset} />}
-      <PlinkoGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
+      <div className="flex min-h-[min(680px,calc(100dvh-10rem))] flex-col">
+        <PlinkoGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
+      </div>
     </div>
   )
 }

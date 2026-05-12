@@ -1,8 +1,17 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
+import {
+  GAME_BOARD_ARENA,
+  GAME_CARD_FRAME,
+  GAME_CONTROL_DOCK_L,
+  GAME_STATUS_BAR,
+} from '@/components/game-layout'
+import { appendPlay } from '@/components/game-history-utils'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
+import { GameOutcomeToast, type GameOutcomeToastSnap } from '@/components/game-outcome-toast'
 import { formatChips } from '@/utils/format'
 import {
   getTargetRotation,
@@ -53,6 +62,10 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
   const [lastBet, setLastBet] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [wheelRotation, setWheelRotation] = useState(0)
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
+  const [wheelToastOpen, setWheelToastOpen] = useState(false)
+  const [wheelToastSnap, setWheelToastSnap] = useState<GameOutcomeToastSnap | null>(null)
+  const lastWheelToastKey = useRef('')
 
   const spinTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rotationRef = useRef(0)
@@ -88,25 +101,58 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
       setRound(result)
       setSpinning(false)
 
+      const payout = getWheelPayout(result)
       onResolve({
         outcome: result.outcome!,
         betAmount: result.betAmount,
-        payout: getWheelPayout(result),
+        payout,
         multiplier: result.payoutMultiplier,
+      })
+      appendPlay(setMatchHistory, {
+        bet: result.betAmount,
+        payout,
+        mult: result.payoutMultiplier,
+        outcome: result.outcome === 'win' ? 'win' : 'loss',
+        titlePrefix: result.resultColor ? `${result.resultColor} · ${result.resultMultiplier}×` : 'Wheel',
       })
     }, SPIN_DURATION)
   }
 
-  function handleNewRound() {
-    const newState = initWheel()
-    newState.betColor = selectedColor // keep last selected color
-    setRound(newState)
+  const handleNewRound = useCallback(() => {
+    setRound((prev) => {
+      const c = prev.betColor ?? 'red'
+      const newState = initWheel()
+      newState.betColor = c
+      return newState
+    })
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
-  }
+  }, [autoReBet, lastBet, bankroll])
 
-  const resultPayout = getWheelPayout(round)
+  const dismissWheelToast = useCallback(() => {
+    setWheelToastOpen(false)
+    setWheelToastSnap(null)
+  }, [])
 
-  // Build the conic gradient (order matters — matches WHEEL_SEGMENTS)
+  useEffect(() => {
+    if (isBetting || spinning) lastWheelToastKey.current = ''
+  }, [isBetting, spinning])
+
+  useEffect(() => {
+    if (!isSettled || spinning || !round.outcome) return
+    const key = `${round.betAmount}-${round.resultColor}-${round.resultMultiplier}-${round.outcome}`
+    if (lastWheelToastKey.current === key) return
+    lastWheelToastKey.current = key
+    const po = getWheelPayout(round)
+    const title = round.outcome === 'win' ? 'Win' : 'Miss'
+    const subtitle =
+      round.outcome === 'win'
+        ? `${round.resultMultiplier}× · +${formatChips(po)}`
+        : `−${formatChips(round.betAmount)}`
+    const tone = round.outcome === 'win' ? 'win' : 'loss'
+    setWheelToastSnap({ title, subtitle, tone })
+    setWheelToastOpen(true)
+    queueMicrotask(() => handleNewRound())
+  }, [isSettled, spinning, round.outcome, round.betAmount, round.resultColor, round.resultMultiplier, handleNewRound])
   const conicGradient = `conic-gradient(
     from 0deg,
     #ef4444 0deg 175.6deg,
@@ -116,17 +162,18 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
   )`
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl flex flex-col"
-      style={{ background: 'linear-gradient(160deg, #1a0a1e 0%, #0d0612 100%)' }}>
-
-      {/* Status bar */}
-      <div className="px-4 py-2 bg-black/20 flex items-center justify-between text-xs text-white/50 border-b border-white/5">
-        <span className="font-semibold tracking-widest uppercase text-white/30">Wheel</span>
-        <span>{spinning ? 'Spinning…' : round.message}</span>
+    <div className={GAME_CARD_FRAME} style={{ background: 'linear-gradient(160deg, #1a0a1e 0%, #0d0612 100%)' }}>
+      <div className={GAME_STATUS_BAR}>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Wheel</span>
+        <span className="text-sm text-zinc-600">{spinning ? 'Spinning…' : round.message}</span>
       </div>
 
-      {/* Game board */}
-      <div className="flex-1 p-4 md:p-6 relative">
+      <GameFieldWithHistory
+        className={GAME_BOARD_ARENA}
+        boardClassName="relative p-4 md:p-6 min-h-0"
+        entries={matchHistory}
+        gameLabel="Wheel"
+      >
 
         {/* Wheel + pointer */}
         <div className="flex items-center justify-center mb-6">
@@ -196,35 +243,19 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
           })}
         </div>
 
-        {/* Result overlay */}
-        {isSettled && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/65">
-            <div className="text-center">
-              <div className={`w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center border-4 ${
-                round.resultColor ? `${COLOR_STYLES[round.resultColor].bg} ${COLOR_STYLES[round.resultColor].border}` : 'bg-white/20 border-white/40'
-              }`}>
-                <span className="text-white font-black text-lg">{round.resultMultiplier}×</span>
-              </div>
-              <p className={`text-4xl font-black ${round.outcome === 'win' ? 'text-yellow-400' : 'text-red-400'}`}>
-                {round.outcome === 'win' ? 'WIN' : 'MISS'}
-              </p>
-              <p className="text-white/60 mt-1 text-sm">
-                {round.outcome === 'win'
-                  ? `${round.resultMultiplier}× · +${formatChips(resultPayout)}`
-                  : `-${formatChips(round.betAmount)}`}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+      </GameFieldWithHistory>
 
-      {/* ── Control zone ── */}
-      <div className="border-t border-white/10 bg-black/30 p-4">
+      <GameOutcomeToast
+        open={wheelToastOpen && !!wheelToastSnap}
+        title={wheelToastSnap?.title ?? ''}
+        subtitle={wheelToastSnap?.subtitle}
+        tone={wheelToastSnap?.tone ?? 'neutral'}
+        onDismiss={dismissWheelToast}
+      />
 
-        {/* Color selector */}
-        <div
-          style={{ opacity: isBetting ? 1 : 0, pointerEvents: isBetting ? 'auto' : 'none', maxHeight: isBetting ? '300px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}
-        >
+      <div className={GAME_CONTROL_DOCK_L}>
+        {isBetting && (
+          <div className="relative z-10">
           {/* Color picker row */}
           <div className="mb-3">
             <p className="text-white/40 text-xs uppercase tracking-wider mb-2">Bet on</p>
@@ -285,27 +316,16 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
           </div>
           {minBet > 1 && <p className="text-white/25 text-xs mt-1">Min bet: {formatChips(minBet)}</p>}
         </div>
+        )}
 
-        {/* Spinning state */}
-        <div
-          style={{ opacity: spinning ? 1 : 0, pointerEvents: 'none', maxHeight: spinning ? '60px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}
-        >
+        {spinning && (
+          <div className="relative z-10">
           <div className="flex items-center justify-center gap-3 py-1">
             <span className="text-white/50 text-sm animate-pulse">Spinning…</span>
             <span className="text-white/50 text-sm">Bet <span className="text-white font-semibold">{formatChips(round.betAmount > 0 ? round.betAmount : currentBet)}</span></span>
           </div>
-        </div>
-
-        {/* Settled */}
-        <div
-          style={{ opacity: isSettled ? 1 : 0, pointerEvents: isSettled ? 'auto' : 'none', maxHeight: isSettled ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}
-        >
-          <div className="flex justify-center">
-            <button onClick={handleNewRound} className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg text-sm shadow-lg transition-colors">
-              Spin Again →
-            </button>
           </div>
-        </div>
+        )}
 
       </div>
     </div>

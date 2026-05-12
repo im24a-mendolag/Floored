@@ -1,8 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
+import {
+  GAME_BOARD_ARENA,
+  GAME_CARD_FRAME,
+  GAME_CONTROL_DOCK_S,
+  GAME_STATUS_BAR,
+} from '@/components/game-layout'
+import { appendPlay } from '@/components/game-history-utils'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
+import { GameOutcomeToast, type GameOutcomeToastSnap, type GameOutcomeTone } from '@/components/game-outcome-toast'
 import { formatChips } from '@/utils/format'
 import { getSlotsResultPayout, initSlots, PAYTABLE, spinSlots } from '@/games/slots/engine'
 import type { SlotsState, SlotsSymbol } from '@/games/slots/types'
@@ -91,6 +100,10 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
   const [spinning, setSpinning] = useState(false)
   const [landed, setLanded] = useState(false)
   const spinTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
+  const [slotsToastOpen, setSlotsToastOpen] = useState(false)
+  const [slotsToastSnap, setSlotsToastSnap] = useState<GameOutcomeToastSnap | null>(null)
+  const lastSlotsToastKey = useRef('')
 
   const isSettled = round.stage === 'settled' && !spinning
   const canSpin   = currentBet >= minBet && currentBet <= bankroll
@@ -98,6 +111,43 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
   useEffect(() => {
     return () => { if (spinTimer.current) clearTimeout(spinTimer.current) }
   }, [])
+
+  const dismissSlotsToast = useCallback(() => {
+    setSlotsToastOpen(false)
+    setSlotsToastSnap(null)
+  }, [])
+
+  const handleNewRound = useCallback(() => {
+    setRound(initSlots())
+    setLanded(false)
+    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
+  }, [autoReBet, lastBet, bankroll])
+
+  useEffect(() => {
+    if (spinning) lastSlotsToastKey.current = ''
+  }, [spinning])
+
+  useEffect(() => {
+    if (!isSettled || !round.outcome) return
+    const reelsKey =
+      round.reels && round.reels.length >= 3
+        ? `${round.reels[0]}-${round.reels[1]}-${round.reels[2]}`
+        : ''
+    const key = `${round.outcome}-${round.betAmount}-${reelsKey}-${round.isJackpotSpin}`
+    if (lastSlotsToastKey.current === key) return
+    lastSlotsToastKey.current = key
+    const resultPayout = getSlotsResultPayout(round)
+    const title = round.isJackpotSpin ? 'Jackpot' : round.outcome === 'win' ? 'Win' : 'No match'
+    const subtitle =
+      round.outcome === 'win'
+        ? `${round.payoutMultiplier}× · +${formatChips(resultPayout)}`
+        : `−${formatChips(round.betAmount)}`
+    const tone: GameOutcomeTone =
+      round.isJackpotSpin || round.outcome === 'win' ? 'win' : 'loss'
+    setSlotsToastSnap({ title, subtitle, tone })
+    setSlotsToastOpen(true)
+    queueMicrotask(() => handleNewRound())
+  }, [isSettled, round.outcome, round.betAmount, round.reels, round.isJackpotSpin, round.payoutMultiplier, handleNewRound])
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
@@ -122,11 +172,25 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
         resetJackpotMeter()
       }
 
+      const payout = getSlotsResultPayout(result)
       onResolve({
         outcome: result.outcome ?? 'loss',
         betAmount: result.betAmount,
-        payout: getSlotsResultPayout(result),
+        payout,
         multiplier: result.payoutMultiplier,
+      })
+
+      const r = result.reels
+      const line =
+        r && r.length >= 3
+          ? `${PAYTABLE_GLYPH[r[0]]} ${PAYTABLE_GLYPH[r[1]]} ${PAYTABLE_GLYPH[r[2]]}`
+          : 'Spin'
+      appendPlay(setMatchHistory, {
+        bet: result.betAmount,
+        payout,
+        mult: result.payoutMultiplier,
+        outcome: result.outcome ?? 'loss',
+        titlePrefix: result.isJackpotSpin ? 'Jackpot' : line,
       })
 
       // Clear landing animation flag after it plays
@@ -134,27 +198,19 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
     }, SPIN_DURATION)
   }
 
-  function handleNewRound() {
-    setRound(initSlots())
-    setLanded(false)
-    setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
-  }
-
-  const resultPayout = getSlotsResultPayout(round)
-  const isJackpot = isSettled && round.isJackpotSpin
-
   return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl flex flex-col"
-      style={{ background: 'linear-gradient(160deg, #1a0a2e 0%, #0d0618 100%)' }}>
-
-      {/* Status bar */}
-      <div className="px-4 py-2 bg-black/20 flex items-center justify-between text-xs text-white/50 border-b border-white/5">
-        <span className="font-semibold tracking-widest uppercase text-white/30">Slots</span>
-        <span>{round.message}</span>
+    <div className={GAME_CARD_FRAME} style={{ background: 'linear-gradient(160deg, #1a0a2e 0%, #0d0618 100%)' }}>
+      <div className={GAME_STATUS_BAR}>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Slots</span>
+        <span className="text-sm text-zinc-600">{round.message}</span>
       </div>
 
-      {/* Game board */}
-      <div className="flex-1 p-4 md:p-6 relative">
+      <GameFieldWithHistory
+        className={GAME_BOARD_ARENA}
+        boardClassName="relative min-h-0 p-4 md:p-6"
+        entries={matchHistory}
+        gameLabel="Slots"
+      >
 
         {/* Jackpot meter — survival only */}
         {mode === 'survival' && runActive && (
@@ -191,22 +247,8 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
           <Reel symbol={round.reels?.[2] ?? null} spinning={spinning} landed={landed} />
         </div>
 
-        {/* Win announcement */}
-        {isSettled && round.outcome === 'win' && (
-          <div className={`text-center mb-4 py-2 rounded-xl ${isJackpot ? 'bg-yellow-400/10 border border-yellow-400/40' : 'bg-white/5'}`}>
-            <p className={`font-black text-lg ${isJackpot ? 'text-yellow-400' : 'text-white'}`}>
-              {isJackpot ? '★ JACKPOT ★' : round.winType}
-            </p>
-            <p className="text-white/50 text-sm">{round.payoutMultiplier}× · +{formatChips(resultPayout)}</p>
-          </div>
-        )}
-        {isSettled && round.outcome === 'loss' && (
-          <div className="text-center mb-4 py-2 rounded-xl bg-white/5">
-            <p className="text-white/40 text-sm">No match · -{formatChips(round.betAmount)}</p>
-          </div>
-        )}
-
-        {/* Paytable — always visible */}
+        {/* Paytable — hidden while reels spin to keep field calmer */}
+        {!spinning && (
         <div>
           <p className="text-white/25 text-xs uppercase tracking-wider mb-2">Paytable</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
@@ -229,23 +271,20 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
             </div>
           </div>
         </div>
-
-        {/* Jackpot result overlay */}
-        {isJackpot && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/70 pointer-events-none">
-            <div className="text-center">
-              <p className="text-6xl font-black text-yellow-400 drop-shadow-lg">JACKPOT</p>
-              <p className="text-white/70 mt-1">100× · +{formatChips(resultPayout)}</p>
-            </div>
-          </div>
         )}
-      </div>
+      </GameFieldWithHistory>
 
-      {/* ── Control zone ── */}
-      <div className="border-t border-white/10 bg-black/30 p-4">
+      <GameOutcomeToast
+        open={slotsToastOpen && !!slotsToastSnap}
+        title={slotsToastSnap?.title ?? ''}
+        subtitle={slotsToastSnap?.subtitle}
+        tone={slotsToastSnap?.tone ?? 'neutral'}
+        onDismiss={dismissSlotsToast}
+      />
 
-        {/* BETTING / SPINNING */}
-        <div style={{ opacity: !isSettled || spinning ? 1 : 0, pointerEvents: !isSettled || spinning ? 'auto' : 'none', maxHeight: !isSettled || spinning ? '160px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+      <div className={GAME_CONTROL_DOCK_S}>
+        {!spinning && (
+          <div className="relative z-10">
           <div className="flex gap-2 flex-wrap justify-center mb-3">
             {CHIPS.map((chip) => (
               <button key={chip.value} onClick={() => addChip(chip.value)}
@@ -283,16 +322,8 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
             </button>
           </div>
           {minBet > 1 && <p className="text-white/25 text-xs mt-1">Min bet: {formatChips(minBet)}</p>}
-        </div>
-
-        {/* SETTLED */}
-        <div style={{ opacity: isSettled && !spinning ? 1 : 0, pointerEvents: isSettled && !spinning ? 'auto' : 'none', maxHeight: isSettled && !spinning ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
-          <div className="flex justify-center">
-            <button onClick={handleNewRound} className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg text-sm shadow-lg transition-colors">
-              Spin Again →
-            </button>
           </div>
-        </div>
+        )}
 
       </div>
     </div>

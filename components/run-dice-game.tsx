@@ -1,8 +1,17 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
+import {
+  GAME_BOARD_ARENA,
+  GAME_CARD_FRAME,
+  GAME_CONTROL_DOCK_S,
+  GAME_STATUS_BAR,
+} from '@/components/game-layout'
+import { appendPlay } from '@/components/game-history-utils'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
+import { GameOutcomeToast, type GameOutcomeToastSnap } from '@/components/game-outcome-toast'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import {
   getRunDicePayout,
@@ -43,6 +52,10 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
   const [round, setRound] = useState<RunDiceState>(initRunDice(config))
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
+  const [runDiceToastOpen, setRunDiceToastOpen] = useState(false)
+  const [runDiceToastSnap, setRunDiceToastSnap] = useState<GameOutcomeToastSnap | null>(null)
+  const lastRunDiceToastKey = useRef('')
 
   const winChance = useMemo(() => {
     const total = round.config.win.reduce((sum, v) => sum + (DICE_WEIGHT[v] ?? 0), 0)
@@ -69,19 +82,55 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
     const next = rollRunDice(round)
     setRound(next)
     if (next.stage === 'settled' && next.outcome) {
+      const po = getRunDicePayout(next)
       onResolve({
         outcome: next.outcome,
         betAmount: next.betAmount,
-        payout: getRunDicePayout(next),
+        payout: po,
         multiplier: next.payoutMultiplier,
+      })
+      appendPlay(setMatchHistory, {
+        bet: next.betAmount,
+        payout: po,
+        mult: next.payoutMultiplier,
+        outcome: next.outcome,
+        titlePrefix: next.rollResult != null ? `Roll ${next.rollResult}` : 'Settled',
       })
     }
   }
 
-  function handleNewRound() {
+  const dismissRunDiceToast = useCallback(() => {
+    setRunDiceToastOpen(false)
+    setRunDiceToastSnap(null)
+  }, [])
+
+  const handleNewRound = useCallback(() => {
     setRound(initRunDice(config))
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
-  }
+  }, [autoReBet, lastBet, bankroll, config])
+
+  useEffect(() => {
+    if (isBetting) lastRunDiceToastKey.current = ''
+  }, [isBetting])
+
+  useEffect(() => {
+    if (!isSettled || !round.outcome) return
+    const key = `${round.outcome}-${round.betAmount}-${round.rollResult}-${round.rollCount}`
+    if (lastRunDiceToastKey.current === key) return
+    lastRunDiceToastKey.current = key
+    const o = round.outcome
+    const title = o === 'win' ? 'Win' : o === 'push' ? 'Push' : 'Loss'
+    const subtitle =
+      o === 'win'
+        ? `+${formatChips(getRunDicePayout(round))}`
+        : o === 'push'
+          ? `${formatChips(round.betAmount)} returned`
+          : `−${formatChips(round.betAmount)}`
+    const tone = o === 'win' ? 'win' : o === 'push' ? 'push' : 'loss'
+    setRunDiceToastSnap({ title, subtitle, tone })
+    setRunDiceToastOpen(true)
+    queueMicrotask(() => handleNewRound())
+  }, [isSettled, round.outcome, round.betAmount, round.rollResult, round.rollCount, handleNewRound])
 
   function outcomeColor(val: number): string {
     if (round.config.win.includes(val))     return 'bg-emerald-700/80 border-emerald-500 text-emerald-200'
@@ -92,15 +141,18 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
   const lastRoll = round.rollResult
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ background: 'linear-gradient(160deg, #2a1500 0%, #1a0d00 100%)' }}>
-      {/* Status bar */}
-      <div className="px-4 py-2 bg-black/20 flex items-center justify-between text-xs text-white/50 border-b border-white/5">
-        <span className="font-semibold tracking-widest uppercase text-white/30">Run Dice</span>
-        <span>{round.message}</span>
+    <div className={GAME_CARD_FRAME} style={{ background: 'linear-gradient(160deg, #2a1500 0%, #1a0d00 100%)' }}>
+      <div className={GAME_STATUS_BAR}>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Run Dice</span>
+        <span className="text-sm text-zinc-600">{round.message}</span>
       </div>
 
-      {/* Game board */}
-      <div className="flex-1 p-4 md:p-6 relative">
+      <GameFieldWithHistory
+        className={GAME_BOARD_ARENA}
+        boardClassName="relative min-h-0 p-4 md:p-6"
+        entries={matchHistory}
+        gameLabel="Run Dice"
+      >
 
         {/* Dice result display */}
         <div className="flex items-center justify-center mb-5 min-h-[100px]">
@@ -157,33 +209,19 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
           </div>
         </div>
 
-        {/* Result overlay */}
-        {isSettled && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/65">
-            <div className="text-center">
-              <p className={`text-4xl font-black ${
-                round.outcome === 'win' ? 'text-yellow-400' :
-                round.outcome === 'push' ? 'text-white' : 'text-red-400'
-              }`}>
-                {round.outcome === 'win' ? 'WIN' : round.outcome === 'push' ? 'PUSH' : 'LOSS'}
-              </p>
-              <p className="text-white/60 mt-1 text-sm">
-                {round.outcome === 'win'
-                  ? `+${formatChips(getRunDicePayout(round))}`
-                  : round.outcome === 'push'
-                  ? `${formatChips(round.betAmount)} returned`
-                  : `-${formatChips(round.betAmount)}`}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+      </GameFieldWithHistory>
 
-      {/* ── Control zone ── */}
-      <div className="border-t border-white/10 bg-black/30 p-4">
+      <GameOutcomeToast
+        open={runDiceToastOpen && !!runDiceToastSnap}
+        title={runDiceToastSnap?.title ?? ''}
+        subtitle={runDiceToastSnap?.subtitle}
+        tone={runDiceToastSnap?.tone ?? 'neutral'}
+        onDismiss={dismissRunDiceToast}
+      />
 
-        {/* BETTING */}
-        <div style={{ opacity: isBetting ? 1 : 0, pointerEvents: isBetting ? 'auto' : 'none', maxHeight: isBetting ? '160px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+      <div className={GAME_CONTROL_DOCK_S}>
+        {isBetting && (
+          <div className="relative z-10">
           <div className="flex gap-2 flex-wrap justify-center mb-3">
             {CHIPS.map((chip) => (
               <button key={chip.value} onClick={() => addChip(chip.value)} disabled={chip.value > bankroll - currentBet}
@@ -211,10 +249,11 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
             </button>
           </div>
           {minBet > 1 && <p className="text-white/25 text-xs mt-1">Min bet: {formatChips(minBet)}</p>}
-        </div>
+          </div>
+        )}
 
-        {/* IN PROGRESS */}
-        <div style={{ opacity: isInProgress ? 1 : 0, pointerEvents: isInProgress ? 'auto' : 'none', maxHeight: isInProgress ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+        {isInProgress && (
+          <div className="relative z-10">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-white/50 text-sm">
               Bet <span className="text-white font-semibold">{formatChips(round.betAmount)}</span>
@@ -226,16 +265,8 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
               Roll
             </button>
           </div>
-        </div>
-
-        {/* SETTLED */}
-        <div style={{ opacity: isSettled ? 1 : 0, pointerEvents: isSettled ? 'auto' : 'none', maxHeight: isSettled ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
-          <div className="flex justify-center">
-            <button onClick={handleNewRound} className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg text-sm shadow-lg transition-colors">
-              New Round →
-            </button>
           </div>
-        </div>
+        )}
 
       </div>
     </div>

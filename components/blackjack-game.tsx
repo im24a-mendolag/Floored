@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
+import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
+import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
+import { GameOutcomeToast, type GameOutcomeToastSnap } from '@/components/game-outcome-toast'
 import { formatChips } from '@/utils/format'
 import type { BlackjackCard, BlackjackOutcome, BlackjackState } from '@/games/blackjack/types'
 import {
@@ -137,9 +140,11 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
   const [round, setRound] = useState<BlackjackState>(initBlackjack())
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
-  const [showResult, setShowResult] = useState(false)
+  const [resultToastOpen, setResultToastOpen] = useState(false)
+  const [resultToastSnap, setResultToastSnap] = useState<GameOutcomeToastSnap | null>(null)
   const [dealerDisplayHand, setDealerDisplayHand] = useState<BlackjackCard[] | null>(null)
   const [settling, setSettling] = useState(false)
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const cancelDealerAnim = useRef<(() => void) | null>(null)
 
   const displayedDealerHand = dealerDisplayHand ?? round.dealerHand
@@ -172,13 +177,38 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
   function settleRound(state: BlackjackState, resultDelay = RESULT_DELAY) {
     setRound(state)
     if (state.stage === 'settled' && state.outcome) {
+      const payout = Math.round(state.betAmount * state.payoutMultiplier)
       onResolve({
         outcome: state.outcome,
         betAmount: state.betAmount,
-        payout: Math.round(state.betAmount * state.payoutMultiplier),
+        payout,
         multiplier: state.payoutMultiplier,
       })
-      setTimeout(() => setShowResult(true), resultDelay)
+      const o = state.outcome
+      const tone: MatchHistoryTone = o === 'win' ? 'win' : o === 'push' ? 'push' : 'loss'
+      const title =
+        o === 'win' ? `+${formatChips(payout)}` : o === 'push' ? `Push ${formatChips(payout)}` : `−${formatChips(state.betAmount)}`
+      const subtitle = `${formatChips(state.betAmount)} bet · You ${calculateHandValue(state.playerHand)} vs dealer ${calculateHandValue(state.dealerHand)}`
+      setMatchHistory((h) =>
+        [{ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, at: new Date(), title, subtitle, tone }, ...h].slice(
+          0,
+          80,
+        ),
+      )
+      const toastTone =
+        o === 'win' ? 'win' : o === 'push' ? 'push' : 'loss'
+      const toastTitle = o === 'win' ? 'WIN' : o === 'push' ? 'PUSH' : 'BUST'
+      const toastSubtitle =
+        o === 'win'
+          ? `+${formatChips(payout)}`
+          : o === 'push'
+            ? `${formatChips(state.betAmount)} returned`
+            : `-${formatChips(state.betAmount)}`
+      setResultToastSnap({ title: toastTitle, subtitle: toastSubtitle, tone: toastTone })
+      setTimeout(() => {
+        setResultToastOpen(true)
+        handleNewHand()
+      }, resultDelay)
     }
   }
 
@@ -267,40 +297,30 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
     setDealerDisplayHand(null)
     setRound(initBlackjack())
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
-    setShowResult(false)
     setSettling(false)
     setPlayerVisibleLen(0)
     setDealerVisibleLen(0)
   }
 
-  const outcomeLabel =
-    round.outcome === 'win'  ? 'WIN'  :
-    round.outcome === 'push' ? 'PUSH' : 'BUST'
-
-  const outcomeColor =
-    round.outcome === 'win'  ? 'text-white' :
-    round.outcome === 'push' ? 'text-zinc-400' : 'text-zinc-500'
-
-  const outcomeAmount =
-    round.outcome === 'win'
-      ? `+${formatChips(Math.round(round.betAmount * round.payoutMultiplier))}`
-      : round.outcome === 'push'
-      ? `${formatChips(round.betAmount)} returned`
-      : `-${formatChips(round.betAmount)}`
+  const dismissResultToast = useCallback(() => {
+    setResultToastOpen(false)
+    setResultToastSnap(null)
+  }, [])
 
   return (
-    <div
-      className="flex-1 min-h-0 rounded-2xl shadow-2xl flex flex-col bg-zinc-950 border border-zinc-800"
-      style={CARD_CSS}
-    >
+    <div className={GAME_CARD_SHELL} style={CARD_CSS}>
       {/* Status bar */}
-      <div className="shrink-0 px-5 py-2 bg-black flex items-center justify-between border-b border-zinc-800 rounded-t-2xl">
+      <div className={GAME_STATUS_BAR}>
         <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Blackjack</span>
         <span className="text-sm text-zinc-600">{round.message}</span>
       </div>
 
-      {/* Game board */}
-      <div className="flex-1 min-h-0 px-4 md:px-8 py-2 relative flex flex-col">
+      <GameFieldWithHistory
+        className={GAME_BOARD_ARENA}
+        boardClassName="relative flex min-h-0 flex-col px-4 md:px-8 py-2"
+        entries={matchHistory}
+        gameLabel="Blackjack"
+      >
 
         {/* Dealer zone */}
         <div className="flex-1 flex flex-col items-center justify-center">
@@ -370,114 +390,111 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
           </div>
         </div>
 
-        {/* Result overlay */}
-        {showResult && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80">
-            <div className="text-center">
-              <p className={`text-7xl sm:text-8xl font-black tracking-tight ${outcomeColor}`}>
-                {outcomeLabel}
-              </p>
-              <p className="text-zinc-400 mt-3 text-base font-medium">{outcomeAmount}</p>
+      </GameFieldWithHistory>
+
+      <GameOutcomeToast
+        open={resultToastOpen && !!resultToastSnap}
+        title={resultToastSnap?.title ?? ''}
+        subtitle={resultToastSnap?.subtitle}
+        tone={resultToastSnap?.tone ?? 'neutral'}
+        onDismiss={dismissResultToast}
+      />
+
+      {/* Control zone — shared max width so bet line and actions share one vertical axis */}
+      <div className={GAME_CONTROL_DOCK_M}>
+        {isBetting && (
+          <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col gap-3">
+            <div className="flex flex-wrap justify-center gap-3">
+              {CHIPS.map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => addChip(chip.value)}
+                  disabled={chip.value > bankroll - currentBet}
+                  className={`w-14 h-14 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentBet(bankroll)}
+                disabled={currentBet >= bankroll || bankroll <= 0}
+                className="h-14 px-4 rounded-full bg-zinc-200 hover:bg-white border-2 border-zinc-100 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                All In
+              </button>
             </div>
+            <div className="flex items-center justify-center">
+              <div className="grid w-full max-w-[280px] grid-cols-[1fr_auto_1fr] items-center gap-x-2">
+                <div className="min-w-0" aria-hidden />
+                <div className="flex items-center justify-center gap-2.5 whitespace-nowrap">
+                  <span className="text-zinc-500 text-base">Bet</span>
+                  <span className="font-bold text-xl text-white tabular-nums">
+                    {currentBet > 0 ? formatChips(currentBet) : '—'}
+                  </span>
+                </div>
+                <div className="flex min-h-[2.25rem] items-center justify-end">
+                  {currentBet > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setCurrentBet(0)}
+                      className="px-3 py-1.5 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleDeal}
+                disabled={!canDeal}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Deal →
+              </button>
+            </div>
+            {minBet > 1 && <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>}
           </div>
         )}
-      </div>
 
-      {/* Control zone */}
-      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 py-3 rounded-b-2xl">
-
-        {/* BETTING */}
-        <div
-          style={{
-            opacity: isBetting ? 1 : 0,
-            pointerEvents: isBetting ? 'auto' : 'none',
-            maxHeight: isBetting ? '190px' : '0',
-            overflow: 'hidden',
-            transition: 'opacity 250ms ease, max-height 300ms ease',
-          }}
-        >
-          <div className="flex gap-3 flex-wrap justify-center mb-3">
-            {CHIPS.map((chip) => (
-              <button
-                key={chip.value}
-                onClick={() => addChip(chip.value)}
-                disabled={chip.value > bankroll - currentBet}
-                className={`w-14 h-14 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
-              >
-                {chip.label}
-              </button>
-            ))}
-            <button
-              onClick={() => setCurrentBet(bankroll)}
-              disabled={currentBet >= bankroll || bankroll <= 0}
-              className="h-14 px-4 rounded-full bg-zinc-200 hover:bg-white border-2 border-zinc-100 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              All In
-            </button>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="text-zinc-500 text-base">Bet</span>
-              <span className="font-bold text-xl text-white">{currentBet > 0 ? formatChips(currentBet) : '—'}</span>
-              {currentBet > 0 && (
-                <button
-                  onClick={() => setCurrentBet(0)}
-                  className="px-3 py-1.5 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ml-1"
-                >
-                  Clear
+        {!isBetting && (
+          <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col gap-3">
+            <div className="flex items-center justify-center">
+              <div className="grid w-full max-w-[280px] grid-cols-[1fr_auto_1fr] items-center gap-x-2">
+                <div className="min-w-0" aria-hidden />
+                <div className="flex items-center justify-center gap-2.5 whitespace-nowrap">
+                  <span className="text-zinc-500 text-base">Bet</span>
+                  <span className="font-bold text-xl text-white tabular-nums">
+                    {round.betAmount > 0 ? formatChips(round.betAmount) : '0'}
+                  </span>
+                </div>
+                <div className="min-h-[2.25rem]" aria-hidden />
+              </div>
+            </div>
+            {playerCanAct && (
+              <div className="flex flex-wrap justify-center gap-2.5">
+                <button type="button" onClick={handleHit} className="min-w-[5.25rem] px-6 py-2.5 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg text-base transition-colors shadow">
+                  Hit
                 </button>
-              )}
-            </div>
-            <button
-              onClick={handleDeal}
-              disabled={!canDeal}
-              className="px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-            >
-              Deal →
-            </button>
+                <button type="button" onClick={handleStand} className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg text-base transition-colors">
+                  Stand
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDouble}
+                  disabled={!canDouble}
+                  className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-25 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-base transition-colors"
+                >
+                  Double
+                </button>
+              </div>
+            )}
           </div>
-          {minBet > 1 && <p className="text-zinc-600 text-sm mt-2.5">Min bet: {formatChips(minBet)}</p>}
-        </div>
-
-        {/* IN PROGRESS */}
-        <div
-          style={{
-            opacity: playerCanAct ? 1 : 0,
-            pointerEvents: playerCanAct ? 'auto' : 'none',
-            maxHeight: playerCanAct ? '100px' : '0',
-            overflow: 'hidden',
-            transition: 'opacity 250ms ease, max-height 300ms ease',
-          }}
-        >
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <span className="text-zinc-500 text-base">
-              Bet <span className="text-white font-semibold">{formatChips(round.betAmount)}</span>
-            </span>
-            <div className="flex gap-2.5">
-              <button onClick={handleHit}    className="px-6 py-2.5 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg text-base transition-colors shadow">Hit</button>
-              <button onClick={handleStand}  className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg text-base transition-colors">Stand</button>
-              <button onClick={handleDouble} disabled={!canDouble} className="px-6 py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-25 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-base transition-colors">Double</button>
-            </div>
-          </div>
-        </div>
-
-        {/* SETTLED */}
-        <div
-          style={{
-            opacity: showResult ? 1 : 0,
-            pointerEvents: showResult ? 'auto' : 'none',
-            maxHeight: showResult ? '100px' : '0',
-            overflow: 'hidden',
-            transition: 'opacity 250ms ease, max-height 300ms ease',
-          }}
-        >
-          <div className="flex justify-center">
-            <button onClick={handleNewHand} className="px-10 py-2.5 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg text-base shadow-lg transition-colors">
-              New Hand →
-            </button>
-          </div>
-        </div>
-
+        )}
       </div>
     </div>
   )

@@ -52,7 +52,9 @@ export default function SurvivalPlinkoPage() {
       </div>
 
       {bankroll > 0 ? (
-        <PlinkoGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
+        <div className="flex min-h-[min(680px,calc(100dvh-12rem))] flex-col">
+          <PlinkoGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
+        </div>
       ) : (
         <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
           Your survival bankroll is empty. Return to the lobby to end the run or choose another game.

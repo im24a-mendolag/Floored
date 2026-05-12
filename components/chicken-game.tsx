@@ -1,8 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
+import {
+  GAME_BOARD_ARENA,
+  GAME_CARD_FRAME,
+  GAME_CONTROL_DOCK_S,
+  GAME_STATUS_BAR,
+} from '@/components/game-layout'
+import { appendPlay } from '@/components/game-history-utils'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
+import { GameOutcomeToast, type GameOutcomeToastSnap } from '@/components/game-outcome-toast'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import {
   cashOutChicken,
@@ -43,6 +52,10 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
   const [round, setRound] = useState<ChickenState>(initChicken())
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
+  const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
+  const [chickenToastOpen, setChickenToastOpen] = useState(false)
+  const [chickenToastSnap, setChickenToastSnap] = useState<GameOutcomeToastSnap | null>(null)
+  const lastChickenToastKey = useRef('')
 
   const isBetting    = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
@@ -64,11 +77,19 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
     const next = advanceChickenRound(round)
     setRound(next)
     if (next.stage === 'settled') {
+      const po = getChickenPayout(next)
       onResolve({
         outcome: next.outcome ?? 'loss',
         betAmount: next.betAmount,
-        payout: getChickenPayout(next),
+        payout: po,
         multiplier: next.multiplier,
+      })
+      appendPlay(setMatchHistory, {
+        bet: next.betAmount,
+        payout: po,
+        mult: next.multiplier,
+        outcome: 'loss',
+        titlePrefix: `Busted · step ${next.step}`,
       })
     }
   }
@@ -76,31 +97,68 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
   function handleCashOut() {
     const next = cashOutChicken(round)
     setRound(next)
+    const po = getChickenPayout(next)
     onResolve({
       outcome: 'win',
       betAmount: next.betAmount,
-      payout: getChickenPayout(next),
+      payout: po,
       multiplier: next.multiplier,
+    })
+    appendPlay(setMatchHistory, {
+      bet: next.betAmount,
+      payout: po,
+      mult: next.multiplier,
+      outcome: 'win',
+      titlePrefix: `Cash out · step ${next.step}`,
     })
   }
 
-  function handleNewRound() {
+  const dismissChickenToast = useCallback(() => {
+    setChickenToastOpen(false)
+    setChickenToastSnap(null)
+  }, [])
+
+  const handleNewRound = useCallback(() => {
     setRound(initChicken())
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
-  }
+  }, [autoReBet, lastBet, bankroll])
+
+  useEffect(() => {
+    if (isBetting) lastChickenToastKey.current = ''
+  }, [isBetting])
+
+  useEffect(() => {
+    if (!isSettled || !round.outcome) return
+    const step = round.step
+    const key = `${round.outcome}-${round.betAmount}-${step}`
+    if (lastChickenToastKey.current === key) return
+    lastChickenToastKey.current = key
+    const title = round.outcome === 'win' ? 'Cashed out' : 'Squashed'
+    const subtitle =
+      round.outcome === 'win'
+        ? `+${formatChips(getChickenPayout(round))}`
+        : `−${formatChips(round.betAmount)}`
+    const tone = round.outcome === 'win' ? 'win' : 'loss'
+    setChickenToastSnap({ title, subtitle, tone })
+    setChickenToastOpen(true)
+    queueMicrotask(() => handleNewRound())
+  }, [isSettled, round.outcome, round.betAmount, round.step, handleNewRound])
 
   const currentStep = round.step
 
   return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl flex flex-col" style={{ background: 'linear-gradient(160deg, #2a1a00 0%, #1a1000 100%)' }}>
-      {/* Status bar */}
-      <div className="px-4 py-2 bg-black/20 flex items-center justify-between text-xs text-white/50 border-b border-white/5">
-        <span className="font-semibold tracking-widest uppercase text-white/30">Chicken Road</span>
-        <span>{round.message}</span>
+    <div className={GAME_CARD_FRAME} style={{ background: 'linear-gradient(160deg, #2a1a00 0%, #1a1000 100%)' }}>
+      <div className={GAME_STATUS_BAR}>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Chicken Road</span>
+        <span className="text-sm text-zinc-600">{round.message}</span>
       </div>
 
-      {/* Game board */}
-      <div className="flex-1 p-4 md:p-6 relative">
+      <GameFieldWithHistory
+        className={GAME_BOARD_ARENA}
+        boardClassName="relative min-h-0 p-4 md:p-6"
+        entries={matchHistory}
+        gameLabel="Chicken"
+      >
 
         {/* Road visualization */}
         <div className="mb-6">
@@ -164,28 +222,19 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
           </div>
         </div>
 
-        {/* Result overlay */}
-        {isSettled && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/65">
-            <div className="text-center">
-              <p className={`text-4xl font-black ${round.outcome === 'win' ? 'text-yellow-400' : 'text-red-400'}`}>
-                {round.outcome === 'win' ? 'CASHED OUT' : 'SQUASHED'}
-              </p>
-              <p className="text-white/60 mt-1 text-sm">
-                {round.outcome === 'win'
-                  ? `Step ${currentStep} · +${formatChips(getChickenPayout(round))}`
-                  : `Hit a car at step ${currentStep} · -${formatChips(round.betAmount)}`}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+      </GameFieldWithHistory>
 
-      {/* ── Control zone ── */}
-      <div className="border-t border-white/10 bg-black/30 p-4">
+      <GameOutcomeToast
+        open={chickenToastOpen && !!chickenToastSnap}
+        title={chickenToastSnap?.title ?? ''}
+        subtitle={chickenToastSnap?.subtitle}
+        tone={chickenToastSnap?.tone ?? 'neutral'}
+        onDismiss={dismissChickenToast}
+      />
 
-        {/* BETTING */}
-        <div style={{ opacity: isBetting ? 1 : 0, pointerEvents: isBetting ? 'auto' : 'none', maxHeight: isBetting ? '160px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+      <div className={GAME_CONTROL_DOCK_S}>
+        {isBetting && (
+          <div className="relative z-10">
           <div className="flex gap-2 flex-wrap justify-center mb-3">
             {CHIPS.map((chip) => (
               <button key={chip.value} onClick={() => addChip(chip.value)} disabled={chip.value > bankroll - currentBet}
@@ -213,10 +262,11 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
             </button>
           </div>
           {minBet > 1 && <p className="text-white/25 text-xs mt-1">Min bet: {formatChips(minBet)}</p>}
-        </div>
+          </div>
+        )}
 
-        {/* IN PROGRESS */}
-        <div style={{ opacity: isInProgress ? 1 : 0, pointerEvents: isInProgress ? 'auto' : 'none', maxHeight: isInProgress ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
+        {isInProgress && (
+          <div className="relative z-10">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-white/50 text-sm">
               Bet <span className="text-white font-semibold">{formatChips(round.betAmount)}</span>
@@ -230,16 +280,8 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
               </button>
             </div>
           </div>
-        </div>
-
-        {/* SETTLED */}
-        <div style={{ opacity: isSettled ? 1 : 0, pointerEvents: isSettled ? 'auto' : 'none', maxHeight: isSettled ? '80px' : '0', overflow: 'hidden', transition: 'opacity 250ms ease, max-height 300ms ease' }}>
-          <div className="flex justify-center">
-            <button onClick={handleNewRound} className="px-6 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg text-sm shadow-lg transition-colors">
-              New Round →
-            </button>
           </div>
-        </div>
+        )}
 
       </div>
     </div>
