@@ -31,13 +31,13 @@ interface CrashGameProps {
 function mult(ms: number) { return Math.exp(0.23 * ms / 1000) }
 
 function buildSmoothPath(pts: [number, number][]): string {
-  if (pts.length < 2) return `M ${pts[0][0]} ${pts[0][1]}`
-  let d = `M ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`
+  if (pts.length < 2) return `M ${pts[0]![0]} ${pts[0]![1]}`
+  let d = `M ${pts[0]![0].toFixed(2)} ${pts[0]![1].toFixed(2)}`
   for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)]
-    const p1 = pts[i]
-    const p2 = pts[i + 1]
-    const p3 = pts[Math.min(pts.length - 1, i + 2)]
+    const p0 = pts[Math.max(0, i - 1)]!
+    const p1 = pts[i]!
+    const p2 = pts[i + 1]!
+    const p3 = pts[Math.min(pts.length - 1, i + 2)]!
     const cp1x = p1[0] + (p2[0] - p0[0]) / 6
     const cp1y = p1[1] + (p2[1] - p0[1]) / 6
     const cp2x = p2[0] - (p3[0] - p1[0]) / 6
