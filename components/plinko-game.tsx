@@ -8,7 +8,6 @@ import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } f
 import { formatChips, formatMultiplier } from '@/utils/format'
 import { PLINKO_ROWS, computePlinkoPayout, generatePlinkoPath, getSlotMultipliers } from '@/games/plinko/engine'
 import {
-  BOARD_MARGIN,
   SLOT_BAND_HEIGHT,
   SLOT_RECT_Y,
   SLOT_WIDTH,
@@ -257,7 +256,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     }
 
     rafRef.current = requestAnimationFrame(tick)
-  }, [stopLoop])
+  }, [])
 
   useEffect(() => {
     return () => stopLoop()

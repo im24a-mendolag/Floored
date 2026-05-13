@@ -130,7 +130,7 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
     setRunDiceToastSnap({ title, subtitle, tone })
     setRunDiceToastOpen(true)
     queueMicrotask(() => handleNewRound())
-  }, [isSettled, round.outcome, round.betAmount, round.rollResult, round.rollCount, handleNewRound])
+  }, [isSettled, round, round.outcome, round.betAmount, round.rollResult, round.rollCount, handleNewRound])
 
   function outcomeColor(val: number): string {
     if (round.config.win.includes(val))     return 'bg-emerald-700/80 border-emerald-500 text-emerald-200'

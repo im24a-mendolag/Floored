@@ -114,7 +114,7 @@ export function DiceGame({ mode, bankroll, onResolve }: DiceGameProps) {
     setDiceToastSnap({ title, subtitle, tone })
     setDiceToastOpen(true)
     queueMicrotask(() => handleNewRound())
-  }, [isSettled, round.rollResult, round.outcome, round.betAmount, handleNewRound])
+  }, [isSettled, round, round.rollResult, round.outcome, round.betAmount, handleNewRound])
 
   function handleRoll() {
     const next = resolveDiceRound(round)
@@ -136,10 +136,6 @@ export function DiceGame({ mode, bankroll, onResolve }: DiceGameProps) {
       })
     }
   }
-
-  const resultPayout = isSettled
-    ? round.outcome === 'win' ? getDiceResultPayout(round) : round.outcome === 'push' ? round.betAmount : 0
-    : 0
 
   return (
     <div className={GAME_CARD_FRAME} style={{ background: 'linear-gradient(160deg, #1a1a2e 0%, #0f0f1e 100%)' }}>

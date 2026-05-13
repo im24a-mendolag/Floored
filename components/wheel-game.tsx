@@ -152,7 +152,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
     setWheelToastSnap({ title, subtitle, tone })
     setWheelToastOpen(true)
     queueMicrotask(() => handleNewRound())
-  }, [isSettled, spinning, round.outcome, round.betAmount, round.resultColor, round.resultMultiplier, handleNewRound])
+  }, [isSettled, spinning, round, round.outcome, round.betAmount, round.resultColor, round.resultMultiplier, handleNewRound])
   const conicGradient = `conic-gradient(
     from 0deg,
     #ef4444 0deg 175.6deg,

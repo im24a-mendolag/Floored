@@ -142,7 +142,7 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
     setChickenToastSnap({ title, subtitle, tone })
     setChickenToastOpen(true)
     queueMicrotask(() => handleNewRound())
-  }, [isSettled, round.outcome, round.betAmount, round.step, handleNewRound])
+  }, [isSettled, round, round.outcome, round.betAmount, round.step, handleNewRound])
 
   const currentStep = round.step
 

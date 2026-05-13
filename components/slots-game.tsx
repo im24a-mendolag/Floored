@@ -147,7 +147,7 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
     setSlotsToastSnap({ title, subtitle, tone })
     setSlotsToastOpen(true)
     queueMicrotask(() => handleNewRound())
-  }, [isSettled, round.outcome, round.betAmount, round.reels, round.isJackpotSpin, round.payoutMultiplier, handleNewRound])
+  }, [isSettled, round, round.outcome, round.betAmount, round.reels, round.isJackpotSpin, round.payoutMultiplier, handleNewRound])
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))

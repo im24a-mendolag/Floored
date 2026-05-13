@@ -459,7 +459,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
           )}
           {!isBetting && playerCanAct && (
             <p className="max-w-xs text-center text-sm italic text-zinc-600">
-              "{GAMBLING_QUOTES[quoteIdx]}"
+              &quot;{GAMBLING_QUOTES[quoteIdx]}&quot;
             </p>
           )}
           {round.stage === 'settled' && pendingResult && (

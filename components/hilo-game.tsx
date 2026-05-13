@@ -51,7 +51,6 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
   const [hiloToastSnap, setHiloToastSnap] = useState<GameOutcomeToastSnap | null>(null)
   const lastHiloToastKey = useRef('')
 
-  const payout      = useMemo(() => getHiloPayout(round), [round])
   const winChance   = useMemo(() => round.safeZone, [round.safeZone])
   const dangerChance = useMemo(() => 100 - round.safeZone, [round.safeZone])
 
@@ -118,7 +117,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
     setHiloToastSnap({ title, subtitle, tone })
     setHiloToastOpen(true)
     queueMicrotask(() => handleNewRound())
-  }, [isSettled, round.outcome, round.betAmount, round.rollResult, handleNewRound])
+  }, [isSettled, round, round.outcome, round.betAmount, round.rollResult, handleNewRound])
 
   const displaySafeZone = isBetting ? safeZone : round.safeZone
 

@@ -209,7 +209,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
     }, 50)
 
     return () => clearInterval(id)
-  }, [isInProgress])
+  }, [isInProgress, round.crashAt, round.betAmount, onResolve])
 
   function addChip(value: number) {
     setCurrentBet(prev => Math.min(prev + value, bankroll))
@@ -389,7 +389,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
           )}
           {isInProgress && (
             <p className="max-w-xs text-center text-sm italic text-zinc-600">
-              "{GAMBLING_QUOTES[quoteIdx]}"
+              &quot;{GAMBLING_QUOTES[quoteIdx]}&quot;
             </p>
           )}
           {isSettled && pendingResult && (
