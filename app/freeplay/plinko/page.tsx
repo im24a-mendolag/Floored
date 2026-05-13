@@ -1,12 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { PlinkoGame } from '@/components/plinko-game'
 import { BankruptModal } from '@/components/bankrupt-modal'
 import { useFreeplayStore } from '@/store/freeplay-store'
 
 export default function FreeplayPlinkoPage() {
-  const router = useRouter()
   const bankroll = useFreeplayStore((s) => s.bankroll)
   const reset = useFreeplayStore((s) => s.reset)
 
@@ -23,19 +21,7 @@ export default function FreeplayPlinkoPage() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 gap-3">
-      <div className="shrink-0">
-        <h1 className="text-xl font-bold">Plinko</h1>
-        <p className="text-muted-foreground text-xs mt-0.5">Freeplay — no floors, no pressure.</p>
-        <button
-          type="button"
-          onClick={() => router.push('/freeplay')}
-          className="mt-1 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-        >
-          ← Back
-        </button>
-      </div>
-
+    <div className="flex flex-col flex-1 min-h-0">
       {bankroll <= 0 && <BankruptModal onReset={reset} />}
       <PlinkoGame mode="freeplay" bankroll={Math.max(0, bankroll)} onBet={handleBet} onResolve={handleResolve} />
     </div>

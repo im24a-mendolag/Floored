@@ -330,9 +330,9 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
       {/* Control zone */}
       <div className={GAME_CONTROL_DOCK_M}>
         {/* Top: variable content (chips during betting, result after settled) */}
-        <div className="flex-1 flex flex-col items-center justify-start pt-3 gap-3 min-h-0">
+        <div className="flex-1 flex flex-col items-center justify-start pt-3 gap-1 min-h-0">
           {isBetting && (
-            <div className="w-full max-w-sm flex flex-col gap-3">
+            <div className="w-full max-w-sm flex flex-col gap-1">
               <div className="flex flex-nowrap justify-center gap-2">
                 {CHIPS.map((chip) => (
                   <button
@@ -407,7 +407,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
         </div>
 
         {/* Bottom: action button — always anchored at the same position */}
-        <div className="mx-auto w-full max-w-sm flex flex-col gap-2">
+        <div className="mx-auto w-full max-w-sm flex flex-col gap-1 pb-2">
           {isBetting && (
             <div className="flex justify-center">
               <button

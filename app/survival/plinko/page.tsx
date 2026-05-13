@@ -43,18 +43,7 @@ export default function SurvivalPlinkoPage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-3">
-      <div className="shrink-0 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Plinko</h1>
-          <p className="text-muted-foreground text-xs mt-0.5">Drop the ball and chase the highest slot.</p>
-          <button
-            type="button"
-            onClick={() => router.push('/survival')}
-            className="mt-1 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-          >
-            ← Back
-          </button>
-        </div>
+      <div className="shrink-0 flex justify-end">
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>Floor {currentFloor}</span>
           <span className="text-zinc-700">·</span>

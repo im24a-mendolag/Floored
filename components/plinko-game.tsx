@@ -392,7 +392,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-          <div className="space-y-3">
+          <div className="space-y-0 pb-2 pt-3">
             <div className="flex flex-nowrap justify-center gap-2">
               {CHIPS.map((chip) => (
                 <button
@@ -431,7 +431,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
               <div className="flex items-center gap-2.5">
                 <span className="text-zinc-500 text-base">Bet</span>
                 <span className="font-bold text-xl text-white">
@@ -457,9 +457,6 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
               </button>
             </div>
             {minBet > 1 && <p className="text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>}
-            <p className="text-zinc-600 text-xs">
-              Each row is a fair 50/50. The sim uses a Galton (binomial) slot model so the grid center hits most often — fewer 10×/5× than with a wall-clamped walk.
-            </p>
           </div>
         </div>
     </div>

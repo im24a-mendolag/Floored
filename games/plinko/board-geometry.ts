@@ -22,7 +22,7 @@ export function getBallCenterY(stepIndex: number): number {
   return getBallY(stepIndex) + ROW_BAND / 2
 }
 
-/** Triangular pin grid: row 0 has 1 pin, row 13 has 14 pins; pins sit at slot boundaries. */
+/** Triangular pin grid: row 0 has 1 pin, row 9 has 10 pins; pins sit at slot boundaries. */
 export function getPinX(row: number, col: number): number {
   return BOARD_MARGIN + (col + (PLINKO_ROWS - row) / 2 + 0.5) * SLOT_WIDTH
 }

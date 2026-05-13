@@ -19,12 +19,12 @@ export const GAME_BOARD_ARENA =
 export const GAME_BOARD_ARENA_CENTER = `${GAME_BOARD_ARENA} flex items-center justify-center`
 
 export const GAME_CONTROL_DOCK =
-  'shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 py-3 rounded-b-2xl'
+  'shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 py-1 rounded-b-2xl'
 
 /** Fixed-height control shells — swap inner panels without collapsing the dock. */
 export const GAME_CONTROL_DOCK_S =
   `${GAME_CONTROL_DOCK} relative flex min-h-[200px] flex-col justify-center`
 export const GAME_CONTROL_DOCK_M =
-  `${GAME_CONTROL_DOCK} relative flex min-h-[248px] flex-col justify-center`
+  `${GAME_CONTROL_DOCK} relative flex min-h-[200px] flex-col justify-center`
 export const GAME_CONTROL_DOCK_L =
   `${GAME_CONTROL_DOCK} relative flex min-h-[360px] flex-col justify-center`

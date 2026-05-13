@@ -1,13 +1,13 @@
 import type { PlinkoOutcome } from './types'
 
-export const PLINKO_ROWS = 14
-export const PLINKO_SLOT_COUNT = 15
+export const PLINKO_ROWS = 10
+export const PLINKO_SLOT_COUNT = 11
 
 export const PLINKO_MULTIPLIERS = [
-  15, 10, 5, 2, 1.2, 0.5, 0.2, 0.1, 0.2, 0.5, 1.2, 2, 5, 10, 15,
+  10, 5, 2, 0.5, 0.2, 0.1, 0.2, 0.5, 2, 5, 10,
 ] as const
 
-const CENTER = 7
+const CENTER = 5
 
 function generateSinglePlinkoPath(): number[] {
   const path: number[] = []
