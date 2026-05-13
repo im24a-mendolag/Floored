@@ -8,12 +8,13 @@ import { formatChips } from '@/utils/format'
 
 export default function SurvivalPlinkoPage() {
   const router = useRouter()
-  const bankroll = useSurvivalStore((s) => s.bankroll)
-  const recordResult = useSurvivalStore((s) => s.recordResult)
   const runActive = useSurvivalStore((s) => s.runActive)
+  const bankroll = useSurvivalStore((s) => s.bankroll)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
   const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
   const slotsUsed = useSurvivalStore((s) => s.slotsUsed)
+  const deductBet = useSurvivalStore((s) => s.deductBet)
+  const recordResultPayout = useSurvivalStore((s) => s.recordResultPayout)
 
   useEffect(() => {
     if (!runActive) {
@@ -23,8 +24,12 @@ export default function SurvivalPlinkoPage() {
 
   if (!runActive) return null
 
+  function handleBet(amount: number) {
+    deductBet(amount)
+  }
+
   function handleResolve(result: { outcome: 'win' | 'loss' | 'push'; betAmount: number; payout: number; multiplier: number }) {
-    recordResult({
+    recordResultPayout({
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       game: 'plinko',
       floor: currentFloor,
@@ -42,6 +47,13 @@ export default function SurvivalPlinkoPage() {
         <div>
           <h1 className="text-xl font-bold">Plinko</h1>
           <p className="text-muted-foreground text-xs mt-0.5">Drop the ball and chase the highest slot.</p>
+          <button
+            type="button"
+            onClick={() => router.push('/survival')}
+            className="mt-1 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            ← Back
+          </button>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>Floor {currentFloor}</span>
@@ -52,7 +64,7 @@ export default function SurvivalPlinkoPage() {
         </div>
       </div>
 
-      <PlinkoGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
+      <PlinkoGame mode="survival" bankroll={bankroll} onBet={handleBet} onResolve={handleResolve} />
     </div>
   )
 }

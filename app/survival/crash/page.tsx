@@ -7,15 +7,16 @@ import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips } from '@/utils/format'
 
 export default function SurvivalCrashPage() {
-  const router       = useRouter()
-  const runActive    = useSurvivalStore((s) => s.runActive)
-  const bankroll     = useSurvivalStore((s) => s.bankroll)
-  const slotsUsed    = useSurvivalStore((s) => s.slotsUsed)
+  const router = useRouter()
+  const runActive = useSurvivalStore((s) => s.runActive)
+  const bankroll = useSurvivalStore((s) => s.bankroll)
+  const slotsUsed = useSurvivalStore((s) => s.slotsUsed)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
-  const floorMinBet  = useSurvivalStore((s) => s.floorMinBet)
-  const recordResult = useSurvivalStore((s) => s.recordResult)
+  const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
+  const deductBet = useSurvivalStore((s) => s.deductBet)
+  const recordResultPayout = useSurvivalStore((s) => s.recordResultPayout)
   const advanceFloor = useSurvivalStore((s) => s.advanceFloor)
-  const endRun       = useSurvivalStore((s) => s.endRun)
+  const endRun = useSurvivalStore((s) => s.endRun)
 
   useEffect(() => {
     if (!runActive) router.replace('/survival')
@@ -23,9 +24,13 @@ export default function SurvivalCrashPage() {
 
   if (!runActive) return null
 
+  function handleBet(amount: number) {
+    deductBet(amount)
+  }
+
   function handleResolve(result: { outcome: 'win' | 'loss'; betAmount: number; payout: number; multiplier: number }) {
     const shouldAdvance = slotsUsed >= 2
-    recordResult({
+    recordResultPayout({
       id: `crash-${Date.now()}`,
       game: 'crash',
       floor: currentFloor,
@@ -36,8 +41,7 @@ export default function SurvivalCrashPage() {
       playedAt: new Date(),
     })
     if (shouldAdvance) advanceFloor()
-    const nextBankroll = bankroll - result.betAmount + result.payout
-    if (nextBankroll <= 0) endRun()
+    if (useSurvivalStore.getState().bankroll <= 0) endRun()
   }
 
   return (
@@ -46,6 +50,13 @@ export default function SurvivalCrashPage() {
         <div>
           <h1 className="text-xl font-bold">Crash</h1>
           <p className="text-muted-foreground text-xs mt-0.5">Cash out before the crash hits.</p>
+          <button
+            type="button"
+            onClick={() => router.push('/survival')}
+            className="mt-1 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            ← Back
+          </button>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>Floor {currentFloor}</span>
@@ -55,7 +66,7 @@ export default function SurvivalCrashPage() {
           <span>{slotsUsed}/3 slots</span>
         </div>
       </div>
-      <CrashGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
+      <CrashGame mode="survival" bankroll={bankroll} onBet={handleBet} onResolve={handleResolve} />
     </div>
   )
 }

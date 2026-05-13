@@ -71,6 +71,8 @@ export interface SurvivalStore {
   endRun: () => void
   advanceFloor: () => void
   recordResult: (result: GameResult) => void
+  recordResultPayout: (result: GameResult) => void
+  deductBet: (amount: number) => void
   resetJackpotMeter: () => void
 }
 

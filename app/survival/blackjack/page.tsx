@@ -13,7 +13,8 @@ export default function SurvivalBlackjackPage() {
   const slotsUsed = useSurvivalStore((s) => s.slotsUsed)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
   const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
-  const recordResult = useSurvivalStore((s) => s.recordResult)
+  const deductBet = useSurvivalStore((s) => s.deductBet)
+  const recordResultPayout = useSurvivalStore((s) => s.recordResultPayout)
   const advanceFloor = useSurvivalStore((s) => s.advanceFloor)
   const endRun = useSurvivalStore((s) => s.endRun)
 
@@ -23,6 +24,10 @@ export default function SurvivalBlackjackPage() {
 
   if (!runActive) return null
 
+  function handleBet(amount: number) {
+    deductBet(amount)
+  }
+
   function handleResolve(result: {
     outcome: 'win' | 'loss' | 'push'
     betAmount: number
@@ -30,7 +35,7 @@ export default function SurvivalBlackjackPage() {
     multiplier: number
   }) {
     const shouldAdvance = slotsUsed >= 2
-    recordResult({
+    recordResultPayout({
       id: `blackjack-${Date.now()}`,
       game: 'blackjack',
       floor: currentFloor,
@@ -45,8 +50,7 @@ export default function SurvivalBlackjackPage() {
       advanceFloor()
     }
 
-    const nextBankroll = bankroll - result.betAmount + result.payout
-    if (nextBankroll <= 0) {
+    if (useSurvivalStore.getState().bankroll <= 0) {
       endRun()
     }
   }
@@ -57,6 +61,13 @@ export default function SurvivalBlackjackPage() {
         <div>
           <h1 className="text-xl font-bold">Blackjack</h1>
           <p className="text-muted-foreground text-xs mt-0.5">Beat the dealer before the floor advances.</p>
+          <button
+            type="button"
+            onClick={() => router.push('/survival')}
+            className="mt-1 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            ← Back
+          </button>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>Floor {currentFloor}</span>
@@ -67,7 +78,7 @@ export default function SurvivalBlackjackPage() {
         </div>
       </div>
 
-      <BlackjackGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
+      <BlackjackGame mode="survival" bankroll={bankroll} onBet={handleBet} onResolve={handleResolve} />
     </div>
   )
 }

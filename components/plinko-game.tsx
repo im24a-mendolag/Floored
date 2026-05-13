@@ -23,7 +23,7 @@ import {
 import type { PlinkoOutcome } from '@/games/plinko/types'
 
 const CHIPS = [
-  { value: 10, label: '$10', cls: 'bg-slate-800 hover:bg-slate-700 border-slate-600 text-slate-200' },
+  { value: 10, label: '$10', cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
   { value: 25, label: '$25', cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
   { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
   { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
@@ -71,6 +71,7 @@ interface PlinkoResult {
 interface PlinkoGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
+  onBet?: (amount: number) => void
   onResolve: (result: PlinkoResult) => void
 }
 
@@ -83,7 +84,7 @@ function maxEndMs(ballCount: number) {
   return (ballCount - 1) * STAGGER_MS + PLINKO_ROWS * STEP_MS
 }
 
-export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
+export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
   const uid = useId().replace(/:/g, '')
   const ballGlowId = `plinko-ball-${uid}`
 
@@ -102,6 +103,8 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
   const reportedSessionIdsRef = useRef<Set<string>>(new Set())
   const onResolveRef = useRef(onResolve)
   onResolveRef.current = onResolve
+  const onBetRef = useRef(onBet)
+  onBetRef.current = onBet
 
   const lastBetRef = useRef(lastBet)
   const bankrollRef = useRef(bankroll)
@@ -289,6 +292,7 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
       startedAt,
     }
 
+    onBetRef.current?.(bet)
     setLastBet(bet)
     if (currentBet >= minBet) setCurrentBet(0)
 
@@ -390,23 +394,39 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
 
       <div className={GAME_CONTROL_DOCK_M}>
           <div className="space-y-3">
-            <div className="flex gap-3 flex-wrap justify-center">
+            <div className="flex flex-nowrap justify-center gap-2">
               {CHIPS.map((chip) => (
                 <button
                   key={chip.value}
                   type="button"
                   onClick={() => addChip(chip.value)}
                   disabled={chip.value > bankroll - pendingBet - currentBet}
-                  className={`w-14 h-14 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
+                  className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
                 >
                   {chip.label}
                 </button>
               ))}
               <button
                 type="button"
+                onClick={() => addChip(Math.floor(bankroll / 4))}
+                disabled={currentBet >= bankroll - pendingBet || bankroll - pendingBet <= 0}
+                className="h-12 px-3 rounded-full bg-blue-100 hover:bg-blue-50 border-2 border-blue-200 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                ¼
+              </button>
+              <button
+                type="button"
+                onClick={() => addChip(Math.floor(bankroll / 2))}
+                disabled={currentBet >= bankroll - pendingBet || bankroll - pendingBet <= 0}
+                className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                ½
+              </button>
+              <button
+                type="button"
                 onClick={() => setCurrentBet(Math.max(0, bankroll - pendingBet))}
                 disabled={currentBet >= bankroll - pendingBet || bankroll <= 0}
-                className="h-14 px-4 rounded-full bg-zinc-200 hover:bg-white border-2 border-zinc-100 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 All In
               </button>
@@ -418,9 +438,6 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
                 <span className="font-bold text-xl text-white">
                   {commitBet > 0 ? formatChips(commitBet) : '—'}
                 </span>
-                {currentBet < minBet && lastBet >= minBet && commitBet > 0 && (
-                  <span className="text-xs text-zinc-500 font-normal ml-1">(repeat)</span>
-                )}
                 {commitBet > 0 && (
                   <button
                     type="button"

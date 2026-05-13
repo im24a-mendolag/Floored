@@ -96,6 +96,24 @@ export const useSurvivalStore = create<SurvivalStore>()(
           }
         }),
 
+      // Bet already deducted via deductBet — only adds payout and records stats.
+      recordResultPayout: (result: GameResult) =>
+        set((s) => {
+          const newBankroll = s.bankroll + result.payout
+          return {
+            gamesPlayed: s.gamesPlayed + 1,
+            slotsUsed: s.slotsUsed + 1,
+            streak: result.outcome === 'win' ? s.streak + 1 : 0,
+            jackpotMeter: Math.min(100, s.jackpotMeter + (result.game === 'slots' ? 5 : 1)),
+            history: [...s.history, result],
+            bankroll: newBankroll,
+            peakBankroll: Math.max(s.peakBankroll, newBankroll),
+          }
+        }),
+
+      deductBet: (amount: number) =>
+        set((s) => ({ bankroll: s.bankroll - amount })),
+
       resetJackpotMeter: () => set({ jackpotMeter: 0 }),
     }),
     { name: 'floored-survival' }

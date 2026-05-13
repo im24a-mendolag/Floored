@@ -1,30 +1,56 @@
 # Floored
 
-A casino-style gaming platform built with Next.js.
+Browser-based casino simulation. No real money, no accounts required.
 
-Live at: [floored.paulkuehn.ch](https://floored.paulkuehn.ch)
+Live at [floored.paulkuehn.ch](https://floored.paulkuehn.ch)
 
-## Getting Started
+## Modes
 
-First, run the development server:
+**Freeplay** — pick any available game, start with $10,000, no minimum bets, no pressure.
+
+**Survival** — start with $1,000. Each floor has a minimum bet and 3 game slots. Clear the slots to advance; go bust and the run ends. Difficulty scales as floors climb.
+
+## Games
+
+| Game | Freeplay | Survival | Status |
+|------|:--------:|:--------:|--------|
+| Blackjack | ✓ | ✓ | Live |
+| Crash | ✓ | ✓ | Live |
+| Plinko | ✓ | — | Live |
+| Hi-Lo | | | Coming soon |
+| Wheel | | | Coming soon |
+| Slots | | | Coming soon |
+| Mines | | | Coming soon |
+| Run Dice | | | Coming soon |
+| Chicken Road | | | Coming soon |
+
+## Stack
+
+- **Next.js 14** (App Router)
+- **TypeScript**
+- **Tailwind CSS**
+- **Zustand** — client-side game and run state
+- **Radix UI** — accessible primitives
+- **Framer Motion** — animations
+- **Supabase + Prisma** — auth and persistence
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project structure
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/
+  freeplay/        # Freeplay game routes
+  survival/        # Survival game routes
+components/        # Game components and shared UI
+games/             # Pure game engines (no React)
+store/             # Zustand stores (freeplay, survival, settings)
+lib/               # Utilities and static data
+```
