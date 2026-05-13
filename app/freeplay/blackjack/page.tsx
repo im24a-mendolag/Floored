@@ -6,6 +6,7 @@ import { useFreeplayStore } from '@/store/freeplay-store'
 
 export default function FreeplayBlackjackPage() {
   const bankroll = useFreeplayStore((s) => s.bankroll)
+  const bust = useFreeplayStore((s) => s.bust)
   const reset = useFreeplayStore((s) => s.reset)
 
   function handleBet(amount: number) {
@@ -19,15 +20,15 @@ export default function FreeplayBlackjackPage() {
     payout: number
     multiplier: number
   }) {
-    if (result.payout > 0) {
-      const b = useFreeplayStore.getState().bankroll
-      useFreeplayStore.getState().setBankroll(b + result.payout)
-    }
+    const { bankroll: b, setBankroll, markBust } = useFreeplayStore.getState()
+    const newB = b + result.payout
+    if (result.payout > 0) setBankroll(newB)
+    if (newB <= 10) markBust()
   }
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {bankroll <= 0 && <BankruptModal onReset={reset} />}
+      {bust && <BankruptModal onReset={reset} />}
       <BlackjackGame mode="freeplay" bankroll={Math.max(0, bankroll)} onBet={handleBet} onResolve={handleResolve} />
     </div>
   )

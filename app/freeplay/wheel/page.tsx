@@ -7,6 +7,8 @@ import { useFreeplayStore } from '@/store/freeplay-store'
 export default function FreeplayWheelPage() {
   const bankroll = useFreeplayStore((s) => s.bankroll)
   const setBankroll = useFreeplayStore((s) => s.setBankroll)
+  const bust = useFreeplayStore((s) => s.bust)
+  const markBust = useFreeplayStore((s) => s.markBust)
   const reset = useFreeplayStore((s) => s.reset)
 
   function handleResolve(result: {
@@ -15,7 +17,9 @@ export default function FreeplayWheelPage() {
     payout: number
     multiplier: number
   }) {
-    setBankroll(bankroll - result.betAmount + result.payout)
+    const newB = bankroll - result.betAmount + result.payout
+    setBankroll(newB)
+    if (newB <= 10) markBust()
   }
 
   return (
@@ -25,7 +29,7 @@ export default function FreeplayWheelPage() {
         <p className="text-muted-foreground text-sm mt-0.5">Freeplay — no floors, no pressure.</p>
       </div>
 
-      {bankroll <= 0 && <BankruptModal onReset={reset} />}
+      {bust && <BankruptModal onReset={reset} />}
       <WheelGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
     </div>
   )

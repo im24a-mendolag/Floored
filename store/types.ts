@@ -79,5 +79,7 @@ export interface SurvivalStore {
 export interface FreeplayStore {
   bankroll: number
   setBankroll: (n: number) => void
+  bust: boolean
+  markBust: () => void
   reset: () => void
 }
