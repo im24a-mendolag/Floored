@@ -322,6 +322,14 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
         gameLabel="Blackjack"
       >
 
+        {/* Active bet badge — shown in top-left while hand is in progress */}
+        {!isBetting && round.betAmount > 0 && (
+          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
+            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
+            <p className="text-sm font-bold text-white tabular-nums">{formatChips(round.betAmount)}</p>
+          </div>
+        )}
+
         {/* Dealer zone */}
         <div className="flex-1 flex flex-col items-center justify-center">
           <p className="text-sm uppercase tracking-widest text-zinc-600 mb-2">
@@ -461,38 +469,24 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
           </div>
         )}
 
-        {!isBetting && (
+        {!isBetting && playerCanAct && (
           <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col gap-3">
-            <div className="flex items-center justify-center">
-              <div className="grid w-full max-w-[280px] grid-cols-[1fr_auto_1fr] items-center gap-x-2">
-                <div className="min-w-0" aria-hidden />
-                <div className="flex items-center justify-center gap-2.5 whitespace-nowrap">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">
-                    {round.betAmount > 0 ? formatChips(round.betAmount) : '0'}
-                  </span>
-                </div>
-                <div className="min-h-[2.25rem]" aria-hidden />
-              </div>
+            <div className="flex flex-wrap justify-center gap-2.5">
+              <button type="button" onClick={handleHit} className="min-w-[5.25rem] px-6 py-2.5 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg text-base transition-colors shadow">
+                Hit
+              </button>
+              <button type="button" onClick={handleStand} className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg text-base transition-colors">
+                Stand
+              </button>
+              <button
+                type="button"
+                onClick={handleDouble}
+                disabled={!canDouble}
+                className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-25 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-base transition-colors"
+              >
+                Double
+              </button>
             </div>
-            {playerCanAct && (
-              <div className="flex flex-wrap justify-center gap-2.5">
-                <button type="button" onClick={handleHit} className="min-w-[5.25rem] px-6 py-2.5 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg text-base transition-colors shadow">
-                  Hit
-                </button>
-                <button type="button" onClick={handleStand} className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg text-base transition-colors">
-                  Stand
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDouble}
-                  disabled={!canDouble}
-                  className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-25 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-base transition-colors"
-                >
-                  Double
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>

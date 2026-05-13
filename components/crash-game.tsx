@@ -299,6 +299,14 @@ export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
           <CrashCurve elapsedMs={elapsedMs} outcome={round.outcome} />
         </div>
 
+        {/* Active bet badge — shown in top-left while round is live */}
+        {(isInProgress || isSettled) && round.betAmount > 0 && (
+          <div className="absolute left-2 top-2 z-20 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
+            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
+            <p className="text-sm font-bold text-white tabular-nums">{formatChips(round.betAmount)}</p>
+          </div>
+        )}
+
         {/* Multiplier overlay */}
         <div className="relative z-10 text-center pointer-events-none select-none">
           {isBetting ? (
@@ -399,27 +407,15 @@ export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
           </div>
         )}
 
-        {(isInProgress || isSettled) && (
+        {isInProgress && (
           <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col gap-3">
-            <div className="flex items-center justify-center">
-              <div className="grid w-full max-w-[280px] grid-cols-[1fr_auto_1fr] items-center gap-x-2">
-                <div className="min-w-0" aria-hidden />
-                <div className="flex items-center justify-center gap-2.5 whitespace-nowrap">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">{formatChips(round.betAmount)}</span>
-                </div>
-                <div className="min-h-[2.25rem]" aria-hidden />
-              </div>
-            </div>
-            {isInProgress && (
-              <button
-                type="button"
-                onClick={handleCashOut}
-                className="w-full py-3 bg-white hover:bg-zinc-100 text-zinc-900 font-black rounded-lg text-lg transition-colors shadow-lg"
-              >
-                Cash Out · {formatMultiplier(displayMult)}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleCashOut}
+              className="w-full py-3 bg-white hover:bg-zinc-100 text-zinc-900 font-black rounded-lg text-lg transition-colors shadow-lg"
+            >
+              Cash Out · {formatMultiplier(displayMult)}
+            </button>
           </div>
         )}
 
