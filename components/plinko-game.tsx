@@ -33,8 +33,18 @@ const STAGGER_MS = 100
 const STEP_MS = 130
 /** One ball per drop — spam Drop for rapid low-stake plays. */
 const BALLS_PER_DROP = 1
-const PIN_R = 4
-const BALL_R = 9
+const PIN_R = 5
+const BALL_R = 7
+
+/** Solid per-slot color: blue at the high-mult edges, dark at the low-mult center. */
+function slotFill(i: number, total: number): string {
+  const center = (total - 1) / 2
+  const t = Math.abs(i - center) / center
+  const r = Math.round(36 + (59 - 36) * t)
+  const g = Math.round(36 + (130 - 36) * t)
+  const b = Math.round(42 + (246 - 42) * t)
+  return `rgb(${r},${g},${b})`
+}
 
 interface PlinkoBall {
   id: string
@@ -75,7 +85,6 @@ function maxEndMs(ballCount: number) {
 
 export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
   const uid = useId().replace(/:/g, '')
-  const slotGradId = `plinko-slot-${uid}`
   const ballGlowId = `plinko-ball-${uid}`
 
   const { floorMinBet } = useSurvivalStore()
@@ -283,12 +292,12 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
     setLastBet(bet)
     if (currentBet >= minBet) setCurrentBet(0)
 
-    setSessions((prev) => {
-      const merged = [...prev, session]
-      sessionsRef.current = merged
-      return merged
-    })
-    const n = sessionsRef.current.length
+    // Update ref synchronously so the animation loop sees the session immediately
+    const merged = [...sessionsRef.current, session]
+    sessionsRef.current = merged
+    setSessions(merged)
+
+    const n = merged.length
     setStatusHint(`${n} ball${n === 1 ? '' : 's'} in flight — keep dropping if you like.`)
     kickLoop()
   }, [bankroll, currentBet, kickLoop, lastBet, minBet, pendingBet])
@@ -302,31 +311,18 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 items-center justify-center"
+        boardClassName="relative flex flex-col min-h-0 bg-[#111113]"
         entries={matchHistory}
         gameLabel="Plinko"
         emptyHint="No drops yet — results appear after each ball lands."
       >
-        <div className="absolute inset-0 flex items-center justify-center px-4 py-3">
           <svg
             viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-            className="h-full w-full max-h-full select-none"
+            className="flex-1 min-h-0 w-full select-none"
             preserveAspectRatio="xMidYMid meet"
             aria-hidden
           >
               <defs>
-                <linearGradient
-                  id={slotGradId}
-                  x1={BOARD_MARGIN}
-                  y1="0"
-                  x2={VIEWBOX_WIDTH - BOARD_MARGIN}
-                  y2="0"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop offset="0%" stopColor="#3b82f6" />
-                  <stop offset="50%" stopColor="#27272a" />
-                  <stop offset="100%" stopColor="#3b82f6" />
-                </linearGradient>
                 <filter id={ballGlowId} x="-80%" y="-80%" width="260%" height="260%">
                   <feGaussianBlur in="SourceGraphic" stdDeviation="2.8" result="blur" />
                   <feMerge>
@@ -336,9 +332,12 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
                 </filter>
               </defs>
 
+              {/* Board background */}
+              <rect x={0} y={0} width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="#111113" />
+
               {Array.from({ length: PLINKO_ROWS }, (_, row) =>
                 Array.from({ length: row + 1 }, (_, col) => (
-                  <circle key={`pin-${row}-${col}`} cx={getPinX(row, col)} cy={getPinY(row)} r={PIN_R} fill="#3f3f46" />
+                  <circle key={`pin-${row}-${col}`} cx={getPinX(row, col)} cy={getPinY(row)} r={PIN_R} fill="#71717a" />
                 )),
               )}
 
@@ -349,16 +348,17 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
                     y={SLOT_RECT_Y}
                     width={SLOT_WIDTH}
                     height={SLOT_BAND_HEIGHT}
-                    fill={`url(#${slotGradId})`}
-                    stroke="#27272a"
+                    fill={slotFill(i, slots.length)}
+                    stroke="rgba(0,0,0,0.4)"
                     strokeWidth={1}
                   />
                   <text
                     x={getBallX(0, i)}
                     y={SLOT_RECT_Y + SLOT_BAND_HEIGHT / 2 + 5}
                     textAnchor="middle"
-                    className="fill-zinc-300 font-bold"
-                    style={{ fontSize: 15 }}
+                    fill="white"
+                    fontWeight="bold"
+                    style={{ fontSize: 11 }}
                   >
                     {formatSlotMult(mult)}
                   </text>
@@ -386,7 +386,6 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
                 }),
               )}
             </svg>
-        </div>
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
@@ -422,10 +421,10 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
                 {currentBet < minBet && lastBet >= minBet && commitBet > 0 && (
                   <span className="text-xs text-zinc-500 font-normal ml-1">(repeat)</span>
                 )}
-                {currentBet > 0 && (
+                {commitBet > 0 && (
                   <button
                     type="button"
-                    onClick={() => setCurrentBet(0)}
+                    onClick={() => { setCurrentBet(0); setLastBet(0) }}
                     className="px-3 py-1.5 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ml-1"
                   >
                     Clear
@@ -442,11 +441,9 @@ export function PlinkoGame({ mode, bankroll, onResolve }: PlinkoGameProps) {
               </button>
             </div>
             {minBet > 1 && <p className="text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>}
-            {sessions.length === 0 && pendingBet === 0 && (
             <p className="text-zinc-600 text-xs">
               Each row is a fair 50/50. The sim uses a Galton (binomial) slot model so the grid center hits most often — fewer 10×/5× than with a wall-clamped walk.
             </p>
-            )}
           </div>
         </div>
     </div>

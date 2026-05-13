@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { PlinkoGame } from '@/components/plinko-game'
@@ -13,12 +12,16 @@ export default function SurvivalPlinkoPage() {
   const recordResult = useSurvivalStore((s) => s.recordResult)
   const runActive = useSurvivalStore((s) => s.runActive)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
+  const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
+  const slotsUsed = useSurvivalStore((s) => s.slotsUsed)
 
   useEffect(() => {
     if (!runActive) {
       router.replace('/survival')
     }
   }, [runActive, router])
+
+  if (!runActive) return null
 
   function handleResolve(result: { outcome: 'win' | 'loss' | 'push'; betAmount: number; payout: number; multiplier: number }) {
     recordResult({
@@ -34,32 +37,22 @@ export default function SurvivalPlinkoPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col flex-1 min-h-0 gap-3">
+      <div className="shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Plinko</h1>
-          <p className="text-muted-foreground mt-1">Survival mode Plinko. Drop the puck and chase the highest slot.</p>
+          <h1 className="text-xl font-bold">Plinko</h1>
+          <p className="text-muted-foreground text-xs mt-0.5">Drop the ball and chase the highest slot.</p>
         </div>
-
-        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          <div className="mb-1">Bankroll {formatChips(bankroll)}</div>
-          <div className="flex gap-2">
-            <Link href="/survival" className="rounded-md border border-border bg-background px-3 py-2 text-sm">
-              Back to Survival
-            </Link>
-          </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>Floor {currentFloor}</span>
+          <span className="text-zinc-700">·</span>
+          <span>Min {formatChips(floorMinBet)}</span>
+          <span className="text-zinc-700">·</span>
+          <span>{slotsUsed}/3 slots</span>
         </div>
       </div>
 
-      {bankroll > 0 ? (
-        <div className="flex min-h-[min(680px,calc(100dvh-12rem))] flex-col">
-          <PlinkoGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
-        </div>
-      ) : (
-        <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-          Your survival bankroll is empty. Return to the lobby to end the run or choose another game.
-        </div>
-      )}
+      <PlinkoGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
     </div>
   )
 }

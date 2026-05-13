@@ -14,16 +14,14 @@ export default function FreeplayPlinkoPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Plinko</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Freeplay — no floors, no pressure.</p>
+    <div className="flex flex-col flex-1 min-h-0 gap-3">
+      <div className="shrink-0">
+        <h1 className="text-xl font-bold">Plinko</h1>
+        <p className="text-muted-foreground text-xs mt-0.5">Freeplay — no floors, no pressure.</p>
       </div>
 
       {bankroll <= 0 && <BankruptModal onReset={reset} />}
-      <div className="flex min-h-[min(680px,calc(100dvh-10rem))] flex-col">
-        <PlinkoGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
-      </div>
+      <PlinkoGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
     </div>
   )
 }
