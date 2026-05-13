@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
-import { GameOutcomeToast, type GameOutcomeToastSnap } from '@/components/game-outcome-toast'
 import { formatChips } from '@/utils/format'
 import type { BlackjackCard, BlackjackOutcome, BlackjackState } from '@/games/blackjack/types'
 import {
@@ -44,6 +43,12 @@ interface BlackjackGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onResolve: (result: BlackjackResult) => void
+}
+
+interface PendingResult {
+  tone: MatchHistoryTone
+  label: string
+  entry: MatchHistoryEntry
 }
 
 function isRedSuit(suit: string) {
@@ -140,8 +145,7 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
   const [round, setRound] = useState<BlackjackState>(initBlackjack())
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
-  const [resultToastOpen, setResultToastOpen] = useState(false)
-  const [resultToastSnap, setResultToastSnap] = useState<GameOutcomeToastSnap | null>(null)
+  const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
   const [dealerDisplayHand, setDealerDisplayHand] = useState<BlackjackCard[] | null>(null)
   const [settling, setSettling] = useState(false)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
@@ -189,26 +193,11 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
       const title =
         o === 'win' ? `+${formatChips(payout)}` : o === 'push' ? `Push ${formatChips(payout)}` : `−${formatChips(state.betAmount)}`
       const subtitle = `${formatChips(state.betAmount)} bet · You ${calculateHandValue(state.playerHand)} vs dealer ${calculateHandValue(state.dealerHand)}`
-      setMatchHistory((h) =>
-        [{ id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, at: new Date(), title, subtitle, tone }, ...h].slice(
-          0,
-          80,
-        ),
-      )
-      const toastTone =
-        o === 'win' ? 'win' : o === 'push' ? 'push' : 'loss'
-      const toastTitle = o === 'win' ? 'WIN' : o === 'push' ? 'PUSH' : 'BUST'
-      const toastSubtitle =
-        o === 'win'
-          ? `+${formatChips(payout)}`
-          : o === 'push'
-            ? `${formatChips(state.betAmount)} returned`
-            : `-${formatChips(state.betAmount)}`
-      setResultToastSnap({ title: toastTitle, subtitle: toastSubtitle, tone: toastTone })
-      setTimeout(() => {
-        setResultToastOpen(true)
-        handleNewHand()
-      }, resultDelay)
+      setTimeout(() => setPendingResult({
+        tone,
+        label: title,
+        entry: { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, at: new Date(), title, subtitle, tone },
+      }), resultDelay)
     }
   }
 
@@ -302,10 +291,13 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
     setDealerVisibleLen(0)
   }
 
-  const dismissResultToast = useCallback(() => {
-    setResultToastOpen(false)
-    setResultToastSnap(null)
-  }, [])
+  function handleNextHand() {
+    if (pendingResult) {
+      setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
+      setPendingResult(null)
+    }
+    handleNewHand()
+  }
 
   return (
     <div className={GAME_CARD_SHELL} style={CARD_CSS}>
@@ -400,14 +392,6 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
 
       </GameFieldWithHistory>
 
-      <GameOutcomeToast
-        open={resultToastOpen && !!resultToastSnap}
-        title={resultToastSnap?.title ?? ''}
-        subtitle={resultToastSnap?.subtitle}
-        tone={resultToastSnap?.tone ?? 'neutral'}
-        onDismiss={dismissResultToast}
-      />
-
       {/* Control zone — shared max width so bet line and actions share one vertical axis */}
       <div className={GAME_CONTROL_DOCK_M}>
         {isBetting && (
@@ -487,6 +471,29 @@ export function BlackjackGame({ mode, bankroll, onResolve }: BlackjackGameProps)
                 Double
               </button>
             </div>
+          </div>
+        )}
+
+        {round.stage === 'settled' && pendingResult && (
+          <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col items-center gap-3">
+            <div className="text-center">
+              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+                {pendingResult.tone === 'win' ? 'Win' : pendingResult.tone === 'push' ? 'Push' : 'Bust'}
+              </p>
+              <p className={`text-3xl font-black tabular-nums ${
+                pendingResult.tone === 'win' ? 'text-green-400' :
+                pendingResult.tone === 'push' ? 'text-zinc-300' : 'text-red-400'
+              }`}>
+                {pendingResult.label}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleNextHand}
+              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+            >
+              Next Hand →
+            </button>
           </div>
         )}
       </div>

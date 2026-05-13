@@ -5,7 +5,6 @@ import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
-import { GameOutcomeToast, type GameOutcomeToastSnap } from '@/components/game-outcome-toast'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import { computeMultiplier, initCrash, startCrashRound } from '@/games/crash/engine'
 import type { CrashState } from '@/games/crash/types'
@@ -28,6 +27,12 @@ interface CrashGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onResolve: (result: CrashResult) => void
+}
+
+interface PendingResult {
+  tone: 'win' | 'loss'
+  label: string
+  entry: MatchHistoryEntry
 }
 
 // Inline growth formula so CrashCurve has no engine dependency
@@ -148,8 +153,7 @@ export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet]     = useState(0)
   const [elapsedMs, setElapsedMs] = useState(0)
-  const [resultToastOpen, setResultToastOpen] = useState(false)
-  const [crashToastSnap, setCrashToastSnap] = useState<GameOutcomeToastSnap | null>(null)
+  const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
 
   const isBetting    = round.stage === 'betting'
@@ -187,33 +191,22 @@ export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
           message: `Crashed at ${formatMultiplier(crashAt)}`,
         }))
         onResolve({ outcome: 'loss', betAmount, payout: 0, multiplier: crashAt })
-        setMatchHistory((h) =>
-          [
-            {
-              id: `${Date.now()}-crash-${Math.random().toString(36).slice(2)}`,
-              at: new Date(),
-              title: `Crashed ${formatMultiplier(crashAt)} · −${formatChips(betAmount)}`,
-              subtitle: `${formatChips(betAmount)} staked`,
-              tone: 'loss' as const,
-            },
-            ...h,
-          ].slice(0, 80),
-        )
-        setCrashToastSnap({
-          title: 'CRASHED',
-          subtitle: `-${formatChips(betAmount)}`,
+        setPendingResult({
           tone: 'loss',
+          label: `-${formatChips(betAmount)}`,
+          entry: {
+            id: `${Date.now()}-crash-${Math.random().toString(36).slice(2)}`,
+            at: new Date(),
+            title: `Crashed ${formatMultiplier(crashAt)} · −${formatChips(betAmount)}`,
+            subtitle: `${formatChips(betAmount)} staked`,
+            tone: 'loss',
+          },
         })
-        setTimeout(() => {
-          setResultToastOpen(true)
-          handleNewRound()
-        }, 300)
       }
     }, 50)
 
     return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInProgress, handleNewRound])
+  }, [isInProgress])
 
   function addChip(value: number) {
     setCurrentBet(prev => Math.min(prev + value, bankroll))
@@ -223,8 +216,6 @@ export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
     if (!canStart) return
     setLastBet(currentBet)
     setElapsedMs(0)
-    setResultToastOpen(false)
-    setCrashToastSnap(null)
     setRound(startCrashRound(currentBet))
     setCurrentBet(0)
   }
@@ -242,33 +233,26 @@ export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
       message: `Cashed out at ${formatMultiplier(m)}`,
     }))
     onResolve({ outcome: 'win', betAmount: round.betAmount, payout, multiplier: m })
-    setMatchHistory((h) =>
-      [
-        {
-          id: `${Date.now()}-crash-${Math.random().toString(36).slice(2)}`,
-          at: new Date(),
-          title: `+${formatChips(payout)} @ ${formatMultiplier(m)}`,
-          subtitle: `${formatChips(round.betAmount)} bet`,
-          tone: 'win' as const,
-        },
-        ...h,
-      ].slice(0, 80),
-    )
-    setCrashToastSnap({
-      title: 'CASHED OUT',
-      subtitle: `+${formatChips(payout)}`,
+    setPendingResult({
       tone: 'win',
+      label: `+${formatChips(payout)}`,
+      entry: {
+        id: `${Date.now()}-crash-${Math.random().toString(36).slice(2)}`,
+        at: new Date(),
+        title: `+${formatChips(payout)} @ ${formatMultiplier(m)}`,
+        subtitle: `${formatChips(round.betAmount)} bet`,
+        tone: 'win',
+      },
     })
-    setTimeout(() => {
-      setResultToastOpen(true)
-      handleNewRound()
-    }, 200)
   }
 
-  const dismissResultToast = useCallback(() => {
-    setResultToastOpen(false)
-    setCrashToastSnap(null)
-  }, [])
+  function handleNextCrash() {
+    if (pendingResult) {
+      setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
+      setPendingResult(null)
+    }
+    handleNewRound()
+  }
 
   const displayMult = isInProgress ? computeMultiplier(elapsedMs) : round.currentMultiplier
 
@@ -337,14 +321,6 @@ export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
           )}
         </div>
       </GameFieldWithHistory>
-
-      <GameOutcomeToast
-        open={resultToastOpen && !!crashToastSnap}
-        title={crashToastSnap?.title ?? ''}
-        subtitle={crashToastSnap?.subtitle}
-        tone={crashToastSnap?.tone ?? 'neutral'}
-        onDismiss={dismissResultToast}
-      />
 
       {/* Control zone — shared max width so bet line and actions share one vertical axis */}
       <div className={GAME_CONTROL_DOCK_M}>
@@ -415,6 +391,28 @@ export function CrashGame({ mode, bankroll, onResolve }: CrashGameProps) {
               className="w-full py-3 bg-white hover:bg-zinc-100 text-zinc-900 font-black rounded-lg text-lg transition-colors shadow-lg"
             >
               Cash Out · {formatMultiplier(displayMult)}
+            </button>
+          </div>
+        )}
+
+        {isSettled && pendingResult && (
+          <div className="relative z-10 mx-auto flex w-full max-w-sm flex-col items-center gap-3">
+            <div className="text-center">
+              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+                {pendingResult.tone === 'win' ? 'Cashed Out' : 'Crashed'}
+              </p>
+              <p className={`text-3xl font-black tabular-nums ${
+                pendingResult.tone === 'win' ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {pendingResult.label}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleNextCrash}
+              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+            >
+              Next Crash →
             </button>
           </div>
         )}
