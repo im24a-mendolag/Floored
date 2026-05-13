@@ -266,21 +266,28 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
     const finalState = doubleDownBlackjack(round)
     const playerBusted = calculateHandValue(finalState.playerHand) > 21
 
+    // Keep stage 'inProgress' so the dealer hole card stays hidden while the
+    // player's double card animates in; settling=true blocks player actions.
+    setSettling(true)
     setRound(prev => ({
       ...prev,
       playerHand: finalState.playerHand,
       betAmount: finalState.betAmount,
       canDouble: false,
       message: 'Double down.',
-      stage: 'settled' as BlackjackState['stage'],
-      outcome: null,
     }))
 
     if (playerBusted) {
-      const t = setTimeout(() => settleRound(finalState), 500)
+      const t = setTimeout(() => {
+        setSettling(false)
+        settleRound(finalState)
+      }, 500)
       cancelDealerAnim.current = () => clearTimeout(t)
     } else {
-      const t = setTimeout(() => animateDealerThenSettle(finalState), 400)
+      const t = setTimeout(() => {
+        setSettling(false)
+        animateDealerThenSettle(finalState)
+      }, 400)
       cancelDealerAnim.current = () => clearTimeout(t)
     }
   }

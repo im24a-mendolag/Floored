@@ -314,14 +314,12 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
               <p className={`text-7xl sm:text-8xl font-black tabular-nums transition-colors duration-100 ${multColor}`}>
                 {formatMultiplier(displayMult)}
               </p>
-              {isInProgress && (
-                <p className="text-zinc-500 text-sm mt-2">
-                  Potential{' '}
-                  <span className="text-zinc-300 font-semibold">
-                    {formatChips(Math.round(round.betAmount * displayMult))}
-                  </span>
-                </p>
-              )}
+              <p className={`text-zinc-500 text-sm mt-2 ${isInProgress ? '' : 'invisible'}`}>
+                Potential{' '}
+                <span className="text-zinc-300 font-semibold">
+                  {formatChips(Math.round(round.betAmount * displayMult))}
+                </span>
+              </p>
             </>
           )}
         </div>
