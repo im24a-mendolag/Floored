@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
   GAME_CARD_SHELL,
   GAME_BOARD_ARENA,
-  GAME_CONTROL_DOCK_M,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
@@ -97,6 +97,7 @@ interface PendingResult {
 }
 
 export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -104,6 +105,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
   const [round, setRound] = useState<WheelState>(initWheel())
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
+  const [activeBet, setActiveBet] = useState(0)
   const [spinning, setSpinning] = useState(false)
   const [wheelRotation, setWheelRotation] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
@@ -130,6 +132,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
     if (!canSpin || spinning) return
 
     setLastBet(currentBet)
+    setActiveBet(currentBet)
     setSpinning(true)
     setPendingResult(null)
 
@@ -175,6 +178,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
       return s
     })
     setPendingResult(null)
+    setActiveBet(0)
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }, [autoReBet, lastBet, bankroll])
 
@@ -190,7 +194,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
   return (
     <div className={GAME_CARD_SHELL}>
       <div className={GAME_STATUS_BAR}>
-        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Wheel</span>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Fortune Wheel</span>
         <span className="text-sm text-zinc-600">{spinning ? 'Spinning…' : round.message}</span>
       </div>
 
@@ -198,14 +202,19 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
         className={GAME_BOARD_ARENA}
         boardClassName="relative flex min-h-0 flex-col items-center justify-center px-4 md:px-8 py-4 gap-4"
         entries={matchHistory}
-        gameLabel="Wheel"
+        gameLabel="Fortune Wheel"
       >
 
-        {/* Active bet badge */}
-        {!isBetting && round.betAmount > 0 && (
+        {isBetting && (
+          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
+            ← Back
+          </button>
+        )}
+        {/* Active bet badge — shown as soon as spin fires */}
+        {activeBet > 0 && !isBetting && (
           <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
             <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
-            <p className="text-sm font-bold text-white tabular-nums">{formatChips(round.betAmount)}</p>
+            <p className="text-sm font-bold text-white tabular-nums">{formatChips(activeBet)}</p>
           </div>
         )}
 
@@ -247,101 +256,102 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
 
       </GameFieldWithHistory>
 
-      {/* Control zone */}
-      <div className={GAME_CONTROL_DOCK_M}>
-        {/* Top: variable content */}
-        <div className="flex-1 flex flex-col items-center justify-start pt-3 gap-2 min-h-0">
+      {/* Control zone — fixed height, evenly divided between the four rows */}
+      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 rounded-b-2xl flex flex-col justify-between py-3 h-[272px]">
 
+        {/* Color picker — always rendered; locked while not betting */}
+        <div className={`flex-1 flex items-center justify-center transition-opacity duration-200 ${!isBetting ? 'opacity-25 pointer-events-none' : ''}`}>
+          <div className="flex gap-2">
+          {WHEEL_SEGMENTS.map((seg) => {
+            const cs = COLOR_STYLES[seg.color]
+            const isSelected = selectedColor === seg.color
+            return (
+              <button
+                key={seg.color}
+                type="button"
+                onClick={() => setColor(seg.color)}
+                className={`px-5 py-1.5 rounded-xl border-2 font-bold text-sm transition-all duration-100 ${
+                  isSelected
+                    ? `${cs.bg} ${cs.border} text-white shadow-lg scale-105`
+                    : `${cs.border} ${cs.text} opacity-40 hover:opacity-70`
+                }`}
+              >
+                {seg.multiplier}×
+              </button>
+            )
+          })}
+          </div>
+        </div>
+
+        {/* Chips — always rendered; locked while not betting */}
+        <div className={`flex-1 flex items-center justify-center transition-opacity duration-200 ${!isBetting ? 'opacity-25 pointer-events-none' : ''}`}>
+        <div className="flex flex-nowrap justify-center gap-2">
+          {CHIPS.map((chip) => (
+            <button
+              key={chip.value}
+              type="button"
+              onClick={() => addChip(chip.value)}
+              disabled={chip.value > bankroll - currentBet}
+              className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
+            >
+              {chip.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => addChip(Math.floor(bankroll / 4))}
+            disabled={currentBet >= bankroll || bankroll <= 0}
+            className="h-12 px-3 rounded-full bg-blue-100 hover:bg-blue-50 border-2 border-blue-200 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            ¼
+          </button>
+          <button
+            type="button"
+            onClick={() => addChip(Math.floor(bankroll / 2))}
+            disabled={currentBet >= bankroll || bankroll <= 0}
+            className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            ½
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentBet(bankroll)}
+            disabled={currentBet >= bankroll || bankroll <= 0}
+            className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
+          >
+            All In
+          </button>
+        </div>
+        </div>
+
+        {/* Info slot — swaps between bet display / spinning / result */}
+        <div className="flex-1 flex items-center justify-center">
           {isBetting && (
-            <div className="w-full max-w-sm flex flex-col gap-2">
-              {/* Color picker */}
-              <div className="flex gap-2 justify-center">
-                {WHEEL_SEGMENTS.map((seg) => {
-                  const cs = COLOR_STYLES[seg.color]
-                  const isSelected = selectedColor === seg.color
-                  return (
-                    <button
-                      key={seg.color}
-                      type="button"
-                      onClick={() => setColor(seg.color)}
-                      className={`flex-1 py-2 rounded-xl border-2 font-bold text-sm transition-all duration-100 ${
-                        isSelected
-                          ? `${cs.bg} ${cs.border} text-white shadow-lg scale-105`
-                          : `${cs.border} ${cs.text} opacity-40 hover:opacity-70`
-                      }`}
-                    >
-                      {seg.multiplier}×
-                    </button>
-                  )
-                })}
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center gap-2.5">
+                <span className="text-zinc-500 text-base">Bet</span>
+                <span className="font-bold text-xl text-white tabular-nums">
+                  {currentBet > 0 ? formatChips(currentBet) : '—'}
+                </span>
               </div>
-
-              {/* Chips */}
-              <div className="flex flex-nowrap justify-center gap-2">
-                {CHIPS.map((chip) => (
-                  <button
-                    key={chip.value}
-                    type="button"
-                    onClick={() => addChip(chip.value)}
-                    disabled={chip.value > bankroll - currentBet}
-                    className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => addChip(Math.floor(bankroll / 4))}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-blue-100 hover:bg-blue-50 border-2 border-blue-200 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  ¼
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addChip(Math.floor(bankroll / 2))}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  ½
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(bankroll)}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  All In
-                </button>
-              </div>
-
-              {/* Bet display */}
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">
-                    {currentBet > 0 ? formatChips(currentBet) : '—'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(0)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
-                >
-                  Clear
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setCurrentBet(0)}
+                className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
+              >
+                Clear
+              </button>
             </div>
           )}
-
           {spinning && (
             <p className="text-sm text-zinc-600 italic">Spinning…</p>
           )}
-
           {isSettled && pendingResult && (
             <div className="text-center">
-              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
-                {pendingResult.tone === 'win' ? `${round.resultColor} ${round.resultMultiplier}× — Win` : `${round.resultColor} ${round.resultMultiplier}× — Miss`}
+              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-0.5">
+                {pendingResult.tone === 'win'
+                  ? `${round.resultColor} ${round.resultMultiplier}× — Win`
+                  : `${round.resultColor} ${round.resultMultiplier}× — Miss`}
               </p>
               <p className={`text-3xl font-black tabular-nums ${
                 pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'
@@ -352,22 +362,20 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
           )}
         </div>
 
-        {/* Bottom: action button */}
-        <div className="mx-auto w-full max-w-sm flex flex-col gap-1 pb-2">
-          {isBetting && (
-            <div className="flex justify-center">
+        {/* Action button — Spin (enabled/disabled) or Next; always occupies same space */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-full max-w-sm flex flex-col gap-1">
+          <div className="flex justify-center">
+            {!isSettled ? (
               <button
                 type="button"
                 onClick={handleSpin}
-                disabled={!canSpin}
+                disabled={!canSpin || spinning}
                 className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
               >
-                Spin →
+                {spinning ? 'Spinning…' : 'Spin →'}
               </button>
-            </div>
-          )}
-          {isSettled && pendingResult && (
-            <div className="flex justify-center">
+            ) : (
               <button
                 type="button"
                 onClick={handleNextRound}
@@ -375,11 +383,12 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
               >
                 Next →
               </button>
-            </div>
-          )}
+            )}
+          </div>
           {minBet > 1 && isBetting && (
             <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
           )}
+          </div>
         </div>
       </div>
     </div>

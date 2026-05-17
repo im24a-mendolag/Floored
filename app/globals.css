@@ -80,6 +80,30 @@
   animation: slot-land 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+@keyframes dice-shake {
+  0%   { transform: rotate(-8deg) translateX(-2px) scale(1.03); }
+  25%  { transform: rotate(8deg)  translateX(2px)  scale(0.97); }
+  50%  { transform: rotate(-6deg) translateX(-1px) scale(1.03); }
+  75%  { transform: rotate(6deg)  translateX(1px)  scale(0.97); }
+  100% { transform: rotate(-8deg) translateX(-2px) scale(1.03); }
+}
+
+.dice-rolling {
+  animation: dice-shake 0.14s linear infinite;
+  opacity: 0.75;
+}
+
+@keyframes dice-land {
+  0%   { transform: rotate(8deg) scale(1.22); }
+  45%  { transform: rotate(-4deg) scale(0.90); }
+  72%  { transform: rotate(2deg) scale(1.06); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+.dice-landing {
+  animation: dice-land 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 @keyframes card-deal-in {
   from {
     opacity: 0;

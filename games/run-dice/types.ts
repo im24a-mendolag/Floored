@@ -12,6 +12,7 @@ export interface RunDiceState {
   betAmount: number
   rollCount: number
   rollResult: number | null
+  dice: [number, number] | null
   payoutMultiplier: number
   outcome: RunDiceOutcome | null
   message: string

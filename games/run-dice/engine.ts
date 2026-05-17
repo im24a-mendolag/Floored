@@ -18,8 +18,8 @@ const SUGGESTED_WIN_COUNT = 2
 const SUGGESTED_LOSS_COUNT = 3
 const TOTAL_WEIGHT = 36
 
-function randomRoll(): number {
-  return Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1
+function randomRoll(): [number, number] {
+  return [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1]
 }
 
 function pickDistinctSums(count: number, exclude: number[] = []): number[] {
@@ -69,6 +69,7 @@ export function initRunDice(config?: RunDiceConfig): RunDiceState {
     betAmount: 0,
     rollCount: 0,
     rollResult: null,
+    dice: null,
     payoutMultiplier: getPayoutMultiplier(roundConfig),
     outcome: null,
     message: 'Run Dice: bet, then roll with win/loss/neutral sums.',
@@ -82,6 +83,7 @@ export function startRunDiceRound(amount: number, config: RunDiceConfig): RunDic
     betAmount: amount,
     rollCount: 0,
     rollResult: null,
+    dice: null,
     payoutMultiplier: getPayoutMultiplier(config),
     outcome: null,
     message: 'Roll the dice. Neutral rolls re-roll automatically up to 3 times.',
@@ -90,7 +92,8 @@ export function startRunDiceRound(amount: number, config: RunDiceConfig): RunDic
 
 export function rollRunDice(state: RunDiceState): RunDiceState {
   if (state.stage !== 'inProgress') return state
-  const rollResult = randomRoll()
+  const dice = randomRoll()
+  const rollResult = dice[0] + dice[1]
   const isWin = state.config.win.includes(rollResult)
   const isLoss = state.config.loss.includes(rollResult)
   const nextRollCount = state.rollCount + 1
@@ -100,6 +103,7 @@ export function rollRunDice(state: RunDiceState): RunDiceState {
       ...state,
       stage: 'settled',
       rollResult,
+      dice,
       outcome: 'win',
       message: `Win on ${rollResult}.`,
     }
@@ -110,6 +114,7 @@ export function rollRunDice(state: RunDiceState): RunDiceState {
       ...state,
       stage: 'settled',
       rollResult,
+      dice,
       outcome: 'loss',
       payoutMultiplier: 0,
       message: `Loss on ${rollResult}.`,
@@ -121,6 +126,7 @@ export function rollRunDice(state: RunDiceState): RunDiceState {
       ...state,
       stage: 'settled',
       rollResult,
+      dice,
       rollCount: nextRollCount,
       outcome: 'push',
       message: `Push after ${nextRollCount} neutral rolls.`,
@@ -131,6 +137,7 @@ export function rollRunDice(state: RunDiceState): RunDiceState {
     ...state,
     rollCount: nextRollCount,
     rollResult,
+    dice,
     message: `Neutral on ${rollResult}. Re-roll ${3 - nextRollCount} remaining.`,
   }
 }

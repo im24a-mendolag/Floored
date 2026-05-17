@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -43,6 +44,7 @@ interface PendingResult {
 }
 
 export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -153,6 +155,11 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
         gameLabel="Hi-Lo"
       >
 
+        {isBetting && (
+          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
+            ← Back
+          </button>
+        )}
         {/* Active bet badge */}
         {!isBetting && round.betAmount > 0 && (
           <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
@@ -140,6 +141,7 @@ function CardBack() {
 }
 
 export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -326,6 +328,11 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
         gameLabel="Blackjack"
       >
 
+        {isBetting && (
+          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
+            ← Back
+          </button>
+        )}
         {/* Active bet badge — shown in top-left while hand is in progress */}
         {!isBetting && round.betAmount > 0 && (
           <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
@@ -523,7 +530,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
                 onClick={handleNextHand}
                 className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
               >
-                Next Hand →
+                Next →
               </button>
             </div>
           )}
