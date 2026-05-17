@@ -198,12 +198,12 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
         onResolve({ outcome: 'loss', betAmount, payout: 0, multiplier: crashAt })
         setPendingResult({
           tone: 'loss',
-          label: `-${formatChips(betAmount)}`,
+          label: `−${formatChips(betAmount)}`,
           entry: {
             id: `${Date.now()}-crash-${Math.random().toString(36).slice(2)}`,
             at: new Date(),
-            title: `Crashed ${formatMultiplier(crashAt)} · −${formatChips(betAmount)}`,
-            subtitle: `${formatChips(betAmount)} staked`,
+            title: `−${formatChips(betAmount)}`,
+            subtitle: `${formatChips(betAmount)} bet · Busted at ${formatMultiplier(crashAt)}`,
             tone: 'loss',
           },
         })
@@ -242,12 +242,12 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
     onResolve({ outcome: 'win', betAmount: round.betAmount, payout, multiplier: m })
     setPendingResult({
       tone: 'win',
-      label: `+${formatChips(payout)}`,
+      label: `+${formatChips(payout - round.betAmount)}`,
       entry: {
         id: `${Date.now()}-crash-${Math.random().toString(36).slice(2)}`,
         at: new Date(),
-        title: `+${formatChips(payout)} @ ${formatMultiplier(m)}`,
-        subtitle: `${formatChips(round.betAmount)} bet`,
+        title: `+${formatChips(payout - round.betAmount)}`,
+        subtitle: `${formatChips(round.betAmount)} bet · Cashed at ${formatMultiplier(m)}`,
         tone: 'win',
       },
     })

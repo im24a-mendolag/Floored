@@ -149,7 +149,7 @@ export function GameFieldWithHistory({
             {entries.map((e) => (
               <div key={e.id} className={cn('rounded-lg border px-2.5 py-2 text-left', toneBorder(e.tone))}>
                 <p className="text-[10px] text-zinc-500 tabular-nums">{formatTime(e.at)}</p>
-                <p className={cn('text-sm font-bold', toneTitle(e.tone))}>{e.title}</p>
+                <p className={cn('text-base font-black', toneTitle(e.tone))}>{e.title}</p>
                 <p className="mt-0.5 text-xs leading-snug text-zinc-500">{e.subtitle}</p>
               </div>
             ))}
@@ -176,7 +176,7 @@ export function GameFieldWithHistory({
                 )}
               >
                 <p className="text-[9px] uppercase tracking-wider text-zinc-600">{gameLabel} · last</p>
-                <p className={cn('truncate text-sm font-semibold leading-tight', toneTitle(latest.tone))}>
+                <p className={cn('truncate text-sm font-black leading-tight', toneTitle(latest.tone))}>
                   {latest.title}
                 </p>
                 <p className="mt-0.5 truncate text-[11px] text-zinc-500">{latest.subtitle}</p>

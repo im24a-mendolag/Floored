@@ -1,7 +1,7 @@
 import type { ChickenState, ChickenOutcome } from './types'
 
 const STEP_DATA = [
-  { multiplier: 1.2, deathChance: 0.1 },
+  { multiplier: 0.9, deathChance: 0.1 },
   { multiplier: 1.5, deathChance: 0.15 },
   { multiplier: 2.0, deathChance: 0.2 },
   { multiplier: 3.0, deathChance: 0.3 },
@@ -38,7 +38,7 @@ export function startChickenRound(amount: number): ChickenState {
     rollResult: null,
     outcome: null,
     message: `Step 1: ${firstStep.multiplier.toFixed(1)}× with ${firstStep.deathChance * 100}% danger.`,
-    cashoutValue: amount,
+    cashoutValue: Math.round(amount * firstStep.multiplier),
   }
 }
 

@@ -113,9 +113,9 @@ export function getSlotsResultPayout(state: SlotsState): number {
 export const PAYTABLE: { label: string; symbols: SlotsSymbol[]; multiplier: number }[] = [
   { label: 'Three Sevens',   symbols: ['seven',   'seven',   'seven'],   multiplier: 50  },
   { label: 'Three Diamonds', symbols: ['diamond', 'diamond', 'diamond'], multiplier: 25  },
-  { label: 'Three Bells',    symbols: ['bell',    'bell',    'bell'],    multiplier: 15  },
   { label: 'Triple BAR',     symbols: ['bar',     'bar',     'bar'],     multiplier: 10  },
+  { label: 'Double BAR',     symbols: ['bar',     'bar',     'bell'],    multiplier: 0.5 },
   { label: 'Three Cherries', symbols: ['cherry',  'cherry',  'cherry'],  multiplier: 5   },
   { label: 'Two Cherries',   symbols: ['cherry',  'cherry',  'bar'],     multiplier: 0.5 },
-  { label: 'Double BAR',     symbols: ['bar',     'bar',     'bell'],    multiplier: 0.5 },
+  { label: 'Three Bells',    symbols: ['bell',    'bell',    'bell'],    multiplier: 15  },
 ]

@@ -156,13 +156,13 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
 
       const tone: MatchHistoryTone = result.outcome === 'win' ? 'win' : 'loss'
       const label = result.outcome === 'win'
-        ? `+${formatChips(payout)}`
+        ? `+${formatChips(payout - result.betAmount)}`
         : `−${formatChips(result.betAmount)}`
       const entry: MatchHistoryEntry = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         at: new Date(),
         title: label,
-        subtitle: `${formatChips(result.betAmount)} bet · ${result.resultColor} ${result.resultMultiplier}× · bet on ${selectedColor}`,
+        subtitle: `${formatChips(result.betAmount)} bet · ${result.resultColor} ${result.resultMultiplier}×`,
         tone,
       }
       setPendingResult({ tone, label, entry })

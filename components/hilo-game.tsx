@@ -108,7 +108,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
       onResolve({ outcome, betAmount: bet, payout: po, multiplier: settled.payoutMultiplier })
 
       const tone: MatchHistoryTone = outcome === 'win' ? 'win' : 'loss'
-      const label = outcome === 'win' ? `+${formatChips(po)}` : `−${formatChips(bet)}`
+      const label = outcome === 'win' ? `+${formatChips(po - bet)}` : `−${formatChips(bet)}`
       const entry: MatchHistoryEntry = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         at: new Date(),

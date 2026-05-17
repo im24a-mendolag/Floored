@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { SlotsGame } from '@/components/slots-game'
 import { useSurvivalStore } from '@/store/survival-store'
+import { formatChips } from '@/utils/format'
 
 export default function SurvivalSlotsPage() {
   const router = useRouter()
@@ -11,6 +12,7 @@ export default function SurvivalSlotsPage() {
   const bankroll = useSurvivalStore((s) => s.bankroll)
   const slotsUsed = useSurvivalStore((s) => s.slotsUsed)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
+  const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
   const recordResult = useSurvivalStore((s) => s.recordResult)
   const advanceFloor = useSurvivalStore((s) => s.advanceFloor)
   const endRun = useSurvivalStore((s) => s.endRun)
@@ -42,21 +44,17 @@ export default function SurvivalSlotsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Slots</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Each spin fills the jackpot meter. Hit 100% for a guaranteed 100× spin.
-        </p>
-      </div>
-
-      {bankroll > 0 ? (
-        <SlotsGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
-      ) : (
-        <div className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-          Your bankroll is empty. Return to survival lobby.
+    <div className="flex flex-col flex-1 min-h-0 gap-3">
+      <div className="shrink-0 flex justify-end">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>Floor {currentFloor}</span>
+          <span className="text-zinc-700">·</span>
+          <span>Min {formatChips(floorMinBet)}</span>
+          <span className="text-zinc-700">·</span>
+          <span>{slotsUsed}/3 slots</span>
         </div>
-      )}
+      </div>
+      <SlotsGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
     </div>
   )
 }

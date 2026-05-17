@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
@@ -87,6 +88,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const uid = useId().replace(/:/g, '')
   const ballGlowId = `plinko-ball-${uid}`
 
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -194,7 +196,6 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         const result = computePlinkoPayout(c.betAmount, c.ballCount, c.paths)
         const { totalPayout, outcome, effectiveMultiplier } = result
         const bet = c.betAmount
-        const net = bet - totalPayout
 
         onResolveRef.current({
           outcome,
@@ -205,17 +206,18 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
         let title: string
         let tone: MatchHistoryTone
+        const netPL = totalPayout - bet
         if (outcome === 'win') {
-          title = `+${formatChips(totalPayout)}`
+          title = `+${formatChips(netPL)}`
           tone = 'win'
         } else if (outcome === 'push') {
-          title = `Push ${formatChips(totalPayout)}`
+          title = `Push`
           tone = 'push'
         } else if (totalPayout > 0) {
-          title = `+${formatChips(totalPayout)} · net −${formatChips(net)}`
+          title = `−${formatChips(Math.abs(netPL))}`
           tone = 'partial'
         } else {
-          title = `Lost ${formatChips(bet)}`
+          title = `−${formatChips(bet)}`
           tone = 'loss'
         }
 
@@ -319,6 +321,11 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         gameLabel="Plinko"
         emptyHint="No drops yet — results appear after each ball lands."
       >
+          {sessions.length === 0 && (
+            <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
+              ← Back
+            </button>
+          )}
           <svg
             viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
             className="flex-1 min-h-0 w-full select-none"

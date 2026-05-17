@@ -6,7 +6,7 @@ import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
-import { formatChips } from '@/utils/format'
+import { formatChips, formatMultiplier } from '@/utils/format'
 import type { BlackjackCard, BlackjackOutcome, BlackjackState } from '@/games/blackjack/types'
 import { GAMBLING_QUOTES, pickQuote } from '@/lib/gambling-quotes'
 import {
@@ -195,9 +195,14 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
       })
       const o = state.outcome
       const tone: MatchHistoryTone = o === 'win' ? 'win' : o === 'push' ? 'push' : 'loss'
+      const net = payout - state.betAmount
       const title =
-        o === 'win' ? `+${formatChips(payout)}` : o === 'push' ? `Push ${formatChips(payout)}` : `−${formatChips(state.betAmount)}`
-      const subtitle = `${formatChips(state.betAmount)} bet · You ${calculateHandValue(state.playerHand)} vs dealer ${calculateHandValue(state.dealerHand)}`
+        o === 'win' ? `+${formatChips(net)}` : o === 'push' ? `Push` : `−${formatChips(state.betAmount)}`
+      const outcomeLabel =
+        o === 'push' ? 'Push' :
+        o === 'loss' ? 'Bust' :
+        state.payoutMultiplier >= 2.5 ? 'Blackjack' : 'Win'
+      const subtitle = `${formatChips(state.betAmount)} bet · ${outcomeLabel} · ${formatMultiplier(state.payoutMultiplier)}`
       setTimeout(() => setPendingResult({
         tone,
         label: title,

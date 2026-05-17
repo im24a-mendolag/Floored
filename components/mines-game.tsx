@@ -1,26 +1,24 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
   GAME_BOARD_ARENA,
-  GAME_CARD_FRAME,
-  GAME_CONTROL_DOCK_S,
+  GAME_CARD_SHELL,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
-import { appendPlay } from '@/components/game-history-utils'
-import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
-import { GameOutcomeToast, type GameOutcomeToastSnap } from '@/components/game-outcome-toast'
+import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import { cashOutMines, getMinesPayout, initMines, revealMineTile, startMinesRound } from '@/games/mines/engine'
 import type { MinesState } from '@/games/mines/types'
 
 const CHIPS = [
-  { value: 10, label: '$10', bg: 'bg-red-600 hover:bg-red-500', border: 'border-red-300' },
-  { value: 25, label: '$25', bg: 'bg-emerald-600 hover:bg-emerald-500', border: 'border-emerald-300' },
-  { value: 100, label: '$100', bg: 'bg-blue-600 hover:bg-blue-500', border: 'border-blue-300' },
-  { value: 500, label: '$500', bg: 'bg-zinc-700 hover:bg-zinc-600', border: 'border-zinc-400' },
+  { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
+  { value: 25,  label: '$25',  cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
+  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
+  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
 ]
 
 const DIFFICULTIES: MinesState['difficulty'][] = ['easy', 'medium', 'hard', 'insane']
@@ -45,10 +43,16 @@ interface MinesGameProps {
   onResolve: (result: MinesResult) => void
 }
 
+interface PendingResult {
+  tone: MatchHistoryTone
+  label: string
+  entry: MatchHistoryEntry
+}
+
 export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
-
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [difficulty, setDifficulty] = useState<MinesState['difficulty']>('easy')
@@ -56,19 +60,17 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
-  const [minesToastOpen, setMinesToastOpen] = useState(false)
-  const [minesToastSnap, setMinesToastSnap] = useState<GameOutcomeToastSnap | null>(null)
+  const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
 
-  const lastMinesToastKey = useRef('')
+  const payout = useMemo(
+    () => round.stage === 'inProgress' ? Math.round(round.betAmount * round.multiplier) : getMinesPayout(round),
+    [round]
+  )
 
-  const payout = useMemo(() => getMinesPayout(round), [round])
-  const safeCount = useMemo(() => round.remainingSafe, [round.remainingSafe])
-
-  const isBetting = round.stage === 'betting'
+  const isBetting    = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
-  const isSettled = round.stage === 'settled'
-
-  const canStart = currentBet >= minBet && currentBet <= bankroll
+  const isSettled    = round.stage === 'settled'
+  const canStart     = currentBet >= minBet && currentBet <= bankroll
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
@@ -76,184 +78,107 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
 
   function handleStart() {
     if (!canStart) return
-
     setLastBet(currentBet)
+    setPendingResult(null)
     setRound(startMinesRound(currentBet, difficulty))
     setCurrentBet(0)
   }
 
   function handleTileClick(tileId: number) {
     if (round.stage !== 'inProgress') return
-
     const next = revealMineTile(round, tileId)
-
     setRound(next)
-
     if (next.stage === 'settled' && next.outcome) {
       const payoutAmount = getMinesPayout(next)
-
-      onResolve({
-        outcome: next.outcome,
-        betAmount: next.betAmount,
-        payout: payoutAmount,
-        multiplier: next.multiplier,
-      })
-
-      appendPlay(setMatchHistory, {
-        bet: next.betAmount,
-        payout: payoutAmount,
-        mult: next.multiplier,
-        outcome: next.outcome,
-        titlePrefix: next.outcome === 'loss' ? 'Mine hit' : 'Cash out',
+      onResolve({ outcome: next.outcome, betAmount: next.betAmount, payout: payoutAmount, multiplier: next.multiplier })
+      const tone: MatchHistoryTone = next.outcome === 'win' ? 'win' : 'loss'
+      const label = next.outcome === 'win' ? `+${formatChips(payoutAmount - next.betAmount)}` : `−${formatChips(next.betAmount)}`
+      setPendingResult({
+        tone, label,
+        entry: {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          at: new Date(),
+          title: label,
+          subtitle: next.outcome === 'win'
+            ? `${formatChips(next.betAmount)} bet · Cash out · ${formatMultiplier(next.multiplier)}`
+            : `${formatChips(next.betAmount)} bet · Mine hit`,
+          tone,
+        },
       })
     }
   }
 
   function handleCashOut() {
     const next = cashOutMines(round)
-
     setRound(next)
-
     const payoutAmount = getMinesPayout(next)
-
-    onResolve({
-      outcome: 'win',
-      betAmount: next.betAmount,
-      payout: payoutAmount,
-      multiplier: next.multiplier,
-    })
-
-    appendPlay(setMatchHistory, {
-      bet: next.betAmount,
-      payout: payoutAmount,
-      mult: next.multiplier,
-      outcome: 'win',
-      titlePrefix: 'Cash out',
+    onResolve({ outcome: 'win', betAmount: next.betAmount, payout: payoutAmount, multiplier: next.multiplier })
+    const label = `+${formatChips(payoutAmount - next.betAmount)}`
+    setPendingResult({
+      tone: 'win', label,
+      entry: {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        at: new Date(),
+        title: label,
+        subtitle: `${formatChips(next.betAmount)} bet · Cash out · ${formatMultiplier(next.multiplier)}`,
+        tone: 'win',
+      },
     })
   }
 
-  const dismissMinesToast = useCallback(() => {
-    setMinesToastOpen(false)
-    setMinesToastSnap(null)
-  }, [])
-
   const handleNewRound = useCallback(() => {
     setRound(initMines())
+    setPendingResult(null)
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }, [autoReBet, lastBet, bankroll])
 
-  useEffect(() => {
-    if (isBetting) {
-      lastMinesToastKey.current = ''
-    }
-  }, [isBetting])
-
-  useEffect(() => {
-    if (!isSettled || !round.outcome) return
-
-    const key = `${round.outcome}-${round.betAmount}-${round.multiplier}`
-
-    if (lastMinesToastKey.current === key) return
-
-    lastMinesToastKey.current = key
-
-    const payoutAmount = getMinesPayout(round)
-
-    const title = round.outcome === 'win' ? 'Cashed out' : 'Mine hit'
-
-    const subtitle =
-      round.outcome === 'win'
-        ? `+${formatChips(payoutAmount)}`
-        : `−${formatChips(round.betAmount)}`
-
-    const tone = round.outcome === 'win' ? 'win' : 'loss'
-
-    setMinesToastSnap({ title, subtitle, tone })
-    setMinesToastOpen(true)
-
-    queueMicrotask(() => handleNewRound())
-  }, [
-    isSettled,
-    round.outcome,
-    round.betAmount,
-    round.multiplier,
-    handleNewRound,
-    round,
-  ])
+  function handleNext() {
+    if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
+    handleNewRound()
+  }
 
   return (
-    <div
-      className={GAME_CARD_FRAME}
-      style={{
-        background: 'linear-gradient(160deg, #0f4c2a 0%, #0a3d22 100%)',
-      }}
-    >
+    <div className={GAME_CARD_SHELL}>
       <div className={GAME_STATUS_BAR}>
-        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">
-          Mines
-        </span>
-
-        <span className="text-sm text-zinc-600">
-          {round.message}
-        </span>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Mines</span>
+        <span className="text-sm text-zinc-600">{round.message}</span>
       </div>
-
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative min-h-0 p-4 md:p-5"
+        boardClassName="relative min-h-0 flex flex-col items-center justify-center px-4 py-6 md:px-6 gap-4"
         entries={matchHistory}
         gameLabel="Mines"
       >
-        {/* Stats row */}
-        <div className="mb-4 flex flex-wrap gap-3">
-          <div className="rounded-lg bg-black/20 px-3 py-2 text-sm">
+        {isBetting && (
+          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
+            ← Back
+          </button>
+        )}
+        {!isBetting && round.betAmount > 0 && (
+          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
+            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
+            <p className="text-sm font-bold text-white tabular-nums">{formatChips(round.betAmount)}</p>
+          </div>
+        )}
+
+        {/* Stats — always rendered to hold space; invisible during betting */}
+        <div className={`flex flex-wrap gap-3 ${isBetting ? 'invisible pointer-events-none' : ''}`}>
+          <div className="rounded-lg bg-white/5 px-3 py-2 text-sm">
             <span className="text-white/40">Safe left </span>
-            <span className="font-semibold text-white">{safeCount}</span>
+            <span className="font-semibold text-white">{round.remainingSafe}</span>
           </div>
-
-          <div className="rounded-lg bg-black/20 px-3 py-2 text-sm">
+          <div className="rounded-lg bg-white/5 px-3 py-2 text-sm">
             <span className="text-white/40">Multiplier </span>
-            <span className="font-semibold text-white">
-              {formatMultiplier(round.multiplier)}
-            </span>
+            <span className="font-semibold text-white">{formatMultiplier(round.multiplier)}</span>
           </div>
-
-          <div className="rounded-lg bg-black/20 px-3 py-2 text-sm">
-            <span className="text-white/40">Payout </span>
-            <span className="font-semibold text-emerald-400">
-              {formatChips(payout)}
-            </span>
-          </div>
-        </div>
-
-        {/* Difficulty selector */}
-        <div className="mb-4">
-          <p className="mb-2 text-xs uppercase tracking-wider text-white/30">
-            Difficulty
-          </p>
-
-          <div className="flex flex-wrap gap-2">
-            {DIFFICULTIES.map((level) => (
-              <button
-                key={level}
-                type="button"
-                onClick={() => {
-                  if (isBetting) setDifficulty(level)
-                }}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  difficulty === level
-                    ? 'bg-white text-gray-900'
-                    : 'bg-white/10 text-white/50 hover:bg-white/15'
-                } ${!isBetting ? 'cursor-not-allowed opacity-50' : ''}`}
-              >
-                {DIFFICULTY_LABELS[level]}
-              </button>
-            ))}
+          <div className="rounded-lg bg-white/5 px-3 py-2 text-sm">
+            <span className="text-white/40">Potential </span>
+            <span className="font-semibold text-emerald-400">{formatChips(payout)}</span>
           </div>
         </div>
 
         {/* Mine grid */}
-        <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+        <div className="grid grid-cols-5 gap-1.5 sm:gap-2 w-full max-w-sm">
           {round.tiles.length > 0 ? (
             round.tiles.map((tile) => (
               <button
@@ -276,112 +201,111 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
             ))
           ) : (
             Array.from({ length: 25 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-12 rounded-lg border border-white/10 bg-white/5 sm:h-14"
-              />
+              <div key={i} className="h-12 rounded-lg border border-white/10 bg-white/5 sm:h-14" />
             ))
           )}
         </div>
       </GameFieldWithHistory>
 
-      <GameOutcomeToast
-        open={minesToastOpen && !!minesToastSnap}
-        title={minesToastSnap?.title ?? ''}
-        subtitle={minesToastSnap?.subtitle}
-        tone={minesToastSnap?.tone ?? 'neutral'}
-        onDismiss={dismissMinesToast}
-      />
+      {/* Fixed-height dock — 4 evenly distributed slots, never shifts between states */}
+      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 rounded-b-2xl h-[284px] flex flex-col justify-between py-4">
 
-      <div className={GAME_CONTROL_DOCK_S}>
-        {isBetting && (
-          <div className="relative z-10">
-            <div className="mb-3 flex flex-wrap justify-center gap-2">
-              {CHIPS.map((chip) => (
-                <button
-                  key={chip.value}
-                  type="button"
-                  onClick={() => addChip(chip.value)}
-                  disabled={chip.value > bankroll - currentBet}
-                  className={`h-14 w-14 rounded-full border-2 text-xs font-bold text-white shadow-lg transition-transform active:scale-90 disabled:cursor-not-allowed disabled:opacity-25 ${chip.bg} ${chip.border}`}
-                >
-                  {chip.label}
-                </button>
-              ))}
+        {/* Slot 1: difficulty selector (betting) — invisible placeholder during game */}
+        <div className={`flex justify-center gap-2 ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
+          {DIFFICULTIES.map((level) => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => setDifficulty(level)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                difficulty === level ? 'bg-white text-gray-900' : 'bg-white/10 text-white/50 hover:bg-white/15'
+              }`}
+            >
+              {DIFFICULTY_LABELS[level]}
+            </button>
+          ))}
+        </div>
 
-              <button
-                type="button"
-                onClick={() => setCurrentBet(bankroll)}
-                disabled={currentBet >= bankroll || bankroll <= 0}
-                className="h-14 rounded-full border-2 border-amber-300 bg-amber-500 px-3 text-xs font-bold text-black shadow-lg transition-transform hover:bg-amber-400 active:scale-90 active:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-25"
-              >
-                All In
-              </button>
-            </div>
+        {/* Slot 2: chip row (betting) — invisible placeholder during game */}
+        <div className={`flex flex-nowrap justify-center gap-2 ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
+          {CHIPS.map((chip) => (
+            <button key={chip.value} type="button" onClick={() => addChip(chip.value)} disabled={chip.value > bankroll - currentBet}
+              className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}>
+              {chip.label}
+            </button>
+          ))}
+          <button type="button" onClick={() => addChip(Math.floor(bankroll / 4))} disabled={currentBet >= bankroll || bankroll <= 0}
+            className="h-12 px-3 rounded-full bg-blue-100 hover:bg-blue-50 border-2 border-blue-200 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
+            ¼
+          </button>
+          <button type="button" onClick={() => addChip(Math.floor(bankroll / 2))} disabled={currentBet >= bankroll || bankroll <= 0}
+            className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
+            ½
+          </button>
+          <button type="button" onClick={() => setCurrentBet(bankroll)} disabled={currentBet >= bankroll || bankroll <= 0}
+            className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
+            All In
+          </button>
+        </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-white">
-                <span className="text-sm text-white/50">Bet</span>
-
-                <span className="text-lg font-bold">
-                  {currentBet > 0 ? formatChips(currentBet) : '—'}
-                </span>
-
-                {currentBet > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setCurrentBet(0)}
-                    className="ml-1 text-xs text-white/35 transition-colors hover:text-white/70"
-                  >
-                    ✕ Clear
-                  </button>
-                )}
+        {/* Slot 3: info display — bet amount, payout info, or outcome */}
+        <div className="flex flex-col items-center justify-center gap-1 min-h-[56px]">
+          {isBetting && (
+            <>
+              <div className="flex items-center gap-2.5">
+                <span className="text-zinc-500 text-base">Bet</span>
+                <span className="font-bold text-xl text-white tabular-nums">{currentBet > 0 ? formatChips(currentBet) : '—'}</span>
               </div>
-
-              <button
-                type="button"
-                onClick={handleStart}
-                disabled={!canStart}
-                className="rounded-lg bg-yellow-500 px-5 py-2 text-sm font-bold text-black shadow-lg transition-all hover:bg-yellow-400 disabled:bg-white/10 disabled:text-white/25"
-              >
-                Start →
+              <button type="button" onClick={() => setCurrentBet(0)}
+                className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}>
+                Clear
               </button>
+            </>
+          )}
+          {isInProgress && (
+            <div className="flex items-center gap-2 text-sm text-zinc-400">
+              <span>Bet</span>
+              <span className="font-semibold text-white">{formatChips(round.betAmount)}</span>
+              <span className="text-zinc-700">·</span>
+              <span className="text-emerald-400 font-semibold">{formatChips(payout)} potential</span>
             </div>
-
-            {minBet > 1 && (
-              <p className="mt-1 text-xs text-white/25">
-                Min bet: {formatChips(minBet)}
+          )}
+          {isSettled && pendingResult && (
+            <div className="text-center">
+              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
+                {pendingResult.tone === 'win' ? 'Cashed out' : 'Mine hit'}
               </p>
-            )}
-          </div>
-        )}
-
-        {isInProgress && (
-          <div className="relative z-10">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm text-white/50">
-                Bet{' '}
-                <span className="font-semibold text-white">
-                  {formatChips(round.betAmount)}
-                </span>
-
-                <span className="mx-2 text-white/30">·</span>
-
-                <span className="font-semibold text-emerald-400">
-                  {formatChips(payout)} if cashed
-                </span>
-              </span>
-
-              <button
-                type="button"
-                onClick={handleCashOut}
-                className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-bold text-white shadow-lg transition-colors hover:bg-emerald-500"
-              >
-                Cash Out
-              </button>
+              <p className={`text-3xl font-black tabular-nums ${pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}>
+                {pendingResult.label}
+              </p>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Slot 4: action button */}
+        <div className="flex flex-col items-center gap-1">
+          {isBetting && (
+            <button type="button" onClick={handleStart} disabled={!canStart}
+              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">
+              Start →
+            </button>
+          )}
+          {isInProgress && (
+            <button type="button" onClick={handleCashOut}
+              className="min-w-[10.5rem] px-7 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors text-base shadow-lg">
+              Cash Out
+            </button>
+          )}
+          {isSettled && pendingResult && (
+            <button type="button" onClick={handleNext}
+              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">
+              Next →
+            </button>
+          )}
+          {minBet > 1 && isBetting && (
+            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
+          )}
+        </div>
       </div>
     </div>
   )
