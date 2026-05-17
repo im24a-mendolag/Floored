@@ -1,19 +1,24 @@
 import type { WheelColor, WheelSegment, WheelState } from './types'
 
 export const WHEEL_SEGMENTS: WheelSegment[] = [
-  { color: 'red',   multiplier: 2, count: 20, label: '2×' },
-  { color: 'blue',  multiplier: 3, count: 12, label: '3×' },
-  { color: 'green', multiplier: 4, count: 6,  label: '4×' },
-  { color: 'gold',  multiplier: 5, count: 3,  label: '5×' },
+  { color: 'red',   multiplier: 2, count: 6, label: '2×' },
+  { color: 'blue',  multiplier: 3, count: 3, label: '3×' },
+  { color: 'green', multiplier: 4, count: 2, label: '4×' },
+  { color: 'gold',  multiplier: 5, count: 1, label: '5×' },
 ]
 
-const TOTAL_SLOTS = WHEEL_SEGMENTS.reduce((s, seg) => s + seg.count, 0) // 41
+const TOTAL_SLOTS = WHEEL_SEGMENTS.reduce((s, seg) => s + seg.count, 0) // 12
 
+// Bresenham-mixed 12-slice layout (30° per slice, mid = slice_index × 30 + 15):
+// R(15°) B(45°) R(75°) G(105°) R(135°) B(165°) Gold(195°) R(225°) R(255°) G(285°) B(315°) R(345°)
+// To land a slice's element_angle under the top pointer after CSS rotate(θ):
+//   screen_angle = (element_angle + θ) % 360  →  for screen_angle=0: θ = (360 - element_angle) % 360
+//   mid must equal (360 - representative_element_angle) % 360
 export const SEGMENT_DEGREES: Record<WheelColor, { start: number; end: number; mid: number }> = {
-  red:   { start: 0,      end: 175.6, mid: 87.8   },
-  blue:  { start: 175.6,  end: 281.0, mid: 228.3  },
-  green: { start: 281.0,  end: 333.7, mid: 307.35 },
-  gold:  { start: 333.7,  end: 360.0, mid: 346.85 },
+  red:   { start: 0, end: 360, mid: 225 }, // 360 - 135 (slice 4)
+  blue:  { start: 0, end: 360, mid: 195 }, // 360 - 165 (slice 5)
+  green: { start: 0, end: 360, mid: 255 }, // 360 - 105 (slice 3)
+  gold:  { start: 0, end: 360, mid: 165 }, // 360 - 195 (slice 6)
 }
 
 export function initWheel(): WheelState {

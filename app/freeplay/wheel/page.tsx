@@ -23,12 +23,7 @@ export default function FreeplayWheelPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Wheel</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Freeplay — no floors, no pressure.</p>
-      </div>
-
+    <div className="flex flex-col flex-1 min-h-0">
       {bust && <BankruptModal onReset={reset} />}
       <WheelGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
     </div>

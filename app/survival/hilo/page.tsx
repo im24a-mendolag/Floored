@@ -52,22 +52,16 @@ export default function SurvivalHiloPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Hi-Lo</h1>
-          <p className="text-muted-foreground mt-1">
-            Choose your safe zone and hold it to advance the floor.
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          <div className="mb-1">Floor {currentFloor}</div>
-          <div className="mb-1">Min bet {formatChips(floorMinBet)}</div>
-          <div>Slots used {slotsUsed}/3</div>
+    <div className="flex flex-col flex-1 min-h-0 gap-3">
+      <div className="shrink-0 flex justify-end">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>Floor {currentFloor}</span>
+          <span className="text-zinc-700">·</span>
+          <span>Min {formatChips(floorMinBet)}</span>
+          <span className="text-zinc-700">·</span>
+          <span>{slotsUsed}/3 slots</span>
         </div>
       </div>
-
       <HiloGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
     </div>
   )

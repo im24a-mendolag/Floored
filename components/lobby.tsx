@@ -7,6 +7,7 @@ interface GameEntry {
   name: GameName
   label: string
   sub: string
+  symbol: string
   /** Shown on /freeplay — game list */
   availableFreeplay: boolean
   /** Shown on /survival lobby */
@@ -20,6 +21,7 @@ const GAMES: GameEntry[] = [
     name: 'blackjack',
     label: 'Blackjack',
     sub: 'Beat the dealer',
+    symbol: '♠',
     availableFreeplay: true,
     availableSurvival: true,
     gradient: 'from-emerald-950 to-emerald-900',
@@ -29,6 +31,7 @@ const GAMES: GameEntry[] = [
     name: 'crash',
     label: 'Crash',
     sub: 'Cash out before it crashes',
+    symbol: '🚀',
     availableFreeplay: true,
     availableSurvival: true,
     gradient: 'from-violet-950 to-indigo-950',
@@ -38,6 +41,7 @@ const GAMES: GameEntry[] = [
     name: 'plinko',
     label: 'Plinko',
     sub: 'Drop the puck',
+    symbol: '🎯',
     availableFreeplay: true,
     availableSurvival: false,
     gradient: 'from-sky-950 to-blue-950',
@@ -47,7 +51,8 @@ const GAMES: GameEntry[] = [
     name: 'hilo',
     label: 'Hi-Lo',
     sub: 'Pick your safe zone',
-    availableFreeplay: false,
+    symbol: '↕',
+    availableFreeplay: true,
     availableSurvival: false,
     gradient: 'from-teal-950 to-cyan-950',
     accent: 'border-teal-700 hover:border-teal-500',
@@ -56,7 +61,8 @@ const GAMES: GameEntry[] = [
     name: 'wheel',
     label: 'Wheel',
     sub: '2× to 5× — pick your color',
-    availableFreeplay: false,
+    symbol: '◎',
+    availableFreeplay: true,
     availableSurvival: false,
     gradient: 'from-rose-950 to-red-950',
     accent: 'border-rose-700 hover:border-rose-500',
@@ -65,7 +71,8 @@ const GAMES: GameEntry[] = [
     name: 'run-dice',
     label: 'Run Dice',
     sub: 'Roll to survive',
-    availableFreeplay: false,
+    symbol: '⚅',
+    availableFreeplay: true,
     availableSurvival: false,
     gradient: 'from-orange-950 to-amber-950',
     accent: 'border-orange-700 hover:border-orange-500',
@@ -74,6 +81,7 @@ const GAMES: GameEntry[] = [
     name: 'mines',
     label: 'Mines',
     sub: 'Find the safe tiles',
+    symbol: '💣',
     availableFreeplay: false,
     availableSurvival: false,
     gradient: 'from-lime-950 to-green-950',
@@ -83,6 +91,7 @@ const GAMES: GameEntry[] = [
     name: 'chicken-road',
     label: 'Chicken Road',
     sub: 'Cross without getting hit',
+    symbol: '🐔',
     availableFreeplay: false,
     availableSurvival: false,
     gradient: 'from-yellow-950 to-amber-950',
@@ -92,10 +101,41 @@ const GAMES: GameEntry[] = [
     name: 'slots',
     label: 'Slots',
     sub: '3 reels · jackpot meter',
+    symbol: '🎰',
     availableFreeplay: false,
     availableSurvival: false,
     gradient: 'from-violet-950 to-purple-950',
     accent: 'border-violet-700 hover:border-violet-400',
+  },
+  {
+    name: 'roulette',
+    label: 'Roulette',
+    sub: 'Spin the wheel of fortune',
+    symbol: '🎱',
+    availableFreeplay: false,
+    availableSurvival: false,
+    gradient: 'from-red-950 to-rose-950',
+    accent: 'border-red-700 hover:border-red-500',
+  },
+  {
+    name: 'towers',
+    label: 'Towers',
+    sub: 'Climb as high as you dare',
+    symbol: '🏰',
+    availableFreeplay: false,
+    availableSurvival: false,
+    gradient: 'from-stone-950 to-zinc-900',
+    accent: 'border-stone-600 hover:border-stone-400',
+  },
+  {
+    name: 'chicken-race',
+    label: 'Chicken Race',
+    sub: 'Back your bird',
+    symbol: '🏁',
+    availableFreeplay: false,
+    availableSurvival: false,
+    gradient: 'from-orange-950 to-yellow-950',
+    accent: 'border-orange-600 hover:border-orange-400',
   },
 ]
 
@@ -143,9 +183,12 @@ export function Lobby({ mode }: Props) {
             {/* Card content */}
             <div className={`relative p-5 flex flex-col justify-between ${isOrphan ? 'h-24 sm:h-32' : 'h-32'}`}>
               <div>
-                <p className="text-white font-black text-xl sm:text-2xl leading-tight tracking-tight group-hover:scale-105 origin-left transition-transform duration-200">
-                  {g.label}
-                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl leading-none select-none">{g.symbol}</span>
+                  <p className="text-white font-black text-xl sm:text-2xl leading-tight tracking-tight group-hover:scale-105 origin-left transition-transform duration-200">
+                    {g.label}
+                  </p>
+                </div>
                 <p className="text-white/40 text-xs mt-1">{g.sub}</p>
               </div>
 

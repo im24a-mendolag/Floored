@@ -12,6 +12,9 @@ export type GameName =
   | 'mines'
   | 'chicken-road'
   | 'slots'
+  | 'roulette'
+  | 'towers'
+  | 'chicken-race'
 
 export interface Modifier {
   id: string
