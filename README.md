@@ -1,41 +1,53 @@
 # Floored
 
-Browser-based casino simulation. No real money, no accounts required.
+Browser-based casino simulation — no real money, no accounts required.
 
 Live at [floored.paulkuehn.ch](https://floored.paulkuehn.ch)
 
-## Modes
+## Freeplay (primary focus)
 
-**Freeplay** — pick any available game, start with $10,000, no minimum bets, no pressure.
+Freeplay is the core, ready-to-play mode: choose any game, start with a healthy balance, and play without pressure or minimum bets.
 
-**Survival** — start with $1,000. Each floor has a minimum bet and 3 game slots. Clear the slots to advance; go bust and the run ends. Difficulty scales as floors climb.
+- Starting balance: $10,000
+- No accounts or real-money transactions
+- Instant sessions, local state persisted for convenience
 
-## Games
+### Games available in Freeplay
 
-| Game | Freeplay | Survival | Status |
-|------|:--------:|:--------:|--------|
-| Blackjack | ✓ | ✓ | Live |
-| Crash | ✓ | ✓ | Live |
-| Plinko | ✓ | — | Live |
-| Over-Under | ✓ | — | Live |
-| HiLo | | | Coming soon |
-| Flipper | | | Coming soon |
-| Street Cups | | | Coming soon |
-| Wheel | | | Coming soon |
-| Slots | | | Coming soon |
-| Mines | | | Coming soon |
-| Run Dice | | | Coming soon |
-| Chicken Road | | | Coming soon |
+The project currently implements 18 games in Freeplay:
+
+- Blackjack
+- Case Battles
+- Chicken Race
+- Chicken Road
+- Coin Flip
+- Crash
+- Dragon Tower
+- HiLo
+- Keno
+- Mines
+- Over-Under
+- Plinko
+- Poker (1-player)
+- Roulette
+- Run Dice
+- Slots
+- Street Cups
+- Wheel
+
+## Survival (coming soon)
+
+Survival mode is planned but not the primary focus of this README. It will introduce floor-based progression, minimum bets, and run-ending failure conditions. Do you want me to include specific rules or promotional copy for Survival now? If so, tell me the target difficulty, starting bankroll, or any special mechanics to mention.
 
 ## Stack
 
-- **Next.js 14** (App Router)
-- **TypeScript**
-- **Tailwind CSS**
-- **Zustand** — client-side game and run state
-- **Radix UI** — accessible primitives
-- **Framer Motion** — animations
-- **Supabase + Prisma** — auth and persistence
+- Next.js (App Router)
+- TypeScript
+- Tailwind CSS
+- Zustand (client-side state)
+- Radix UI (primitives)
+- Framer Motion (animations)
+- Supabase + Prisma (optional persistence)
 
 ## Development
 
@@ -44,16 +56,29 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open http://localhost:3000 to run locally.
 
 ## Project structure
 
 ```
 app/
   freeplay/        # Freeplay game routes
-  survival/        # Survival game routes
-components/        # Game components and shared UI
-games/             # Pure game engines (no React)
+  survival/        # Survival game routes (planned)
+components/        # React components and shared UI
+games/             # Pure game engines and logic (TS)
 store/             # Zustand stores (freeplay, survival, settings)
 lib/               # Utilities and static data
 ```
+
+## Contributing
+
+Contributions welcome — open an issue or PR. If you're adding or updating a game, keep the engine logic in `games/` and React UI in `components/`.
+
+---
+
+If you'd like, I can also:
+
+- generate a short HOWTO for adding a new Freeplay game
+- create a one-page promo blurb for Survival mode to use in-game or on the site
+
+Tell me which you'd prefer next.

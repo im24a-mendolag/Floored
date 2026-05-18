@@ -51,7 +51,6 @@ Tech: Next.js 14 App Router · TypeScript · Tailwind CSS (JIT) · Zustand store
 | Case Battles | ✓ | — | `games/case-battles/` | `components/case-battles-game.tsx` |
 | 1P Poker | ✓ | — | `games/poker-1p/` | `components/poker-1p-game.tsx` |
 | HiLo | — | — | (stub) | (stub) |
-| Flipper | — | — | (stub) | — |
 | Street Cups | — | — | (stub) | — |
 
 Games marked `—` in Survival are lobby-locked (`availableSurvival: false`). Games with both
