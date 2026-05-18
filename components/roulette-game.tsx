@@ -20,7 +20,6 @@ import {
   getNumberColor,
   getPayoutForTarget,
   initRoulette,
-  isNumberCoveredByTarget,
   spinRoulette,
 } from '@/games/roulette/engine'
 import type { RouletteBetType, RouletteState } from '@/games/roulette/types'
@@ -75,23 +74,6 @@ interface PendingResult {
   tone: MatchHistoryTone
   label: string
   entry: MatchHistoryEntry
-}
-
-function isStraightUpTarget(target: string | null): boolean {
-  if (target === null) return false
-  const parsed = parseInt(target, 10)
-  if (Number.isNaN(parsed) || parsed < 0 || parsed > 36) return false
-  return String(parsed) === target
-}
-
-function isHighlightedByBetsOrActive(
-  n: number,
-  currentBet: number,
-  currentTarget: string | null,
-): boolean {
-  if (currentTarget === null || currentBet <= 0) return false
-  if (!isStraightUpTarget(currentTarget)) return false
-  return isNumberCoveredByTarget(n, currentTarget)
 }
 
 function betBtnStyle(type: RouletteBetType, isActive: boolean, hasBet: boolean): string {
@@ -323,8 +305,7 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
         <div className={`flex flex-col gap-0.5 ${!isBetting ? 'pointer-events-none' : ''}`}>
           {/* Zero */}
           {(() => {
-            const highlighted = isHighlightedByBetsOrActive(0, currentBet, currentTarget)
-            const isActive = currentTarget === '0'
+            const isActive = currentTarget === '0' && currentBet === 0
             const isResult = isSettled && round.result === 0
             const isSpinning = spinningPosition === '0'
             return (
@@ -334,9 +315,6 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
                 className={[
                   'relative h-6 sm:h-7 rounded flex items-center justify-center text-[10px] sm:text-xs font-bold text-white bg-emerald-700 transition-all duration-150 select-none',
                   isResult ? 'ring-2 ring-white ring-offset-1 ring-offset-zinc-950 shadow-lg shadow-white/20' : isActive ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-zinc-950' : isSpinning ? 'ring-2 ring-white/60 ring-offset-1 ring-offset-zinc-950' : '',
-                  !highlighted && !isSpinning && currentBet > 0 && isStraightUpTarget(currentTarget)
-                    ? 'opacity-20'
-                    : 'opacity-100',
                   isBetting && currentBet === 0 ? 'cursor-pointer hover:brightness-125 active:scale-95' : 'cursor-default',
                 ].join(' ')}>
                 0
@@ -348,8 +326,7 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
             <div key={ri} className="flex gap-0.5">
               {row.map(n => {
                 const nStr = String(n)
-                const highlighted = isHighlightedByBetsOrActive(n, currentBet, currentTarget)
-                const isActive = currentTarget === nStr
+                const isActive = currentTarget === nStr && currentBet === 0
                 const isResult = isSettled && round.result === n
                 const isSpinning = spinningPosition === nStr
                 const color = getNumberColor(n)
@@ -369,9 +346,6 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
                     className={[
                       'relative w-6 h-6 sm:w-7 sm:h-7 rounded flex items-center justify-center text-[10px] sm:text-xs font-bold text-white transition-all duration-150 select-none',
                       colorBase, ring,
-                      !highlighted && !isSpinning && currentBet > 0 && isStraightUpTarget(currentTarget)
-                        ? 'opacity-20'
-                        : 'opacity-100',
                       isBetting && currentBet === 0 ? 'cursor-pointer hover:brightness-125 active:scale-90' : 'cursor-default',
                     ].join(' ')}>
                     {n}

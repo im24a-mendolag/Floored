@@ -7,7 +7,6 @@ import { useSettingsStore } from '@/store/settings-store'
 import {
   GAME_BOARD_ARENA,
   GAME_CARD_SHELL,
-  GAME_CONTROL_DOCK_M,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
@@ -249,6 +248,12 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
             ← Back
           </button>
         )}
+        {!isBetting && lastBet > 0 && (
+          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
+            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
+            <p className="text-sm font-bold text-white tabular-nums">{formatChips(lastBet)}</p>
+          </div>
+        )}
 
         {/* Jackpot meter — survival only */}
         {mode === 'survival' && runActive && (
@@ -279,9 +284,8 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
           <Reel symbol={displayedReels[2]} spinning={spinningReels[2]} landed={landedReels[2]} />
         </div>
 
-        {/* Paytable — hidden while spinning */}
-        {!isSpinning && (
-          <div className="w-full max-w-sm">
+        {/* Paytable — keep mounted while spinning so reels don't shift */}
+        <div className={`w-full max-w-sm ${isSpinning ? 'invisible pointer-events-none' : ''}`}>
             <p className="text-white/25 text-xs uppercase tracking-wider mb-2">Paytable</p>
             <div className="grid grid-cols-2 gap-1">
               {PAYTABLE.map((row) => (
@@ -302,15 +306,11 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
                 <span className="text-purple-300 text-xs font-semibold">★ Wild — any</span>
               </div>
             </div>
-          </div>
-        )}
+        </div>
       </GameFieldWithHistory>
 
-      <div className={GAME_CONTROL_DOCK_M}>
-        <div className="flex-1 flex flex-col items-center justify-start pt-3 gap-1 min-h-0">
-          {isBetting && (
-            <div className="w-full max-w-sm flex flex-col gap-1">
-              <div className="flex flex-nowrap justify-center gap-2">
+      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 rounded-b-2xl h-[284px] flex flex-col justify-between py-4">
+        <div className={`flex flex-nowrap justify-center gap-2 ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
                 {CHIPS.map((chip) => (
                   <button key={chip.value} type="button" onClick={() => addChip(chip.value)} disabled={chip.value > bankroll - currentBet}
                     className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}>
@@ -329,18 +329,20 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
                   className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
                   All In
                 </button>
+        </div>
+
+        <div className="flex flex-col items-center justify-center gap-1 min-h-[56px]">
+          {isBetting && (
+            <>
+              <div className="flex items-center gap-2.5">
+                <span className="text-zinc-500 text-base">Bet</span>
+                <span className="font-bold text-xl text-white tabular-nums">{currentBet > 0 ? formatChips(currentBet) : '—'}</span>
               </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">{currentBet > 0 ? formatChips(currentBet) : '—'}</span>
-                </div>
-                <button type="button" onClick={() => setCurrentBet(0)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}>
-                  Clear
-                </button>
-              </div>
-            </div>
+              <button type="button" onClick={() => setCurrentBet(0)}
+                className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}>
+                Clear
+              </button>
+            </>
           )}
           {isSpinning && (
             <GameDockRandomQuote quoteIdx={quoteIdx} />
@@ -361,7 +363,7 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
           )}
         </div>
 
-        <div className="mx-auto w-full max-w-sm flex flex-col gap-1 pb-2">
+        <div className="mx-auto w-full max-w-sm flex flex-col gap-1">
           {(isBetting || isSpinning) && (
             <div className="flex justify-center">
               <button type="button" onClick={handleSpin} disabled={!canSpin || isSpinning}

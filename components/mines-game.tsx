@@ -182,28 +182,37 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
           </div>
         </div>
 
-        {/* Mine grid */}
+        {/* Mine grid — after round ends, all unrevealed tiles show mine vs safe */}
         <div className="grid grid-cols-5 gap-1.5 sm:gap-2 w-full max-w-sm">
           {round.tiles.length > 0 ? (
-            round.tiles.map((tile) => (
+            round.tiles.map((tile) => {
+              const showOutcome = tile.revealed || isSettled
+              const dormantMine = isSettled && !tile.revealed && tile.hasMine
+              const dormantSafe = isSettled && !tile.revealed && !tile.hasMine
+              return (
               <button
                 key={tile.id}
                 type="button"
                 onClick={() => handleTileClick(tile.id)}
                 disabled={!isInProgress || tile.revealed}
                 className={`h-12 rounded-lg text-lg font-bold transition-all active:scale-95 sm:h-14 ${
-                  tile.revealed
-                    ? tile.hasMine
-                      ? 'border border-red-400 bg-red-600 text-white shadow-lg shadow-red-900/50'
-                      : 'border border-emerald-400 bg-emerald-600 text-white shadow-lg shadow-emerald-900/50'
-                    : isInProgress
-                      ? 'cursor-pointer border border-white/20 bg-white/10 text-white/0 hover:border-white/40 hover:bg-white/20'
-                      : 'cursor-default border border-white/10 bg-white/5 text-white/0'
+                  tile.revealed && tile.hasMine
+                    ? 'border border-red-400 bg-red-600 text-white shadow-lg shadow-red-900/50'
+                    : tile.revealed && !tile.hasMine
+                      ? 'border border-emerald-400 bg-emerald-600 text-white shadow-lg shadow-emerald-900/50'
+                    : dormantMine
+                      ? 'cursor-default border border-amber-500/70 bg-amber-950/80 text-amber-100 shadow-inner'
+                      : dormantSafe
+                        ? 'cursor-default border border-zinc-500/60 bg-zinc-800/80 text-zinc-200 shadow-inner'
+                        : isInProgress
+                          ? 'cursor-pointer border border-white/20 bg-white/10 text-white/0 hover:border-white/40 hover:bg-white/20'
+                          : 'cursor-default border border-white/10 bg-white/5 text-white/0'
                 }`}
               >
-                {tile.revealed ? (tile.hasMine ? '💣' : '✓') : ''}
+                {showOutcome ? (tile.hasMine ? '💣' : '✓') : ''}
               </button>
-            ))
+              )
+            })
           ) : (
             Array.from({ length: 25 }).map((_, i) => (
               <div key={i} className="h-12 rounded-lg border border-white/10 bg-white/5 sm:h-14" />
