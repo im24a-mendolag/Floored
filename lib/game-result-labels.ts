@@ -8,7 +8,7 @@ export interface GameRoundAmounts {
 }
 
 /** Settled dock: total chips returned to the player (not net profit/loss). */
-export function formatSettledWinningsDisplay(payout: number, betAmount: number) {
+export function formatSettledWinningsDisplay(payout: number) {
   if (payout > 0) return formatChips(payout)
   return formatChips(0)
 }
@@ -37,7 +37,7 @@ export function buildPendingResult(
           ? 'win'
           : 'loss'
   const title = formatHistoryNetTitle(amounts.payout, amounts.betAmount, amounts.outcome)
-  const label = formatSettledWinningsDisplay(amounts.payout, amounts.betAmount)
+  const label = formatSettledWinningsDisplay(amounts.payout)
   const outcomeLabel =
     amounts.payout > 0
       ? (options?.winLabel ?? 'Total winnings')

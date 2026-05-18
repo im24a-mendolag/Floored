@@ -79,7 +79,7 @@ interface PendingResult {
   entry: MatchHistoryEntry
 }
 
-function betBtnStyle(type: RouletteBetType, isActive: boolean, hasBet: boolean): string {
+function betBtnStyle(type: RouletteBetType, isActive: boolean): string {
   const base = 'rounded-lg transition-all duration-150 flex flex-col items-center'
 
   const activeStyle = 'bg-yellow-400 border-yellow-300 text-zinc-900'
@@ -378,7 +378,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
                       key={type}
                       type="button"
                       onClick={() => selectTarget(type)}
-                      className={`${betBtnStyle(type, isActive, false)} px-3 py-1.5`}
+                      className={`${betBtnStyle(type, isActive)} px-3 py-1.5`}
                     >
                       <span className="text-xs font-bold">{BET_LABELS[type]}</span>
                     </button>

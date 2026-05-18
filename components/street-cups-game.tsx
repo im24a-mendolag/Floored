@@ -31,7 +31,6 @@ const SLOT_X = ['16%', '50%', '84%'] as const
 /* Cup colours (stone/neutral palette per lobby entry). */
 const CUP_COLOR    = '#44403c'   // stone-700
 const CUP_BORDER   = '#78716c'   // stone-500
-const CUP_ACTIVE   = '#a8a29e'   // stone-400 (hover/picking)
 
 /** Visual slot positions for each cup id. cupSlots[id] = slot index (0|1|2). */
 type CupSlots = [number, number, number]
