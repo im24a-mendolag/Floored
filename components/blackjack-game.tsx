@@ -198,6 +198,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
       const net = payout - state.betAmount
       const title =
         o === 'win' ? `+${formatChips(net)}` : o === 'push' ? `Push` : `−${formatChips(state.betAmount)}`
+      const displayLabel = o === 'win' ? formatChips(payout) : title
       const outcomeLabel =
         o === 'push' ? 'Push' :
         o === 'loss' ? 'Bust' :
@@ -205,7 +206,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
       const subtitle = `${formatChips(state.betAmount)} bet · ${outcomeLabel} · ${formatMultiplier(state.payoutMultiplier)}`
       setTimeout(() => setPendingResult({
         tone,
-        label: title,
+        label: displayLabel,
         entry: { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, at: new Date(), title, subtitle, tone },
       }), resultDelay)
     }

@@ -103,15 +103,18 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
     setRound(next)
     const po = getChickenPayout(next)
     onResolve({ outcome: 'win', betAmount: next.betAmount, payout: po, multiplier: next.multiplier })
-    const label = `+${formatChips(po - next.betAmount)}`
+    const netPL = po - next.betAmount
+    const isPartial = po > 0 && po < next.betAmount
+    const tone: MatchHistoryTone = isPartial ? 'partial' : 'win'
+    const historyLabel = isPartial ? `−${formatChips(Math.abs(netPL))}` : `+${formatChips(netPL)}`
     setPendingResult({
-      tone: 'win', label,
+      tone, label: formatChips(po),
       entry: {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         at: new Date(),
-        title: label,
+        title: historyLabel,
         subtitle: `${formatChips(next.betAmount)} bet · Step ${next.step} · ${formatMultiplier(next.multiplier)}`,
-        tone: 'win',
+        tone,
       },
     })
   }
@@ -201,7 +204,7 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
               <p className="text-white font-semibold">{formatMultiplier(round.multiplier)}</p>
             </div>
             <div className="bg-white/5 rounded-lg p-3 text-center">
-              <p className="text-white/40 text-xs mb-1">If cashed</p>
+              <p className="text-white/40 text-xs mb-1">Potential</p>
               <p className="text-emerald-400 font-semibold text-sm">
                 {round.betAmount > 0 ? formatChips(Math.round(round.betAmount * round.multiplier)) : '—'}
               </p>
@@ -251,17 +254,22 @@ export function ChickenGame({ mode, bankroll, onResolve }: ChickenGameProps) {
               <span>Bet</span>
               <span className="font-semibold text-white">{formatChips(round.betAmount)}</span>
               <span className="text-zinc-700">·</span>
-              <span className="text-emerald-400 font-semibold">
-                {formatChips(Math.round(round.betAmount * round.multiplier))} if cashed
+              <span className="text-zinc-500">Potential</span>
+              <span className="font-semibold text-emerald-400">
+                {formatChips(Math.round(round.betAmount * round.multiplier))}
               </span>
             </div>
           )}
           {isSettled && pendingResult && (
             <div className="text-center">
               <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
-                {pendingResult.tone === 'win' ? 'Cashed out' : 'Squashed'}
+                {pendingResult.tone === 'loss' ? 'Squashed' : 'Cashed out'}
               </p>
-              <p className={`text-3xl font-black tabular-nums ${pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}>
+              <p className={`text-3xl font-black tabular-nums ${
+                pendingResult.tone === 'win' ? 'text-emerald-400' :
+                pendingResult.tone === 'partial' ? 'text-amber-300' :
+                'text-red-400'
+              }`}>
                 {pendingResult.label}
               </p>
             </div>

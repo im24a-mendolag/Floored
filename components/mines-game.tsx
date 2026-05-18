@@ -92,13 +92,14 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
       const payoutAmount = getMinesPayout(next)
       onResolve({ outcome: next.outcome, betAmount: next.betAmount, payout: payoutAmount, multiplier: next.multiplier })
       const tone: MatchHistoryTone = next.outcome === 'win' ? 'win' : 'loss'
-      const label = next.outcome === 'win' ? `+${formatChips(payoutAmount - next.betAmount)}` : `−${formatChips(next.betAmount)}`
+      const historyLabel = next.outcome === 'win' ? `+${formatChips(payoutAmount - next.betAmount)}` : `−${formatChips(next.betAmount)}`
+      const displayLabel = next.outcome === 'win' ? formatChips(payoutAmount) : historyLabel
       setPendingResult({
-        tone, label,
+        tone, label: displayLabel,
         entry: {
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           at: new Date(),
-          title: label,
+          title: historyLabel,
           subtitle: next.outcome === 'win'
             ? `${formatChips(next.betAmount)} bet · Cash out · ${formatMultiplier(next.multiplier)}`
             : `${formatChips(next.betAmount)} bet · Mine hit`,
@@ -113,13 +114,13 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
     setRound(next)
     const payoutAmount = getMinesPayout(next)
     onResolve({ outcome: 'win', betAmount: next.betAmount, payout: payoutAmount, multiplier: next.multiplier })
-    const label = `+${formatChips(payoutAmount - next.betAmount)}`
+    const historyLabel = `+${formatChips(payoutAmount - next.betAmount)}`
     setPendingResult({
-      tone: 'win', label,
+      tone: 'win', label: formatChips(payoutAmount),
       entry: {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         at: new Date(),
-        title: label,
+        title: historyLabel,
         subtitle: `${formatChips(next.betAmount)} bet · Cash out · ${formatMultiplier(next.multiplier)}`,
         tone: 'win',
       },
@@ -267,7 +268,8 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
               <span>Bet</span>
               <span className="font-semibold text-white">{formatChips(round.betAmount)}</span>
               <span className="text-zinc-700">·</span>
-              <span className="text-emerald-400 font-semibold">{formatChips(payout)} potential</span>
+              <span className="text-zinc-500">Potential</span>
+              <span className="font-semibold text-emerald-400">{formatChips(payout)}</span>
             </div>
           )}
           {isSettled && pendingResult && (

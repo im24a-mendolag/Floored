@@ -108,15 +108,16 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
       onResolve({ outcome, betAmount: bet, payout: po, multiplier: settled.payoutMultiplier })
 
       const tone: MatchHistoryTone = outcome === 'win' ? 'win' : 'loss'
-      const label = outcome === 'win' ? `+${formatChips(po - bet)}` : `−${formatChips(bet)}`
+      const historyLabel = outcome === 'win' ? `+${formatChips(po - bet)}` : `−${formatChips(bet)}`
+      const displayLabel = outcome === 'win' ? formatChips(po) : historyLabel
       const entry: MatchHistoryEntry = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         at: new Date(),
-        title: label,
+        title: historyLabel,
         subtitle: `${formatChips(bet)} bet · Roll ${rollPos} · ${safeZone}% zone · ${formatMultiplier(settled.payoutMultiplier)}`,
         tone,
       }
-      setPendingResult({ tone, label, entry })
+      setPendingResult({ tone, label: displayLabel, entry })
     }, ROLL_ANIM_MS + 80)
 
     animTimers.current = [t1, t2]

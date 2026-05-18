@@ -120,10 +120,10 @@ const GAMES: GameEntry[] = [
     // pos 10 — Emerald
     name: 'roulette',
     label: 'Roulette',
-    sub: 'Red or black, spin and win',
-    symbol: '🎱',
-    availableFreeplay: false,
-    availableSurvival: false,
+    sub: 'Pick your number, spin the wheel',
+    symbol: '🎡',
+    availableFreeplay: true,
+    availableSurvival: true,
     gradient: 'from-emerald-950 to-emerald-900',
     accent: 'border-emerald-600 hover:border-emerald-500',
   },
@@ -148,6 +148,39 @@ const GAMES: GameEntry[] = [
     availableSurvival: false,
     gradient: 'from-slate-950 to-slate-900',
     accent: 'border-slate-500 hover:border-slate-400',
+  },
+  {
+    // pos 13 — Gold
+    name: 'coin-flip',
+    label: 'Coin Flip',
+    sub: '50/50 — heads or tails',
+    symbol: '🪙',
+    availableFreeplay: false,
+    availableSurvival: false,
+    gradient: 'from-yellow-950 to-yellow-900',
+    accent: 'border-yellow-600 hover:border-yellow-500',
+  },
+  {
+    // pos 14 — Cyan
+    name: 'case-battles',
+    label: 'Case Battles',
+    sub: 'Open cases, beat opponents',
+    symbol: '🎁',
+    availableFreeplay: false,
+    availableSurvival: false,
+    gradient: 'from-cyan-950 to-cyan-900',
+    accent: 'border-cyan-600 hover:border-cyan-500',
+  },
+  {
+    // pos 15 — Green
+    name: 'poker-1p',
+    label: '1P Poker',
+    sub: 'Beat the house hand',
+    symbol: '🃏',
+    availableFreeplay: false,
+    availableSurvival: false,
+    gradient: 'from-green-950 to-green-900',
+    accent: 'border-green-600 hover:border-green-500',
   },
 ]
 

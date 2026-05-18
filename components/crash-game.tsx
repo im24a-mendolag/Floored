@@ -242,7 +242,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
     onResolve({ outcome: 'win', betAmount: round.betAmount, payout, multiplier: m })
     setPendingResult({
       tone: 'win',
-      label: `+${formatChips(payout - round.betAmount)}`,
+      label: formatChips(payout),
       entry: {
         id: `${Date.now()}-crash-${Math.random().toString(36).slice(2)}`,
         at: new Date(),

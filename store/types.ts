@@ -15,6 +15,9 @@ export type GameName =
   | 'roulette'
   | 'towers'
   | 'chicken-race'
+  | 'coin-flip'
+  | 'case-battles'
+  | 'poker-1p'
 
 export interface Modifier {
   id: string

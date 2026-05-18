@@ -186,16 +186,23 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
       const r = result.reels!
       const line = `${PAYTABLE_GLYPH[r[0]]} ${PAYTABLE_GLYPH[r[1]]} ${PAYTABLE_GLYPH[r[2]]}`
       const isWin = result.outcome === 'win'
-      const tone: MatchHistoryTone = isWin ? 'win' : 'loss'
-      const label = isWin ? `+${formatChips(payout - result.betAmount)}` : `−${formatChips(result.betAmount)}`
+      const netPL = payout - result.betAmount
+      const isPartial = isWin && netPL < 0
+      const tone: MatchHistoryTone = !isWin ? 'loss' : isPartial ? 'partial' : 'win'
+      const historyLabel = !isWin
+        ? `−${formatChips(result.betAmount)}`
+        : isPartial
+          ? `−${formatChips(Math.abs(netPL))}`
+          : `+${formatChips(netPL)}`
+      const displayLabel = isWin ? formatChips(payout) : historyLabel
       const titlePrefix = result.isJackpotSpin ? 'Jackpot' : line
       setPendingResult({
-        tone, label,
+        tone, label: displayLabel,
         isJackpot: !!result.isJackpotSpin,
         entry: {
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           at: new Date(),
-          title: label,
+          title: historyLabel,
           subtitle: isWin
             ? `${formatChips(result.betAmount)} bet · ${titlePrefix} · ${result.payoutMultiplier}×`
             : `${formatChips(result.betAmount)} bet · No match`,
@@ -337,9 +344,13 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
           {isSettled && pendingResult && (
             <div className="text-center">
               <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
-                {pendingResult.tone === 'win' ? (pendingResult.isJackpot ? 'Jackpot' : 'Win') : 'No match'}
+                {pendingResult.tone === 'win' ? (pendingResult.isJackpot ? 'Jackpot' : 'Win') : pendingResult.tone === 'partial' ? 'Partial return' : 'No match'}
               </p>
-              <p className={`text-3xl font-black tabular-nums ${pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}>
+              <p className={`text-3xl font-black tabular-nums ${
+                pendingResult.tone === 'win' ? 'text-emerald-400' :
+                pendingResult.tone === 'partial' ? 'text-amber-300' :
+                'text-red-400'
+              }`}>
                 {pendingResult.label}
               </p>
             </div>

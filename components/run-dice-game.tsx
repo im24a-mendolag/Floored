@@ -145,20 +145,21 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
         onResolve({ outcome: next.outcome, betAmount: next.betAmount, payout: po, multiplier: next.payoutMultiplier })
         const o = next.outcome
         const tone = o === 'win' ? 'win' : o === 'push' ? 'push' : 'loss'
-        const label =
+        const historyLabel =
           o === 'win'  ? `+${formatChips(po - next.betAmount)}` :
           o === 'push' ? `Push` :
           `−${formatChips(next.betAmount)}`
+        const displayLabel = o === 'win' ? formatChips(po) : historyLabel
         const entry: MatchHistoryEntry = {
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           at: new Date(),
-          title: label,
+          title: historyLabel,
           subtitle: next.rollResult != null
             ? `${formatChips(next.betAmount)} bet · Roll ${next.rollResult}${o === 'win' ? ` · ${formatMultiplier(next.payoutMultiplier)}` : ''}`
             : `${formatChips(next.betAmount)} bet · Settled`,
           tone,
         }
-        setPendingResult({ tone, label, entry })
+        setPendingResult({ tone, label: displayLabel, entry })
       }
     }, 1220)
 
