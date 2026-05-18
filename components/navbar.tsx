@@ -4,22 +4,17 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useFreeplayStore } from '@/store/freeplay-store'
-import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatChips } from '@/utils/format'
-import { DifficultyDialog } from '@/components/difficulty-dialog'
 
 export function Navbar() {
   const pathname = usePathname()
   const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
-  const runActive = useSurvivalStore((s) => s.runActive)
   const { autoReBet, setAutoReBet } = useSettingsStore()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [navDifficultyOpen, setNavDifficultyOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const inFreeplay = pathname?.startsWith('/freeplay')
-  const inSurvival = pathname?.startsWith('/survival')
 
   useEffect(() => {
     if (!menuOpen) return
@@ -47,26 +42,13 @@ export function Navbar() {
             </Link>
 
             <div className="hidden sm:flex items-center gap-1">
-              {runActive ? (
-                <Link
-                  href="/survival"
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    inSurvival
-                      ? 'bg-white/15 text-white'
-                      : 'text-white/60 hover:text-white hover:bg-white/8'
-                  }`}
-                >
-                  Survival
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setNavDifficultyOpen(true)}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors text-white/60 hover:text-white hover:bg-white/8"
-                >
-                  Survival
-                </button>
-              )}
+              <span
+                title="In development"
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white/20 cursor-not-allowed select-none flex items-center gap-1.5"
+              >
+                <span aria-hidden>🚧</span>
+                Survival
+              </span>
 
               <Link
                 href="/freeplay"
@@ -137,24 +119,9 @@ export function Navbar() {
 
         {/* Mobile nav strip */}
         <div className="sm:hidden flex gap-1 pb-2">
-          {runActive ? (
-            <Link
-              href="/survival"
-              className={`flex-1 text-center py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                inSurvival ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white/80'
-              }`}
-            >
-              Survival
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setNavDifficultyOpen(true)}
-              className="flex-1 text-center py-1.5 rounded-lg text-sm font-medium transition-colors text-white/50 hover:text-white/80"
-            >
-              Survival
-            </button>
-          )}
+          <span className="flex-1 text-center py-1.5 rounded-lg text-sm font-medium text-white/20 cursor-not-allowed select-none">
+            🚧 Survival
+          </span>
           <Link
             href="/freeplay"
             className={`flex-1 text-center py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -166,7 +133,6 @@ export function Navbar() {
         </div>
       </div>
 
-      <DifficultyDialog open={navDifficultyOpen} onClose={() => setNavDifficultyOpen(false)} />
     </nav>
   )
 }
