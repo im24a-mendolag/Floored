@@ -9,8 +9,10 @@ import {
   GAME_CARD_SHELL,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
+import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import { pickQuote } from '@/lib/gambling-quotes'
 import { cashOutMines, getMinesPayout, initMines, revealMineTile, startMinesRound } from '@/games/mines/engine'
 import type { MinesState } from '@/games/mines/types'
 
@@ -61,6 +63,7 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
   const [lastBet, setLastBet] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
   const payout = useMemo(
     () => round.stage === 'inProgress' ? Math.round(round.betAmount * round.multiplier) : getMinesPayout(round),
@@ -80,6 +83,7 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
     if (!canStart) return
     setLastBet(currentBet)
     setPendingResult(null)
+    setQuoteIdx((prev) => pickQuote(prev))
     setRound(startMinesRound(currentBet, difficulty))
     setCurrentBet(0)
   }
@@ -264,12 +268,15 @@ export function MinesGame({ mode, bankroll, onResolve }: MinesGameProps) {
             </>
           )}
           {isInProgress && (
-            <div className="flex items-center gap-2 text-sm text-zinc-400">
-              <span>Bet</span>
-              <span className="font-semibold text-white">{formatChips(round.betAmount)}</span>
-              <span className="text-zinc-700">·</span>
-              <span className="text-zinc-500">Potential</span>
-              <span className="font-semibold text-emerald-400">{formatChips(payout)}</span>
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-2 text-sm text-zinc-400">
+                <span>Bet</span>
+                <span className="font-semibold text-white">{formatChips(round.betAmount)}</span>
+                <span className="text-zinc-700">·</span>
+                <span className="text-zinc-500">Potential</span>
+                <span className="font-semibold text-emerald-400">{formatChips(payout)}</span>
+              </div>
+              <GameDockRandomQuote quoteIdx={quoteIdx} />
             </div>
           )}
           {isSettled && pendingResult && (

@@ -11,9 +11,11 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import { appendPlay } from '@/components/game-history-utils'
+import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { GameOutcomeToast, type GameOutcomeToastSnap } from '@/components/game-outcome-toast'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getPayoutMultiplier,
   getWinProbability,
@@ -61,6 +63,7 @@ export function DiceGame({ mode, bankroll, onResolve }: DiceGameProps) {
   const [diceToastOpen, setDiceToastOpen] = useState(false)
   const [diceToastSnap, setDiceToastSnap] = useState<GameOutcomeToastSnap | null>(null)
   const lastDiceToastKey = useRef('')
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
   const chance     = useMemo(() => getWinProbability(threshold, side), [threshold, side])
   const pushChance = useMemo(() => getPushProbability(threshold), [threshold])
@@ -78,6 +81,7 @@ export function DiceGame({ mode, bankroll, onResolve }: DiceGameProps) {
   function handleStart() {
     if (!canStart) return
     setLastBet(currentBet)
+    setQuoteIdx((prev) => pickQuote(prev))
     setRound(startDiceRound(currentBet, threshold, side))
     setCurrentBet(0)
   }
@@ -257,13 +261,14 @@ export function DiceGame({ mode, bankroll, onResolve }: DiceGameProps) {
         )}
 
         {isInProgress && (
-          <div className="relative z-10">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <span className="text-white/50 text-sm">Bet <span className="text-white font-semibold">{formatChips(round.betAmount)}</span></span>
-            <button onClick={handleRoll} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-sm transition-colors shadow-lg">
-              Roll Dice
-            </button>
-          </div>
+          <div className="relative z-10 flex flex-col items-center gap-3">
+            <div className="flex w-full max-w-sm items-center justify-between flex-wrap gap-2">
+              <span className="text-white/50 text-sm">Bet <span className="text-white font-semibold">{formatChips(round.betAmount)}</span></span>
+              <button onClick={handleRoll} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-sm transition-colors shadow-lg">
+                Roll Dice
+              </button>
+            </div>
+            <GameDockRandomQuote quoteIdx={quoteIdx} variant="ice" />
           </div>
         )}
 

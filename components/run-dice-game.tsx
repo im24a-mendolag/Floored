@@ -10,8 +10,10 @@ import {
   GAME_CONTROL_DOCK_M,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
+import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getRunDicePayout,
   initRunDice,
@@ -63,6 +65,7 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
   const [lastBet, setLastBet] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
   // Animation state
   const [isRolling, setIsRolling] = useState(false)
@@ -98,6 +101,7 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
   function handleStart() {
     if (!canStart) return
     setLastBet(currentBet)
+    setQuoteIdx((prev) => pickQuote(prev))
     setRound(startRunDiceRound(currentBet, round.config))
     setCurrentBet(0)
     setTargetDice(null)
@@ -383,6 +387,11 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
                   Clear
                 </button>
               </div>
+            </div>
+          )}
+          {isInProgress && (
+            <div className="flex flex-1 flex-col items-center justify-center px-2 pb-1">
+              <GameDockRandomQuote quoteIdx={quoteIdx} />
             </div>
           )}
           {isSettled && pendingResult && (

@@ -9,8 +9,10 @@ import {
   GAME_BOARD_ARENA,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
+import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getTargetRotation,
   getWheelPayout,
@@ -110,6 +112,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
   const [wheelRotation, setWheelRotation] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
   const spinTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rotationRef = useRef(0)
@@ -135,6 +138,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
     setActiveBet(currentBet)
     setSpinning(true)
     setPendingResult(null)
+    setQuoteIdx((prev) => pickQuote(prev))
 
     const result = spinWheel(selectedColor, currentBet)
     const target = getTargetRotation(rotationRef.current, result.resultColor!)
@@ -260,8 +264,8 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
       {/* Control zone — fixed height, evenly divided between the four rows */}
       <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 rounded-b-2xl flex flex-col justify-between py-3 h-[272px]">
 
-        {/* Color picker — always rendered; locked while not betting */}
-        <div className={`flex-1 flex items-center justify-center transition-opacity duration-200 ${!isBetting ? 'opacity-25 pointer-events-none' : ''}`}>
+        {/* Color picker — hidden while spinning / settled (keeps dock height) */}
+        <div className={`flex-1 flex items-center justify-center ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
           <div className="flex gap-2">
           {WHEEL_SEGMENTS.map((seg) => {
             const cs = COLOR_STYLES[seg.color]
@@ -284,8 +288,8 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
           </div>
         </div>
 
-        {/* Chips — always rendered; locked while not betting */}
-        <div className={`flex-1 flex items-center justify-center transition-opacity duration-200 ${!isBetting ? 'opacity-25 pointer-events-none' : ''}`}>
+        {/* Chips — hidden while spinning / settled (keeps dock height) */}
+        <div className={`flex-1 flex items-center justify-center ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
         <div className="flex flex-nowrap justify-center gap-2">
           {CHIPS.map((chip) => (
             <button
@@ -345,7 +349,7 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
             </div>
           )}
           {spinning && (
-            <p className="text-sm text-zinc-600 italic">Spinning…</p>
+            <GameDockRandomQuote quoteIdx={quoteIdx} />
           )}
           {isSettled && pendingResult && (
             <div className="text-center">

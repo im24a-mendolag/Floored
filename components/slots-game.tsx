@@ -10,8 +10,10 @@ import {
   GAME_CONTROL_DOCK_M,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
+import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import { pickQuote } from '@/lib/gambling-quotes'
 import { getSlotsResultPayout, initSlots, PAYTABLE, spinSlots } from '@/games/slots/engine'
 import type { SlotsState, SlotsSymbol } from '@/games/slots/types'
 
@@ -109,6 +111,7 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
   const [lastBet, setLastBet] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
   // Per-reel animation state
   const [isSpinning, setIsSpinning]       = useState(false)
@@ -140,6 +143,7 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
     setLastBet(bet)
     setCurrentBet(0)
     setPendingResult(null)
+    setQuoteIdx((prev) => pickQuote(prev))
     setIsSpinning(true)
     setSpinningReels([true, true, true])
     setLandedReels([false, false, false])
@@ -339,7 +343,7 @@ export function SlotsGame({ mode, bankroll, onResolve }: SlotsGameProps) {
             </div>
           )}
           {isSpinning && (
-            <p className="text-sm text-zinc-600 italic">Spinning…</p>
+            <GameDockRandomQuote quoteIdx={quoteIdx} />
           )}
           {isSettled && pendingResult && (
             <div className="text-center">

@@ -10,8 +10,10 @@ import {
   GAME_CONTROL_DOCK_M,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
+import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import { pickQuote } from '@/lib/gambling-quotes'
 import { getHiloPayout, getHiloPayoutMultiplier, initHilo, resolveHiloRound, startHiloRound } from '@/games/hilo/engine'
 import type { HiloState } from '@/games/hilo/types'
 
@@ -55,6 +57,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
   const [lastBet, setLastBet] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
   // markerAt: position on bar (1–100), null = hidden
   // markerOutcome: null during animation (white marker), set after animation (colored)
@@ -65,7 +68,6 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
   const isBetting    = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
   const isSettled    = round.stage === 'settled'
-  const isAnimating  = isInProgress && markerAt !== null
 
   const displaySafeZone = isBetting ? safeZone : round.safeZone
   const payoutMult = isBetting ? getHiloPayoutMultiplier(safeZone) : round.payoutMultiplier
@@ -85,6 +87,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
     setLastBet(bet)
     setCurrentBet(0)
     setPendingResult(null)
+    setQuoteIdx((prev) => pickQuote(prev))
 
     // Lock bet + safe zone, move to inProgress
     const started = startHiloRound(bet, safeZone)
@@ -313,8 +316,8 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
               </div>
             </div>
           )}
-          {isAnimating && (
-            <p className="text-sm text-zinc-600 italic">Rolling…</p>
+          {isInProgress && (
+            <GameDockRandomQuote quoteIdx={quoteIdx} />
           )}
           {isSettled && pendingResult && (
             <div className="text-center">

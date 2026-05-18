@@ -59,11 +59,15 @@
 }
 
 @keyframes slot-spin {
-  0%   { transform: translateY(0);    opacity: 1;   filter: blur(0px); }
-  25%  { transform: translateY(-8px); opacity: 0.4; filter: blur(4px); }
-  50%  { transform: translateY(8px);  opacity: 0.4; filter: blur(4px); }
-  75%  { transform: translateY(-4px); opacity: 0.7; filter: blur(2px); }
-  100% { transform: translateY(0);    opacity: 1;   filter: blur(0px); }
+  0%,
+  100% {
+    opacity: 1;
+    filter: blur(0px);
+  }
+  50% {
+    opacity: 0.45;
+    filter: blur(3px);
+  }
 }
 
 .slot-reel-spinning {
