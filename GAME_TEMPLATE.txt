@@ -145,7 +145,11 @@ CRITICAL RULE: Never use conditional rendering for layout-affecting elements in 
 zone. All phase transitions must be invisible/content-swap only — no DOM nodes entering or
 leaving that have height. Violating this causes the board area to shift up/down between phases.
 
-Three fixed DOM rows inside GAME_CONTROL_DOCK_M > div.flex.flex-col.gap-3.py-3:
+Three fixed DOM rows inside GAME_CONTROL_DOCK_M > div.flex.min-h-[188px].flex-col.justify-between.py-3:
+
+Use `justify-between` on the inner dock wrapper so the betting controls are distributed evenly
+inside the fixed-height dock, and so the start/action/next button remains at the same vertical
+position across betting, playing, and settled states.
 
   ROW 1 — Chip strip (always in DOM, hidden outside betting via `invisible pointer-events-none`):
 

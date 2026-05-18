@@ -54,10 +54,12 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   // 'idle' | 'spinning' | 'landing'
   const [coinAnim, setCoinAnim] = useState<'idle' | 'spinning' | 'landing'>('idle')
+  const [spinFace, setSpinFace] = useState<CoinSide>('heads')
   const pendingFlipRef = useRef<CoinFlipState | null>(null)
   const lastPickRef   = useRef<CoinSide | null>(null)
   const t1Ref = useRef<ReturnType<typeof setTimeout> | null>(null)
   const t2Ref = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const spinIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const isBetting  = state.stage === 'betting'
   const isRiding   = state.stage === 'riding'
@@ -85,6 +87,12 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
       setState(prev => ({ ...prev, nextPick: lastPickRef.current }))
   }, [state.stage, state.streak, isRiding, isFlipping, autoReBet, state.nextPick])
 
+  useEffect(() => {
+    return () => {
+      if (spinIntervalRef.current) clearInterval(spinIntervalRef.current)
+    }
+  }, [])
+
   function resolveGame(s: CoinFlipState) {
     const payout = s.outcome === 'win' ? Math.round(s.betAmount * s.multiplier) : 0
     onResolve({ outcome: s.outcome!, betAmount: s.betAmount, payout, multiplier: s.outcome === 'win' ? s.multiplier : 0 })
@@ -105,14 +113,22 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
   }
 
   function triggerFlip(next: CoinFlipState) {
+    if (spinIntervalRef.current) clearInterval(spinIntervalRef.current)
+    setSpinFace('heads')
     pendingFlipRef.current = next
     setCoinAnim('spinning')
+    spinIntervalRef.current = setInterval(() => {
+      setSpinFace(face => face === 'heads' ? 'tails' : 'heads')
+    }, 120)
     t1Ref.current = setTimeout(() => {
-      setCoinAnim('landing')
+      if (spinIntervalRef.current) clearInterval(spinIntervalRef.current)
+      spinIntervalRef.current = null
       const result = pendingFlipRef.current!
+      setSpinFace(result.lastResult ?? 'heads')
       setState(result)
+      setCoinAnim('landing')
       if (result.stage === 'settled') resolveGame(result)
-      t2Ref.current = setTimeout(() => setCoinAnim('idle'), 600)
+      t2Ref.current = setTimeout(() => setCoinAnim('idle'), 760)
     }, 650)
   }
 
@@ -139,13 +155,21 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
 
   const handleNext = useCallback(() => {
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
+    if (spinIntervalRef.current) clearInterval(spinIntervalRef.current)
+    spinIntervalRef.current = null
     setPendingResult(null)
     setState({ ...initCoinFlip(), pick: autoReBet ? lastPickRef.current : null })
+    setSpinFace('heads')
     setCoinAnim('idle')
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
   }, [pendingResult, autoReBet, lastBet, bankroll])
 
   const coinAnimClass = coinAnim === 'spinning' ? 'coin-spinning' : coinAnim === 'landing' ? 'coin-landing' : ''
+  const coinStyle = {
+    '--coin-rest-rotate': '0deg',
+  } as React.CSSProperties
+  const visibleCoinFace = coinAnim === 'spinning' ? spinFace : state.lastResult ?? 'heads'
+  const coinResultClass = visibleCoinFace === 'tails' ? 'coin-result-tails' : 'coin-result-heads'
 
   return (
     <div className={GAME_CARD_SHELL}>
@@ -168,25 +192,26 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
         )}
 
         {/* Coin visual — always in DOM */}
-        <div className={[
-          'w-44 h-44 rounded-full border-[5px] flex flex-col items-center justify-center shadow-xl',
-          coinAnimClass,
-          state.lastResult === 'heads'
-            ? 'border-yellow-400 bg-yellow-400/15'
-            : state.lastResult === 'tails'
-              ? 'border-zinc-400 bg-zinc-400/10'
-              : 'border-zinc-700 bg-zinc-800/50',
-        ].join(' ')}>
-          <span className="text-7xl leading-none">🪙</span>
-          <span className={[
-            'text-xs font-bold uppercase tracking-widest mt-2 transition-opacity duration-200',
-            isFlipping ? 'opacity-0' : 'opacity-100',
-            state.lastResult === 'heads' ? 'text-yellow-400'
-              : state.lastResult === 'tails' ? 'text-zinc-300'
-              : 'text-transparent',
-          ].join(' ')}>
-            {state.lastResult ?? 'flip'}
-          </span>
+        {!isBetting && state.betAmount > 0 && (
+          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
+            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
+            <p className="text-sm font-bold text-white tabular-nums">{formatChips(state.betAmount)}</p>
+          </div>
+        )}
+
+        <div
+          className={`coin-3d aspect-square w-40 shrink-0 sm:w-48 ${coinAnimClass} ${coinResultClass}`}
+          style={coinStyle}
+          aria-label={`Coin showing ${visibleCoinFace}`}
+        >
+          <div className="coin-face coin-head">
+            <span className="text-[4.75rem] sm:text-[5.5rem] leading-none font-black">H</span>
+            <span className="text-xs font-black uppercase tracking-[0.28em]">Heads</span>
+          </div>
+          <div className="coin-face coin-tail">
+            <span className="text-[4.75rem] sm:text-[5.5rem] leading-none font-black">T</span>
+            <span className="text-xs font-black uppercase tracking-[0.28em]">Tails</span>
+          </div>
         </div>
 
         {/* Streak indicator — always in DOM, invisible outside riding */}
@@ -219,7 +244,7 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-        <div className="flex flex-col gap-3 py-3">
+        <div className="flex min-h-[188px] flex-col justify-between py-3">
 
           {/* Chip strip */}
           <div className={`flex flex-nowrap justify-center gap-2 ${(!isBetting || isFlipping) ? 'invisible pointer-events-none' : ''}`}>
@@ -245,17 +270,20 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
           {/* Info row */}
           <div className="h-10 flex items-center justify-center">
             {isBetting && !isFlipping && (
-              <div className="flex items-center gap-2.5">
-                <span className="text-zinc-500 text-base">Bet</span>
-                <span className="font-bold text-xl text-white tabular-nums">
-                  {currentBet > 0 ? formatChips(currentBet) : '—'}
-                </span>
-                {currentBet > 0 && (
-                  <button type="button" onClick={() => setCurrentBet(0)}
-                    className="px-2 py-0.5 text-xs font-medium rounded border border-zinc-700 hover:border-zinc-500 text-zinc-500 hover:text-white transition-colors">
-                    Clear
-                  </button>
-                )}
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-zinc-500 text-base">Bet</span>
+                  <span className="font-bold text-xl text-white tabular-nums">
+                    {currentBet > 0 ? formatChips(currentBet) : '—'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentBet(0)}
+                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
+                >
+                  Clear
+                </button>
               </div>
             )}
             {isFlipping && (
@@ -281,13 +309,13 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
           </div>
 
           {/* Action row — Cash Out always in DOM (invisible when not riding) + main button */}
-          <div className="flex justify-center gap-3">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
             <button
               type="button"
               onClick={handleCashOut}
               disabled={isFlipping}
               className={[
-                'min-w-[8rem] px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors text-base shadow-lg disabled:opacity-50',
+                'justify-self-end min-w-[8rem] px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors text-base shadow-lg disabled:opacity-50',
                 !isRiding ? 'invisible pointer-events-none' : '',
               ].join(' ')}
             >
@@ -297,7 +325,7 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
               type="button"
               onClick={isSettled ? handleNext : isRiding ? handleFlipAgain : handleFlip}
               disabled={(isBetting && !canFlip) || (isRiding && !state.nextPick) || isFlipping}
-              className="min-w-[8rem] px-5 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              className="col-start-2 min-w-[8rem] px-5 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
             >
               {isSettled ? 'Next →' : isRiding ? 'Flip Again →' : 'Flip →'}
             </button>

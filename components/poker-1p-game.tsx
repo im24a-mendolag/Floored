@@ -185,6 +185,13 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
         )}
 
         {/* Pay table — shown during betting */}
+        {!isBetting && state.betAmount > 0 && (
+          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
+            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
+            <p className="text-sm font-bold text-white tabular-nums">{formatChips(state.betAmount)}</p>
+          </div>
+        )}
+
         {isBetting && (
           <div className="w-full max-w-xs bg-zinc-900/60 rounded-xl border border-zinc-800 overflow-hidden">
             <div className="px-4 py-2 border-b border-zinc-800">
@@ -234,7 +241,7 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-        <div className="flex flex-col gap-3 py-3">
+        <div className="flex min-h-[188px] flex-col justify-between py-3">
 
           {/* Chip strip */}
           <div className={`flex flex-nowrap justify-center gap-2 ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
@@ -260,17 +267,20 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
           {/* Info row */}
           <div className="h-10 flex items-center justify-center">
             {isBetting && (
-              <div className="flex items-center gap-2.5">
-                <span className="text-zinc-500 text-base">Bet</span>
-                <span className="font-bold text-xl text-white tabular-nums">
-                  {currentBet > 0 ? formatChips(currentBet) : '—'}
-                </span>
-                {currentBet > 0 && (
-                  <button type="button" onClick={() => setCurrentBet(0)}
-                    className="px-2 py-0.5 text-xs font-medium rounded border border-zinc-700 hover:border-zinc-500 text-zinc-500 hover:text-white transition-colors">
-                    Clear
-                  </button>
-                )}
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-zinc-500 text-base">Bet</span>
+                  <span className="font-bold text-xl text-white tabular-nums">
+                    {currentBet > 0 ? formatChips(currentBet) : '—'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentBet(0)}
+                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
+                >
+                  Clear
+                </button>
               </div>
             )}
             {isSelecting && (

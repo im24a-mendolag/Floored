@@ -215,6 +215,13 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
           </button>
         )}
 
+        {!isSetup && state.totalCost > 0 && (
+          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
+            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
+            <p className="text-sm font-bold text-white tabular-nums">{formatChips(state.totalCost)}</p>
+          </div>
+        )}
+
         {/* Setup phase: case selector */}
         {isSetup && (
           <div className="w-full max-w-md flex flex-col gap-4">
@@ -317,7 +324,7 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-        <div className="flex flex-col gap-3 py-3">
+        <div className="flex min-h-[188px] flex-col justify-between py-3">
 
           {/* Invisible chip strip placeholder for consistent height */}
           <div className="invisible pointer-events-none flex flex-nowrap justify-center gap-2">
@@ -332,17 +339,20 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
           {/* Info row */}
           <div className="h-10 flex items-center justify-center">
             {isSetup && (
-              <div className="flex items-center gap-2.5">
-                <span className="text-zinc-500 text-base">Total cost</span>
-                <span className={`font-bold text-xl tabular-nums ${state.totalCost > bankroll ? 'text-red-400' : 'text-white'}`}>
-                  {state.totalCost > 0 ? formatChips(state.totalCost) : '—'}
-                </span>
-                {numCases > 0 && (
-                  <button type="button" onClick={() => setState(initCaseBattle())}
-                    className="px-2 py-0.5 text-xs font-medium rounded border border-zinc-700 hover:border-zinc-500 text-zinc-500 hover:text-white transition-colors">
-                    Clear
-                  </button>
-                )}
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-zinc-500 text-base">Total cost</span>
+                  <span className={`font-bold text-xl tabular-nums ${state.totalCost > bankroll ? 'text-red-400' : 'text-white'}`}>
+                    {state.totalCost > 0 ? formatChips(state.totalCost) : '—'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setState(initCaseBattle())}
+                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${numCases === 0 ? 'invisible' : ''}`}
+                >
+                  Clear
+                </button>
               </div>
             )}
             {isOpening && (
