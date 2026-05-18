@@ -5,6 +5,9 @@ import { persist } from 'zustand/middleware'
 import type { SurvivalStore, Difficulty, GameResult } from './types'
 import { getFloorMinBet } from '@/utils/math'
 import { generateRunDiceConfig } from '@/games/run-dice/engine'
+import { generateFloor } from '@/lib/survival/floor-generator'
+import { SURVIVAL_GAME_POOL } from '@/lib/survival/balance'
+import { migratePersistedState } from '@/lib/survival/migrate'
 
 function generateSeed(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -13,6 +16,8 @@ function generateSeed(): string {
 export const useSurvivalStore = create<SurvivalStore>()(
   persist(
     (set) => ({
+      // ── Core run state defaults ─────────────────────────────────────────
+      version: 1,
       bankroll: 1000,
       setBankroll: (n) => set({ bankroll: n }),
 
@@ -37,12 +42,31 @@ export const useSurvivalStore = create<SurvivalStore>()(
       peakBankroll: 1000,
       lastRun: null,
 
-      startRun: (difficulty: Difficulty) =>
+      // ── Per-floor generated state defaults ─────────────────────────────
+      quotaTarget: 0,
+      quotaProgress: 0,
+      floorGames: [],
+      missions: [],
+      completedMissionIds: [],
+      purchasedUpgrades: [],
+      inventory: [],
+      floorHistory: [],
+
+      // ── Actions ────────────────────────────────────────────────────────
+      startRun: (difficulty: Difficulty) => {
+        const runSeed = generateSeed()
+        const floor1 = generateFloor({
+          runSeed,
+          floor: 1,
+          difficulty,
+          survivalGamePool: SURVIVAL_GAME_POOL,
+        })
         set({
+          version: 1,
           bankroll: 1000,
           sparks: 0,
           runActive: true,
-          runSeed: generateSeed(),
+          runSeed,
           gamesPlayed: 0,
           streak: 0,
           currentFloor: 1,
@@ -55,7 +79,16 @@ export const useSurvivalStore = create<SurvivalStore>()(
           history: [],
           peakBankroll: 1000,
           lastRun: null,
-        }),
+          quotaTarget: floor1.quotaTarget,
+          quotaProgress: 0,
+          floorGames: floor1.floorGames,
+          missions: floor1.missions,
+          completedMissionIds: [],
+          purchasedUpgrades: [],
+          inventory: [],
+          floorHistory: [],
+        })
+      },
 
       endRun: () =>
         set((s) => ({
@@ -75,12 +108,28 @@ export const useSurvivalStore = create<SurvivalStore>()(
       advanceFloor: () =>
         set((s) => {
           const nextFloor = s.currentFloor + 1
+          const nextFloorData =
+            s.runSeed && s.difficulty
+              ? generateFloor({
+                  runSeed: s.runSeed,
+                  floor: nextFloor,
+                  difficulty: s.difficulty,
+                  survivalGamePool: SURVIVAL_GAME_POOL,
+                })
+              : { quotaTarget: s.quotaTarget, floorGames: s.floorGames, missions: s.missions }
+
           return {
             currentFloor: nextFloor,
             slotsUsed: 0,
             floorMinBet: getFloorMinBet(nextFloor),
+            quotaTarget: nextFloorData.quotaTarget,
+            quotaProgress: 0,
+            floorGames: nextFloorData.floorGames,
+            missions: nextFloorData.missions,
           }
         }),
+
+      setQuotaProgress: (n: number) => set({ quotaProgress: n }),
 
       recordResult: (result: GameResult) =>
         set((s) => {
@@ -116,6 +165,11 @@ export const useSurvivalStore = create<SurvivalStore>()(
 
       resetJackpotMeter: () => set({ jackpotMeter: 0 }),
     }),
-    { name: 'floored-survival' }
-  )
+    {
+      name: 'floored-survival',
+      version: 1,
+      migrate: (persistedState: unknown, fromVersion: number): unknown =>
+        migratePersistedState(persistedState, fromVersion),
+    },
+  ),
 )

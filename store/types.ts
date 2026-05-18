@@ -29,6 +29,39 @@ export interface Modifier {
   effect: Record<string, unknown>
 }
 
+// ── Survival run-schema types (Step 2) ──────────────────────────────────────
+
+export interface FloorMission {
+  id: string
+  /** e.g. 'win_streak' | 'profit_target' — extensible in Step 8 */
+  type: string
+  target: number
+  progress: number
+  rewardSparks: number
+  completed: boolean
+}
+
+export interface PurchasedUpgrade {
+  id: string
+  /** ISO date string */
+  purchasedAt: string
+}
+
+export interface ConsumableStack {
+  id: string
+  count: number
+}
+
+export interface FloorRecord {
+  floor: number
+  quotaTarget: number
+  quotaAchieved: number
+  floorGames: GameName[]
+  endBankroll: number
+  /** ISO date string */
+  completedAt: string
+}
+
 export interface GameResult {
   id: string
   game: GameName
@@ -57,6 +90,9 @@ export interface RunSummary {
 }
 
 export interface SurvivalStore {
+  // ── Core run state ───────────────────────────────────────────────────────
+  /** Schema version for persist migration (always 1 after Step 2). */
+  version: number
   bankroll: number
   setBankroll: (n: number) => void
   sparks: number
@@ -76,9 +112,30 @@ export interface SurvivalStore {
   history: GameResult[]
   peakBankroll: number
   lastRun: RunSummary | null
+
+  // ── Per-floor generated state (Step 2 / 3) ───────────────────────────────
+  /** Chips of net profit required to clear this floor. */
+  quotaTarget: number
+  /** Net profit earned so far this floor (updated in Step 5). */
+  quotaProgress: number
+  /** Six unique games available on this floor (seeded, deterministic). */
+  floorGames: GameName[]
+  /** Active missions for this floor (populated in Step 8). */
+  missions: FloorMission[]
+  /** Mission IDs completed across the run. */
+  completedMissionIds: string[]
+  /** Upgrades purchased from the shop. */
+  purchasedUpgrades: PurchasedUpgrade[]
+  /** Consumable items in the player's inventory. */
+  inventory: ConsumableStack[]
+  /** Historical record of completed floors. */
+  floorHistory: FloorRecord[]
+
+  // ── Actions ──────────────────────────────────────────────────────────────
   startRun: (difficulty: Difficulty) => void
   endRun: () => void
   advanceFloor: () => void
+  setQuotaProgress: (n: number) => void
   recordResult: (result: GameResult) => void
   recordResultPayout: (result: GameResult) => void
   deductBet: (amount: number) => void
