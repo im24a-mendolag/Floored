@@ -18,7 +18,7 @@ import {
 import type { CaseBattleState, CaseRarity } from '@/games/case-battles/types'
 
 interface CaseBattlesResult {
-  outcome: 'win' | 'loss'
+  outcome: 'win' | 'loss' | 'push'
   betAmount: number
   payout: number
   multiplier: number
@@ -152,20 +152,37 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
   useEffect(() => () => clearTimeouts(), [])
 
   function resolveGame(s: CaseBattleState) {
-    const payout = s.outcome === 'win' ? s.userTotal + s.botTotal : 0
-    const mult   = s.totalCost > 0 ? parseFloat(((s.userTotal + s.botTotal) / s.totalCost).toFixed(2)) : 0
-    onResolve({ outcome: s.outcome!, betAmount: s.totalCost, payout, multiplier: s.outcome === 'win' ? mult : 0 })
-    const net   = payout - s.totalCost
-    const tone: MatchHistoryTone = s.outcome === 'win' ? 'win' : 'loss'
-    const title = s.outcome === 'win' ? `+${formatChips(net)}` : `−${formatChips(s.totalCost)}`
-    const label = s.outcome === 'win' ? formatChips(payout) : title
+    const payout = s.outcome === 'win'
+      ? s.userTotal + s.botTotal
+      : s.outcome === 'push'
+        ? s.totalCost
+        : 0
+    const mult = s.outcome === 'win' && s.totalCost > 0
+      ? parseFloat(((s.userTotal + s.botTotal) / s.totalCost).toFixed(2))
+      : s.outcome === 'push'
+        ? 1
+        : 0
+    onResolve({ outcome: s.outcome!, betAmount: s.totalCost, payout, multiplier: mult })
+    const net = payout - s.totalCost
+    const tone: MatchHistoryTone = s.outcome === 'win' ? 'win' : s.outcome === 'push' ? 'push' : 'loss'
+    const title = s.outcome === 'win'
+      ? `+${formatChips(net)}`
+      : s.outcome === 'push'
+        ? 'Push'
+        : `−${formatChips(s.totalCost)}`
+    const label = s.outcome === 'win' ? formatChips(payout) : s.outcome === 'push' ? formatChips(s.totalCost) : title
+    const resultLabel = s.outcome === 'win'
+      ? `Won ${formatChips(payout)}`
+      : s.outcome === 'push'
+        ? 'Tie — bet returned'
+        : 'Loss'
     setPendingResult({
       tone, label,
       entry: {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         at: new Date(),
         title,
-        subtitle: `${s.selectedCases.length} cases · ${formatChips(s.totalCost)} · ${s.outcome === 'win' ? `Won ${formatChips(payout)}` : 'Loss'}`,
+        subtitle: `${s.selectedCases.length} cases · ${formatChips(s.totalCost)} · ${resultLabel}`,
         tone,
       },
     })
@@ -252,7 +269,7 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
                       )}
                     </button>
                     <p className="text-xs text-zinc-400 text-center font-semibold leading-tight">{c.name.replace(' Case', '')}</p>
-                    <p className="text-xs font-bold text-zinc-200">${c.price}</p>
+                    <p className="text-xs font-bold text-zinc-200 tabular-nums">{formatChips(c.price)}</p>
                     {count > 0 ? (
                       <button
                         type="button"
@@ -276,8 +293,8 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
           <div className="w-full max-w-sm flex gap-4">
             {/* YOU column */}
             <div className="flex-1 flex flex-col gap-2">
-              <p className={`text-xs uppercase tracking-widest text-center font-black ${isSettled && state.outcome === 'win' ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                You {isSettled && state.outcome === 'win' ? '🏆' : ''}
+              <p className={`text-xs uppercase tracking-widest text-center font-black ${isSettled && state.outcome === 'win' ? 'text-emerald-400' : isSettled && state.outcome === 'push' ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                You {isSettled && state.outcome === 'win' ? '🏆' : isSettled && state.outcome === 'push' ? '🤝' : ''}
               </p>
               {state.userItems.map((oc, i) => (
                 <ItemSlot
@@ -290,7 +307,7 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
               ))}
               {(isSettled || (isOpening && revealedCount > 0)) && (
                 <div className="border-t-2 border-zinc-700 pt-1.5 mt-0.5">
-                  <p className={`text-sm font-black tabular-nums text-right ${isSettled && state.outcome === 'win' ? 'text-emerald-400' : 'text-zinc-300'}`}>
+                  <p className={`text-sm font-black tabular-nums text-right ${isSettled && state.outcome === 'win' ? 'text-emerald-400' : isSettled && state.outcome === 'push' ? 'text-zinc-200' : 'text-zinc-300'}`}>
                     {formatChips(isSettled ? state.userTotal : displayUserTotal)}
                   </p>
                 </div>
@@ -299,8 +316,8 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
 
             {/* BOT column */}
             <div className="flex-1 flex flex-col gap-2">
-              <p className={`text-xs uppercase tracking-widest text-center font-black ${isSettled && state.outcome === 'loss' ? 'text-red-400' : 'text-zinc-500'}`}>
-                Bot {isSettled && state.outcome === 'loss' ? '🏆' : ''}
+              <p className={`text-xs uppercase tracking-widest text-center font-black ${isSettled && state.outcome === 'loss' ? 'text-red-400' : isSettled && state.outcome === 'push' ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                Bot {isSettled && state.outcome === 'loss' ? '🏆' : isSettled && state.outcome === 'push' ? '🤝' : ''}
               </p>
               {state.botItems.map((oc, i) => (
                 <ItemSlot
@@ -313,7 +330,7 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
               ))}
               {(isSettled || (isOpening && revealedCount > 0)) && (
                 <div className="border-t-2 border-zinc-700 pt-1.5 mt-0.5">
-                  <p className={`text-sm font-black tabular-nums text-right ${isSettled && state.outcome === 'loss' ? 'text-red-400' : 'text-zinc-300'}`}>
+                  <p className={`text-sm font-black tabular-nums text-right ${isSettled && state.outcome === 'loss' ? 'text-red-400' : isSettled && state.outcome === 'push' ? 'text-zinc-200' : 'text-zinc-300'}`}>
                     {formatChips(isSettled ? state.botTotal : displayBotTotal)}
                   </p>
                 </div>
@@ -363,9 +380,9 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
             {isSettled && pendingResult && (
               <div className="flex items-center gap-3">
                 <p className="text-xs uppercase tracking-widest text-zinc-500">
-                  {pendingResult.tone === 'win' ? 'Win' : 'No win'}
+                  {pendingResult.tone === 'win' ? 'Win' : pendingResult.tone === 'push' ? 'Push' : 'No win'}
                 </p>
-                <p className={`text-2xl font-black tabular-nums ${pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}>
+                <p className={`text-2xl font-black tabular-nums ${pendingResult.tone === 'win' ? 'text-emerald-400' : pendingResult.tone === 'push' ? 'text-zinc-300' : 'text-red-400'}`}>
                   {pendingResult.label}
                 </p>
               </div>

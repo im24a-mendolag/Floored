@@ -31,6 +31,6 @@ export interface CaseBattleState {
   botItems: OpenedCase[]
   userTotal: number
   botTotal: number
-  outcome: 'win' | 'loss' | null
+  outcome: 'win' | 'loss' | 'push' | null
   message: string
 }

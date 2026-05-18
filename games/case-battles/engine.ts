@@ -4,56 +4,56 @@ export const CASES: CaseDef[] = [
   {
     id: 0, name: 'Bronze Case', price: 10, emoji: '📦', colorHex: '#b45309',
     items: [
-      { item: { name: 'Worn Glove',   icon: '🧤', value: 2,  rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Cracked Lens', icon: '🔭', value: 6,  rarity: 'common'    }, weight: 28 },
-      { item: { name: 'Steel Pipe',   icon: '🔧', value: 10, rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: 'Hunter Coat',  icon: '🧥', value: 16, rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Shadow Fang',  icon: '🗡️', value: 30, rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Cursed Relic', icon: '💀', value: 60, rarity: 'legendary' }, weight: 2  },
+      { item: { name: 'Worn Glove',   icon: '🧤', value: 2,    rarity: 'common'    }, weight: 30 },
+      { item: { name: 'Cracked Lens', icon: '🔭', value: 6,    rarity: 'common'    }, weight: 28 },
+      { item: { name: 'Steel Pipe',   icon: '🔧', value: 10,   rarity: 'uncommon'  }, weight: 22 },
+      { item: { name: 'Hunter Coat',  icon: '🧥', value: 16,   rarity: 'rare'      }, weight: 12 },
+      { item: { name: 'Shadow Fang',  icon: '🗡️', value: 30,   rarity: 'epic'      }, weight: 6  },
+      { item: { name: 'Cursed Relic', icon: '💀', value: 60,   rarity: 'legendary' }, weight: 2  },
     ],
   },
   {
-    id: 1, name: 'Silver Case', price: 25, emoji: '🗃️', colorHex: '#71717a',
+    id: 1, name: 'Silver Case', price: 100, emoji: '🗃️', colorHex: '#71717a',
     items: [
-      { item: { name: 'Frayed Rope',   icon: '🪢', value: 5,   rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Basic Grenade', icon: '💥', value: 15,  rarity: 'common'    }, weight: 28 },
-      { item: { name: 'Combat Knife',  icon: '🔪', value: 25,  rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: 'Tactical Vest', icon: '🦺', value: 40,  rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Elite Scope',   icon: '🎯', value: 75,  rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Phantom Blade', icon: '⚔️', value: 150, rarity: 'legendary' }, weight: 2  },
+      { item: { name: 'Frayed Rope',   icon: '🪢', value: 20,   rarity: 'common'    }, weight: 30 },
+      { item: { name: 'Basic Grenade', icon: '💥', value: 60,   rarity: 'common'    }, weight: 28 },
+      { item: { name: 'Combat Knife',  icon: '🔪', value: 100,  rarity: 'uncommon'  }, weight: 22 },
+      { item: { name: 'Tactical Vest', icon: '🦺', value: 160,  rarity: 'rare'      }, weight: 12 },
+      { item: { name: 'Elite Scope',   icon: '🎯', value: 300,  rarity: 'epic'      }, weight: 6  },
+      { item: { name: 'Phantom Blade', icon: '⚔️', value: 600,  rarity: 'legendary' }, weight: 2  },
     ],
   },
   {
-    id: 2, name: 'Gold Case', price: 100, emoji: '💼', colorHex: '#ca8a04',
+    id: 2, name: 'Gold Case', price: 1000, emoji: '💼', colorHex: '#ca8a04',
     items: [
-      { item: { name: 'Iron Shield',     icon: '🛡️', value: 20,  rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Precision Rifle', icon: '🔫', value: 60,  rarity: 'common'    }, weight: 28 },
-      { item: { name: 'Battle Armor',    icon: '🪖', value: 100, rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: "Dragon's Eye",    icon: '👁️', value: 160, rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Void Cannon',     icon: '💣', value: 300, rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Mythic Greaves',  icon: '👟', value: 600, rarity: 'legendary' }, weight: 2  },
+      { item: { name: 'Iron Shield',     icon: '🛡️', value: 200,   rarity: 'common'    }, weight: 30 },
+      { item: { name: 'Precision Rifle', icon: '🔫', value: 600,   rarity: 'common'    }, weight: 28 },
+      { item: { name: 'Battle Armor',    icon: '🪖', value: 1000,  rarity: 'uncommon'  }, weight: 22 },
+      { item: { name: "Dragon's Eye",    icon: '👁️', value: 1600,  rarity: 'rare'      }, weight: 12 },
+      { item: { name: 'Void Cannon',     icon: '💣', value: 3000,  rarity: 'epic'      }, weight: 6  },
+      { item: { name: 'Mythic Greaves',  icon: '👟', value: 6000,  rarity: 'legendary' }, weight: 2  },
     ],
   },
   {
-    id: 3, name: 'Diamond Case', price: 250, emoji: '💎', colorHex: '#22d3ee',
+    id: 3, name: 'Diamond Case', price: 10000, emoji: '💎', colorHex: '#22d3ee',
     items: [
-      { item: { name: 'Dark Crystal',  icon: '🔷', value: 50,   rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Inferno Blade', icon: '🔥', value: 150,  rarity: 'common'    }, weight: 28 },
-      { item: { name: 'War Machine',   icon: '⚙️', value: 250,  rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: 'Thunder Fist',  icon: '⚡', value: 400,  rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Cosmic Dagger', icon: '🌙', value: 750,  rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Eternal Aegis', icon: '🌀', value: 1500, rarity: 'legendary' }, weight: 2  },
+      { item: { name: 'Dark Crystal',  icon: '🔷', value: 2000,  rarity: 'common'    }, weight: 30 },
+      { item: { name: 'Inferno Blade', icon: '🔥', value: 6000,  rarity: 'common'    }, weight: 28 },
+      { item: { name: 'War Machine',   icon: '⚙️', value: 10000, rarity: 'uncommon'  }, weight: 22 },
+      { item: { name: 'Thunder Fist',  icon: '⚡', value: 16000, rarity: 'rare'      }, weight: 12 },
+      { item: { name: 'Cosmic Dagger', icon: '🌙', value: 30000, rarity: 'epic'      }, weight: 6  },
+      { item: { name: 'Eternal Aegis', icon: '🌀', value: 60000, rarity: 'legendary' }, weight: 2  },
     ],
   },
   {
-    id: 4, name: 'Crown Case', price: 500, emoji: '👑', colorHex: '#a855f7',
+    id: 4, name: 'Crown Case', price: 100000, emoji: '👑', colorHex: '#a855f7',
     items: [
-      { item: { name: 'Storm Rune',    icon: '🔮', value: 100,  rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Chaos Engine',  icon: '🌪️', value: 300,  rarity: 'common'    }, weight: 28 },
-      { item: { name: 'Celestial Bow', icon: '🏹', value: 500,  rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: "God's Anvil",   icon: '⚒️', value: 800,  rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Reality Shard', icon: '💫', value: 1500, rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Omega Crown',   icon: '👑', value: 3000, rarity: 'legendary' }, weight: 2  },
+      { item: { name: 'Storm Rune',    icon: '🔮', value: 20000,  rarity: 'common'    }, weight: 30 },
+      { item: { name: 'Chaos Engine',  icon: '🌪️', value: 60000,  rarity: 'common'    }, weight: 28 },
+      { item: { name: 'Celestial Bow', icon: '🏹', value: 100000, rarity: 'uncommon'  }, weight: 22 },
+      { item: { name: "God's Anvil",   icon: '⚒️', value: 160000, rarity: 'rare'      }, weight: 12 },
+      { item: { name: 'Reality Shard', icon: '💫', value: 300000, rarity: 'epic'      }, weight: 6  },
+      { item: { name: 'Omega Crown',   icon: '👑', value: 600000, rarity: 'legendary' }, weight: 2  },
     ],
   },
 ]
@@ -127,6 +127,7 @@ export function startBattle(state: CaseBattleState): CaseBattleState {
 export function settleBattle(state: CaseBattleState): CaseBattleState {
   const userTotal = state.userItems.reduce((s, oc) => s + oc.item.value, 0)
   const botTotal  = state.botItems.reduce((s, oc) => s + oc.item.value, 0)
+  const isTie     = userTotal === botTotal
   const userWon   = userTotal > botTotal
 
   return {
@@ -134,11 +135,11 @@ export function settleBattle(state: CaseBattleState): CaseBattleState {
     stage: 'settled',
     userTotal,
     botTotal,
-    outcome: userWon ? 'win' : 'loss',
+    outcome: userWon ? 'win' : isTie ? 'push' : 'loss',
     message: userWon
       ? 'You win! Higher total value!'
-      : userTotal === botTotal
-        ? 'Tie — bot takes it!'
+      : isTie
+        ? 'Tie — bet returned.'
         : 'Bot wins! Better luck next time.',
   }
 }

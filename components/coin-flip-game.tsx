@@ -22,6 +22,21 @@ const CHIPS = [
   { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
 ]
 
+const COIN_SPIN_MS = 1500
+const COIN_LAND_MS = 900
+const COIN_FULL_SPINS = 4
+
+function sideToDeg(side: CoinSide): number {
+  return side === 'tails' ? 180 : 0
+}
+
+function spinEndDeg(from: CoinSide, to: CoinSide): number {
+  const fromDeg = sideToDeg(from)
+  const toDeg = sideToDeg(to)
+  const delta = (toDeg - fromDeg + 360) % 360
+  return fromDeg + COIN_FULL_SPINS * 360 + delta
+}
+
 interface CoinFlipResult {
   outcome: 'win' | 'loss'
   betAmount: number
@@ -54,12 +69,11 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   // 'idle' | 'spinning' | 'landing'
   const [coinAnim, setCoinAnim] = useState<'idle' | 'spinning' | 'landing'>('idle')
-  const [spinFace, setSpinFace] = useState<CoinSide>('heads')
+  const [spinKeyframes, setSpinKeyframes] = useState({ from: '0deg', end: '1440deg' })
   const pendingFlipRef = useRef<CoinFlipState | null>(null)
   const lastPickRef   = useRef<CoinSide | null>(null)
   const t1Ref = useRef<ReturnType<typeof setTimeout> | null>(null)
   const t2Ref = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const spinIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const isBetting  = state.stage === 'betting'
   const isRiding   = state.stage === 'riding'
@@ -89,7 +103,8 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
 
   useEffect(() => {
     return () => {
-      if (spinIntervalRef.current) clearInterval(spinIntervalRef.current)
+      if (t1Ref.current) clearTimeout(t1Ref.current)
+      if (t2Ref.current) clearTimeout(t2Ref.current)
     }
   }, [])
 
@@ -113,23 +128,22 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
   }
 
   function triggerFlip(next: CoinFlipState) {
-    if (spinIntervalRef.current) clearInterval(spinIntervalRef.current)
-    setSpinFace('heads')
+    const fromSide = state.lastResult ?? 'heads'
+    const toSide = next.lastResult ?? 'heads'
+    setSpinKeyframes({
+      from: `${sideToDeg(fromSide)}deg`,
+      end: `${spinEndDeg(fromSide, toSide)}deg`,
+    })
     pendingFlipRef.current = next
     setCoinAnim('spinning')
-    spinIntervalRef.current = setInterval(() => {
-      setSpinFace(face => face === 'heads' ? 'tails' : 'heads')
-    }, 120)
+
     t1Ref.current = setTimeout(() => {
-      if (spinIntervalRef.current) clearInterval(spinIntervalRef.current)
-      spinIntervalRef.current = null
       const result = pendingFlipRef.current!
-      setSpinFace(result.lastResult ?? 'heads')
       setState(result)
       setCoinAnim('landing')
       if (result.stage === 'settled') resolveGame(result)
-      t2Ref.current = setTimeout(() => setCoinAnim('idle'), 760)
-    }, 650)
+      t2Ref.current = setTimeout(() => setCoinAnim('idle'), COIN_LAND_MS)
+    }, COIN_SPIN_MS)
   }
 
   function handleFlip() {
@@ -155,21 +169,21 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
 
   const handleNext = useCallback(() => {
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
-    if (spinIntervalRef.current) clearInterval(spinIntervalRef.current)
-    spinIntervalRef.current = null
     setPendingResult(null)
     setState({ ...initCoinFlip(), pick: autoReBet ? lastPickRef.current : null })
-    setSpinFace('heads')
+    setSpinKeyframes({ from: '0deg', end: '1440deg' })
     setCoinAnim('idle')
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
   }, [pendingResult, autoReBet, lastBet, bankroll])
 
   const coinAnimClass = coinAnim === 'spinning' ? 'coin-spinning' : coinAnim === 'landing' ? 'coin-landing' : ''
+  const displaySide = state.lastResult ?? 'heads'
   const coinStyle = {
-    '--coin-rest-rotate': '0deg',
+    '--coin-rest-rotate': displaySide === 'tails' ? '180deg' : '0deg',
+    ...(coinAnim === 'spinning'
+      ? { '--coin-spin-from': spinKeyframes.from, '--coin-spin-end': spinKeyframes.end }
+      : {}),
   } as React.CSSProperties
-  const visibleCoinFace = coinAnim === 'spinning' ? spinFace : state.lastResult ?? 'heads'
-  const coinResultClass = visibleCoinFace === 'tails' ? 'coin-result-tails' : 'coin-result-heads'
 
   return (
     <div className={GAME_CARD_SHELL}>
@@ -200,17 +214,18 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
         )}
 
         <div
-          className={`coin-3d aspect-square w-40 shrink-0 sm:w-48 ${coinAnimClass} ${coinResultClass}`}
+          className={`coin-3d aspect-square w-40 shrink-0 sm:w-48 ${coinAnimClass}`}
           style={coinStyle}
-          aria-label={`Coin showing ${visibleCoinFace}`}
+          aria-label={isFlipping ? 'Coin flipping' : `Coin showing ${displaySide}`}
         >
+          <div className="coin-edge" aria-hidden />
           <div className="coin-face coin-head">
-            <span className="text-[4.75rem] sm:text-[5.5rem] leading-none font-black">H</span>
-            <span className="text-xs font-black uppercase tracking-[0.28em]">Heads</span>
+            <span className="coin-mark">H</span>
+            <span className="coin-name">Heads</span>
           </div>
           <div className="coin-face coin-tail">
-            <span className="text-[4.75rem] sm:text-[5.5rem] leading-none font-black">T</span>
-            <span className="text-xs font-black uppercase tracking-[0.28em]">Tails</span>
+            <span className="coin-mark">T</span>
+            <span className="coin-name">Tails</span>
           </div>
         </div>
 
@@ -308,27 +323,31 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
             )}
           </div>
 
-          {/* Action row — Cash Out always in DOM (invisible when not riding) + main button */}
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          {/* Action row — riding: Cash Out + Flip Again centered; otherwise single centered Flip/Next */}
+          <div className="flex justify-center items-center gap-3">
             <button
               type="button"
-              onClick={handleCashOut}
-              disabled={isFlipping}
+              onClick={isSettled ? handleNext : isRiding ? handleCashOut : handleFlip}
+              disabled={(isBetting && !canFlip) || isFlipping}
               className={[
-                'justify-self-end min-w-[8rem] px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-colors text-base shadow-lg disabled:opacity-50',
-                !isRiding ? 'invisible pointer-events-none' : '',
+                'min-w-[8rem] px-5 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                isRiding
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50'
+                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
               ].join(' ')}
             >
-              Cash Out — {formatChips(cashoutAmount)}
+              {isSettled ? 'Next →' : isRiding ? `Cash Out — ${formatChips(cashoutAmount)}` : 'Flip →'}
             </button>
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : isRiding ? handleFlipAgain : handleFlip}
-              disabled={(isBetting && !canFlip) || (isRiding && !state.nextPick) || isFlipping}
-              className="col-start-2 min-w-[8rem] px-5 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-            >
-              {isSettled ? 'Next →' : isRiding ? 'Flip Again →' : 'Flip →'}
-            </button>
+            {isRiding && (
+              <button
+                type="button"
+                onClick={handleFlipAgain}
+                disabled={!state.nextPick || isFlipping}
+                className="min-w-[8rem] px-5 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Flip Again →
+              </button>
+            )}
           </div>
 
           {minBet > 1 && isBetting && !isFlipping && (
