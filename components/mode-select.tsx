@@ -33,15 +33,15 @@ export function ModeSelect() {
 
   return (
     <>
-      <motion className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
         {/* ── Survival ── */}
         <button
           type="button"
           onClick={handleSurvivalClick}
           className="relative overflow-hidden rounded-2xl border border-amber-900 hover:border-amber-600 bg-gradient-to-br from-amber-950 to-red-950 cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group transition-all duration-200 text-left"
         >
-          <motion className="absolute inset-0 opacity-[0.03] pointer-events-none" style={FELT} />
-          <motion className="relative p-6 flex flex-col gap-5">
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={FELT} />
+          <div className="relative p-6 flex flex-col gap-5">
             <div>
               <p className="text-white font-black text-3xl tracking-tight group-hover:scale-[1.04] origin-left transition-transform duration-200">
                 Survival
@@ -66,14 +66,14 @@ export function ModeSelect() {
             </ul>
 
             <div className="flex items-center gap-2">
-              <motion className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
                 {PLAY_ICON}
-              </motion>
+              </div>
               <span className="text-white/50 text-xs font-medium group-hover:text-white/80 transition-colors">
                 {runActive ? 'Continue run' : 'Play now'}
               </span>
             </div>
-          </motion>
+          </div>
         </button>
 
         {/* ── Freeplay ── */}
@@ -81,8 +81,8 @@ export function ModeSelect() {
           href="/freeplay"
           className="relative overflow-hidden rounded-2xl border border-blue-900 hover:border-blue-600 bg-gradient-to-br from-slate-900 to-blue-950 cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group transition-all duration-200 text-left"
         >
-          <motion className="absolute inset-0 opacity-[0.03] pointer-events-none" style={FELT} />
-          <motion className="relative p-6 flex flex-col gap-5">
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={FELT} />
+          <div className="relative p-6 flex flex-col gap-5">
             <div>
               <p className="text-white font-black text-3xl tracking-tight group-hover:scale-[1.04] origin-left transition-transform duration-200">
                 Freeplay
@@ -105,17 +105,17 @@ export function ModeSelect() {
               ))}
             </ul>
 
-            <motion className="flex items-center gap-2">
-              <motion className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
                 {PLAY_ICON}
-              </motion>
+              </div>
               <span className="text-white/50 text-xs font-medium group-hover:text-white/80 transition-colors">
                 Play now
               </span>
-            </motion>
-          </motion>
+            </div>
+          </div>
         </Link>
-      </motion>
+      </div>
 
       <DifficultyDialog open={difficultyOpen} onClose={() => setDifficultyOpen(false)} />
     </>
