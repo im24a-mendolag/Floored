@@ -69,16 +69,3 @@ games/             # Pure game engines and logic (TS)
 store/             # Zustand stores (freeplay, survival, settings)
 lib/               # Utilities and static data
 ```
-
-## Contributing
-
-Contributions welcome — open an issue or PR. If you're adding or updating a game, keep the engine logic in `games/` and React UI in `components/`.
-
----
-
-If you'd like, I can also:
-
-- generate a short HOWTO for adding a new Freeplay game
-- create a one-page promo blurb for Survival mode to use in-game or on the site
-
-Tell me which you'd prefer next.
