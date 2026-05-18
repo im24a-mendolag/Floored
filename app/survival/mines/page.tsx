@@ -26,9 +26,9 @@ export default function SurvivalMinesPage() {
       <div className="shrink-0 flex justify-end">
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>Floor {currentFloor}</span>
-          <span className="text-zinc-700">·</span>
+          <span className="text-zinc-700">{'\u00b7'}</span>
           <span>Min {formatChips(floorMinBet)}</span>
-          <span className="text-zinc-700">·</span>
+          <span className="text-zinc-700">{'\u00b7'}</span>
           <span>{slotsUsed}/3 slots</span>
         </div>
       </div>
