@@ -13,7 +13,7 @@ export interface RouletteState {
   stage: 'betting' | 'settled'
   result: number | null
   resultColor: RouletteColor | null
-  outcome: 'win' | 'loss' | null
+  outcome: 'win' | 'loss' | 'push' | null
   totalBetAmount: number
   totalPayout: number
   message: string

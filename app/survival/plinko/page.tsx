@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { PlinkoGame } from '@/components/plinko-game'
+import { useSurvivalGameBankroll } from '@/hooks/use-game-bankroll'
 import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips } from '@/utils/format'
 
@@ -13,33 +14,13 @@ export default function SurvivalPlinkoPage() {
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
   const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
   const slotsUsed = useSurvivalStore((s) => s.slotsUsed)
-  const deductBet = useSurvivalStore((s) => s.deductBet)
-  const recordResultPayout = useSurvivalStore((s) => s.recordResultPayout)
+  const { handleBet, handleResolve } = useSurvivalGameBankroll('plinko')
 
   useEffect(() => {
-    if (!runActive) {
-      router.replace('/survival')
-    }
+    if (!runActive) router.replace('/survival')
   }, [runActive, router])
 
   if (!runActive) return null
-
-  function handleBet(amount: number) {
-    deductBet(amount)
-  }
-
-  function handleResolve(result: { outcome: 'win' | 'loss' | 'push'; betAmount: number; payout: number; multiplier: number }) {
-    recordResultPayout({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      game: 'plinko',
-      floor: currentFloor,
-      betAmount: result.betAmount,
-      payout: result.payout,
-      outcome: result.outcome === 'push' ? 'push' : result.payout > result.betAmount ? 'win' : 'loss',
-      multiplier: result.multiplier,
-      playedAt: new Date(),
-    })
-  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-3">
@@ -52,7 +33,6 @@ export default function SurvivalPlinkoPage() {
           <span>{slotsUsed}/3 slots</span>
         </div>
       </div>
-
       <PlinkoGame mode="survival" bankroll={bankroll} onBet={handleBet} onResolve={handleResolve} />
     </div>
   )

@@ -2,25 +2,15 @@
 
 import { SlotsGame } from '@/components/slots-game'
 import { BankruptModal } from '@/components/bankrupt-modal'
-import { useFreeplayStore } from '@/store/freeplay-store'
+import { useFreeplayGameBankroll } from '@/hooks/use-game-bankroll'
 
 export default function FreeplaySlotsPage() {
-  const bankroll = useFreeplayStore((s) => s.bankroll)
-  const setBankroll = useFreeplayStore((s) => s.setBankroll)
-  const bust = useFreeplayStore((s) => s.bust)
-  const markBust = useFreeplayStore((s) => s.markBust)
-  const reset = useFreeplayStore((s) => s.reset)
-
-  function handleResolve(result: { outcome: 'win' | 'loss'; betAmount: number; payout: number; multiplier: number }) {
-    const newB = bankroll - result.betAmount + result.payout
-    setBankroll(newB)
-    if (newB <= 10) markBust()
-  }
+  const { bankroll, bust, reset, handleBet, handleResolve } = useFreeplayGameBankroll()
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {bust && <BankruptModal onReset={reset} />}
-      <SlotsGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
+      <SlotsGame mode="freeplay" bankroll={bankroll} onBet={handleBet} onResolve={handleResolve} />
     </div>
   )
 }

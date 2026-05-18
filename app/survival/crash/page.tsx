@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { CrashGame } from '@/components/crash-game'
+import { useSurvivalGameBankroll } from '@/hooks/use-game-bankroll'
 import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips } from '@/utils/format'
 
@@ -13,36 +14,13 @@ export default function SurvivalCrashPage() {
   const slotsUsed = useSurvivalStore((s) => s.slotsUsed)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
   const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
-  const deductBet = useSurvivalStore((s) => s.deductBet)
-  const recordResultPayout = useSurvivalStore((s) => s.recordResultPayout)
-  const advanceFloor = useSurvivalStore((s) => s.advanceFloor)
-  const endRun = useSurvivalStore((s) => s.endRun)
+  const { handleBet, handleResolve } = useSurvivalGameBankroll('crash')
 
   useEffect(() => {
     if (!runActive) router.replace('/survival')
   }, [runActive, router])
 
   if (!runActive) return null
-
-  function handleBet(amount: number) {
-    deductBet(amount)
-  }
-
-  function handleResolve(result: { outcome: 'win' | 'loss'; betAmount: number; payout: number; multiplier: number }) {
-    const shouldAdvance = slotsUsed >= 2
-    recordResultPayout({
-      id: `crash-${Date.now()}`,
-      game: 'crash',
-      floor: currentFloor,
-      betAmount: result.betAmount,
-      payout: result.payout,
-      outcome: result.outcome,
-      multiplier: result.multiplier,
-      playedAt: new Date(),
-    })
-    if (shouldAdvance) advanceFloor()
-    if (useSurvivalStore.getState().bankroll <= 0) endRun()
-  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-3">

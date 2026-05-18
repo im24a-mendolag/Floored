@@ -62,7 +62,12 @@ columns `—` are listed in lobby as "Coming soon" (`availableFreeplay: false, a
 ## Non-obvious conventions
 
 ### Layout stability (most important)
-The control zone dock must never resize when transitioning between betting / playing / settled.
+**Board arena:** Playfield and surrounding UI must not shift between game-loop phases (betting /
+playing / settled). Use a fixed-height stack in the board (stats, selectors, playfield, hints)
+with `invisible pointer-events-none` instead of conditional mount. Anchor with `justify-start`
+on the arena. See `GAME_TEMPLATE.txt` section 6 and `components/mines-game.tsx`.
+
+**Control dock:** The dock must never resize when transitioning between phases.
 The rule: **never conditionally render elements that have height in the control zone.**
 Instead use two techniques:
 - `invisible pointer-events-none` — hides visually but keeps DOM space (use for chip row)
@@ -71,7 +76,7 @@ Instead use two techniques:
 - Single adaptive button — one `<button>` whose `onClick`, label, and className change per
   phase. Never three separate conditionally-rendered buttons.
 
-See section 6 of `GAME_TEMPLATE.txt` for the exact DOM structure.
+See section 7 of `GAME_TEMPLATE.txt` for the exact DOM structure.
 Reference: `components/chicken-race-game.tsx` and `components/dragon-tower-game.tsx`.
 
 ### Tailwind JIT + data objects
@@ -136,6 +141,50 @@ Some games also restore `lastPicked` (e.g. Chicken Race restores the previously 
 - Progress is monotonically enforced: `raw[f][c] = Math.max(raw[f-1][c], raw[f][c])`
 - Payout label shown once above all lanes, not per-chicken
 - Chicken emoji rider is always rendered in the track (invisible during betting) — prevents height shift
+
+---
+
+## Game UI rollout checklist
+
+Standardize every `components/<game>-game.tsx` to match `GAME_TEMPLATE.txt` (sections 6–7) and `components/mines-game.tsx`.
+
+| Game | Status | Notes |
+|------|--------|-------|
+| **mines** | **done** | Reference implementation |
+| **keno** | **done** | Quick-pick rebet; settled = chips returned, history = net |
+| **blackjack** | **done** | Push; double deducts extra bet on `onBet` |
+| **crash** | **done** | Potential winnings in dock only |
+| **plinko** | **done** | Continuous drop; ball count badge |
+| **over-under** | **done** | Safe-zone badge; roll animation |
+| **wheel** | **done** | Color picker row in dock |
+| **run-dice** | **done** | Push; multi-roll in-progress |
+| **chicken-road** | **done** | Centered road; fixed-height playfield |
+| **slots** | **done** | `GAME_CONTROL_DOCK_M`; paytable always visible |
+| **roulette** | **done** | Push; red/black/odd/even below table |
+| **dragon-tower** | **done** | Centered tower; no post-game row markers |
+| **chicken-race** | **done** | Race lanes fixed height; potential winnings in dock |
+| **coin-flip** | **done** | Streak ride; cash out + flip again; quote while flipping |
+| **case-battles** | **done** | Case picker (no chip row); quote until Next |
+| **poker-1p** | **done** | Pay table on board; quote from deal to Next |
+| **hilo** | **done** | Streak ride; quote from deal to Next |
+| **street-cups** | **done** | Quote through round; potential winnings while picking |
+
+**Per-game requirements**
+
+1. `GameDockBetRow` — inline Clear beside bet (Dragon Tower style)
+2. `GameActiveBetBadge` — bet + bet type (Plinko: ball value) top-left while round active
+3. `onBet` on start + page uses `useFreeplayGameBankroll` / `useSurvivalGameBankroll`
+4. Settled dock: **total winnings**; match history: **net** (`buildPendingResult`)
+5. **Potential total winnings** only in control dock (not duplicated on board)
+6. `GameDockChipRow` + `pickQuote` — quote in chip row slot while playing
+7. Instructions in **board** (`min-h-10` hint slot), not control dock
+8. Chip row includes **¼, ½, All In** (except case-battles)
+9. `GameDockBackButton` while betting
+10. Rebet via `autoReBet` (+ Keno: auto quick-pick if last round used it)
+11. Push returns stake (`payout === betAmount`)
+12. `GAME_DOCK_INNER` + `justify-between` — even control spacing
+13. `GAME_CONTROL_DOCK_M` (not custom `h-[284px]` docks)
+14. Board stack fixed height — playfield must not move between phases
 
 ---
 

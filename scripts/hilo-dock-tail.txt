@@ -1,0 +1,77 @@
+        <motion.div className="min-h-10 flex w-full max-w-sm items-center justify-center px-2 shrink-0">
+          <p className="text-center text-xs text-zinc-500">
+            {isBetting
+              ? 'Tie goes to the house · Ace counts high · Win streaks multiply your payout.'
+              : isPlaying
+                ? 'Pick Higher or Lower above.'
+                : isRiding
+                  ? 'Cash out or go again on the board.'
+                  : '\u00A0'}
+          </p>
+        </motion.div>
+      </GameFieldWithHistory>
+
+      <motion.div className={GAME_CONTROL_DOCK_M}>
+        <motion.div className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible={isBetting || showQuoteUntilNext}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={showQuoteUntilNext}
+          />
+
+          <motion.div className="h-10 flex items-center justify-center">
+            {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {isRiding && (
+              <p className="text-sm text-zinc-400">
+                Potential total winnings:{' '}
+                <span className="font-semibold text-emerald-400">{formatChips(cashoutAmount)}</span>
+              </p>
+            )}
+            {isSettled && pendingResult && (
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isBetting && !isRiding && !(isSettled && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
+            )}
+          </motion.div>
+
+          <motion.div className="flex justify-center">
+            {isBetting ? (
+              <button
+                type="button"
+                onClick={handleDeal}
+                disabled={!canDeal}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Deal →
+              </button>
+            ) : isSettled ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Next →
+              </button>
+            ) : (
+              <p className="min-w-[10.5rem] px-7 py-2 invisible select-none" aria-hidden>
+                Deal →
+              </p>
+            )}
+          </motion.div>
+
+          {minBet > 1 && isBetting && (
+            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
+          )}
+        </motion.div>
+      </motion.div>
+    </motion.div>
+  )
+}

@@ -8,7 +8,7 @@ export type GameName =
   | 'plinko'
   | 'over-under'
   | 'hilo'
-  | 'flipper'
+  | 'keno'
   | 'street-cups'
   | 'wheel'
   | 'run-dice'

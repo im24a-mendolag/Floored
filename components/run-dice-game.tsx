@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,9 +9,17 @@ import {
   GAME_CONTROL_DOCK_M,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
-import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
+import {
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockBetRow,
+  GameDockChipRow,
+  GameDockSettledRow,
+} from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getRunDicePayout,
@@ -21,13 +28,6 @@ import {
   startRunDiceRound,
 } from '@/games/run-dice/engine'
 import type { RunDiceConfig, RunDiceState } from '@/games/run-dice/types'
-
-const CHIPS = [
-  { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
-  { value: 25,  label: '$25',  cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
-  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
-  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
-]
 
 const DICE_WEIGHT: Record<number, number> = {2:1,3:2,4:3,5:4,6:5,7:6,8:5,9:4,10:3,11:2,12:1}
 
@@ -42,8 +42,9 @@ interface RunDiceResult {
 }
 
 interface PendingResult {
-  tone: 'win' | 'loss' | 'push'
+  tone: 'win' | 'loss'
   label: string
+  outcomeLabel: string
   entry: MatchHistoryEntry
 }
 
@@ -51,11 +52,11 @@ interface RunDiceGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   config?: RunDiceConfig
+  onBet?: (amount: number) => void
   onResolve: (result: RunDiceResult) => void
 }
 
-export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGameProps) {
-  const router = useRouter()
+export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDiceGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -93,6 +94,12 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
   const isInProgress = round.stage === 'inProgress'
   const isSettled    = round.stage === 'settled'
   const canStart     = currentBet >= minBet && currentBet <= bankroll
+  const potentialWinnings =
+    isInProgress && round.betAmount > 0
+      ? Math.round(round.betAmount * round.payoutMultiplier)
+      : isBetting && currentBet > 0
+        ? Math.round(currentBet * round.payoutMultiplier)
+        : 0
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
@@ -100,9 +107,12 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
 
   function handleStart() {
     if (!canStart) return
-    setLastBet(currentBet)
+    const bet = currentBet
+    onBet?.(bet)
+    setLastBet(bet)
     setQuoteIdx((prev) => pickQuote(prev))
-    setRound(startRunDiceRound(currentBet, round.config))
+    setPendingResult(null)
+    setRound(startRunDiceRound(bet, round.config))
     setCurrentBet(0)
     setTargetDice(null)
     setTargetTotal(null)
@@ -146,24 +156,23 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
 
       if (next.stage === 'settled' && next.outcome) {
         const po = getRunDicePayout(next)
-        onResolve({ outcome: next.outcome, betAmount: next.betAmount, payout: po, multiplier: next.payoutMultiplier })
         const o = next.outcome
-        const tone = o === 'win' ? 'win' : o === 'push' ? 'push' : 'loss'
-        const historyLabel =
-          o === 'win'  ? `+${formatChips(po - next.betAmount)}` :
-          o === 'push' ? `Push` :
-          `−${formatChips(next.betAmount)}`
-        const displayLabel = o === 'win' ? formatChips(po) : historyLabel
-        const entry: MatchHistoryEntry = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          at: new Date(),
-          title: historyLabel,
-          subtitle: next.rollResult != null
-            ? `${formatChips(next.betAmount)} bet · Roll ${next.rollResult}${o === 'win' ? ` · ${formatMultiplier(next.payoutMultiplier)}` : ''}`
-            : `${formatChips(next.betAmount)} bet · Settled`,
-          tone,
-        }
-        setPendingResult({ tone, label: displayLabel, entry })
+        onResolve({ outcome: o, betAmount: next.betAmount, payout: po, multiplier: next.payoutMultiplier })
+        const subtitle =
+          next.rollResult != null
+            ? `${formatChips(next.betAmount)} bet · Roll ${next.rollResult}${o === 'win' ? ` · ${formatMultiplier(next.payoutMultiplier)}` : o === 'push' ? ' · Push' : ''}`
+            : `${formatChips(next.betAmount)} bet · Settled`
+        const built = buildPendingResult(
+          { outcome: o, betAmount: next.betAmount, payout: po },
+          subtitle,
+          { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+        )
+        setPendingResult({
+          tone: built.tone === 'win' ? 'win' : 'loss',
+          label: built.label,
+          outcomeLabel: o === 'push' ? 'Push' : built.outcomeLabel,
+          entry: built.entry,
+        })
       }
     }, 1220)
 
@@ -173,6 +182,7 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
   const handleNewRound = useCallback(() => {
     clearAnimTimers()
     setRound(initRunDice(config))
+    setPendingResult(null)
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
     setTargetDice(null)
     setTargetTotal(null)
@@ -214,19 +224,19 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative min-h-0 p-4 md:p-6"
+        boardClassName="relative flex min-h-0 flex-col p-4 md:p-6"
         entries={matchHistory}
         gameLabel="Run Dice"
       >
+        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameActiveBetBadge
+          betAmount={round.betAmount}
+          betType={!isBetting && round.betAmount > 0 ? `Roll ${round.rollCount} / 3` : undefined}
+          visible={!isBetting && round.betAmount > 0}
+        />
 
-        {isBetting && (
-          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-            ← Back
-          </button>
-        )}
-
-        {/* Dice result display */}
-        <div className="flex items-center justify-center mb-5 min-h-[100px]">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 shrink-0">
+        <div className="flex items-center justify-center min-h-[100px] shrink-0">
           {isRolling ? (
             <div className="flex flex-col items-center gap-2">
               <div className="flex items-center gap-3">
@@ -312,8 +322,7 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
           )}
         </div>
 
-        {/* Dice value grid (2–12) */}
-        <div>
+        <div className="shrink-0">
           <p className="text-white/30 text-xs uppercase tracking-wider mb-2">Outcome map</p>
           <div className="grid grid-cols-11 gap-1">
             {Array.from({ length: 11 }, (_, i) => i + 2).map((val) => (
@@ -329,8 +338,7 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2 shrink-0">
           <div className="bg-white/5 rounded-lg p-3 text-center">
             <p className="text-white/40 text-xs mb-1">Win chance</p>
             <p className="text-white font-semibold text-sm">{(winChance * 100).toFixed(1)}%</p>
@@ -345,99 +353,85 @@ export function RunDiceGame({ mode, bankroll, config, onResolve }: RunDiceGamePr
           </div>
         </div>
 
-        {/* How to play */}
-        <div className="mt-4 border-t border-white/5 pt-3 space-y-0.5 text-center">
-          <p className="text-white/25 text-xs">Roll 2 dice · <span className="text-emerald-500/50">W</span> wins payout · <span className="text-red-500/50">L</span> loses bet · <span className="text-white/25">N</span> re-rolls (up to 3×)</p>
-          <p className="text-white/25 text-xs">Three neutral rolls = push · bet returned</p>
+          <div className="min-h-10 flex items-center justify-center shrink-0 px-2">
+            <p className="text-center text-xs text-zinc-500">
+              {isBetting
+                ? 'Roll 2 dice — W wins, L loses, N re-rolls (up to 3). Three neutrals = push.'
+                : isInProgress
+                  ? isRolling
+                    ? 'Rolling…'
+                    : 'Tap Roll for another throw or wait for the outcome.'
+                  : '\u00A0'}
+            </p>
+          </div>
         </div>
-
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-        {/* Top: chips during betting, outcome after settled */}
-        <div className="flex-1 flex flex-col items-center justify-start pt-3 gap-1 min-h-0">
-          {isBetting && (
-            <div className="w-full max-w-sm flex flex-col gap-1">
-              <div className="flex flex-nowrap justify-center gap-2">
-                {CHIPS.map((chip) => (
-                  <button key={chip.value} onClick={() => addChip(chip.value)} disabled={chip.value > bankroll - currentBet}
-                    className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}>
-                    {chip.label}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setCurrentBet(bankroll)}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  All In
-                </button>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">
-                    {currentBet > 0 ? formatChips(currentBet) : '—'}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setCurrentBet(0)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
-          {isInProgress && (
-            <div className="flex flex-1 flex-col items-center justify-center px-2 pb-1">
-              <GameDockRandomQuote quoteIdx={quoteIdx} />
-            </div>
-          )}
-          {isSettled && pendingResult && (
-            <div className="text-center">
-              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
-                {pendingResult.tone === 'win' ? 'Win' : pendingResult.tone === 'push' ? 'Push' : 'Loss'}
-              </p>
-              <p className={`text-3xl font-black tabular-nums ${
-                pendingResult.tone === 'win' ? 'text-green-400' :
-                pendingResult.tone === 'push' ? 'text-zinc-300' : 'text-red-400'
-              }`}>
-                {pendingResult.label}
-              </p>
-            </div>
-          )}
-        </div>
+        <div className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible={isBetting || isInProgress}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={isInProgress}
+          />
 
-        {/* Bottom: action buttons */}
-        <div className="mx-auto w-full max-w-sm flex flex-col gap-1 pb-2">
-          {isBetting && (
-            <div className="flex justify-center">
-              <button onClick={handleStart} disabled={!canStart}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">
+          <div className="h-10 flex items-center justify-center">
+            {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {isInProgress && potentialWinnings > 0 && (
+              <p className="text-sm text-zinc-400">
+                Potential total winnings:{' '}
+                <span className="font-semibold text-emerald-400">{formatChips(potentialWinnings)}</span>
+              </p>
+            )}
+            {isSettled && pendingResult && (
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isBetting && !isInProgress && !(isSettled && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
+            )}
+          </div>
+
+          <div className="flex min-h-[2.75rem] w-full flex-col items-center justify-center gap-1">
+            {isBetting && (
+              <button
+                type="button"
+                onClick={handleStart}
+                disabled={!canStart}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
                 Roll →
               </button>
-            </div>
-          )}
-          {isInProgress && (
-            <div className="flex justify-center">
-              <button onClick={handleRoll} disabled={isRolling}
-                className="min-w-[10.5rem] px-7 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-lg text-base transition-colors shadow-lg">
+            )}
+            {isInProgress && (
+              <button
+                type="button"
+                onClick={handleRoll}
+                disabled={isRolling}
+                className="min-w-[10.5rem] px-7 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-lg text-base transition-colors shadow-lg"
+              >
                 {isRolling ? 'Rolling…' : 'Roll'}
               </button>
-            </div>
-          )}
-          {isSettled && pendingResult && (
-            <div className="flex justify-center">
-              <button onClick={handleNextRoll}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">
+            )}
+            {isSettled && pendingResult && (
+              <button
+                type="button"
+                onClick={handleNextRoll}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
                 Next →
               </button>
-            </div>
-          )}
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
+            )}
+            {minBet > 1 && isBetting && (
+              <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

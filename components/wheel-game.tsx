@@ -1,17 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
   GAME_CARD_SHELL,
   GAME_BOARD_ARENA,
+  GAME_CONTROL_DOCK_M,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
-import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
-import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
+import {
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockBetRow,
+  GameDockChipRow,
+  GameDockSettledRow,
+} from '@/components/game-dock-parts'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getTargetRotation,
@@ -21,13 +29,6 @@ import {
   WHEEL_SEGMENTS,
 } from '@/games/wheel/engine'
 import type { WheelColor, WheelState } from '@/games/wheel/types'
-
-const CHIPS = [
-  { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
-  { value: 25,  label: '$25',  cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
-  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
-  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
-]
 
 const COLOR_STYLES: Record<WheelColor, { bg: string; border: string; text: string; ring: string }> = {
   red:   { bg: 'bg-red-600',     border: 'border-red-400',     text: 'text-red-300',     ring: 'ring-red-400'     },
@@ -89,17 +90,28 @@ interface WheelResult {
 interface WheelGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
+  onBet?: (amount: number) => void
   onResolve: (result: WheelResult) => void
 }
 
 interface PendingResult {
-  tone: MatchHistoryTone
+  tone: 'win' | 'loss'
   label: string
+  outcomeLabel: string
   entry: MatchHistoryEntry
 }
 
-export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
-  const router = useRouter()
+function wheelColorLabel(color: WheelColor) {
+  const seg = WHEEL_SEGMENTS.find((s) => s.color === color)
+  const name = color.charAt(0).toUpperCase() + color.slice(1)
+  return seg ? `${name} ${seg.multiplier}×` : name
+}
+
+function wheelColorMultiplier(color: WheelColor) {
+  return WHEEL_SEGMENTS.find((s) => s.color === color)?.multiplier ?? 2
+}
+
+export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -121,6 +133,12 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
   const isSettled    = round.stage === 'settled' && !spinning
   const selectedColor: WheelColor = round.betColor ?? 'red'
   const canSpin = currentBet >= minBet && currentBet <= bankroll
+  const potentialWinnings =
+    isBetting && currentBet > 0
+      ? Math.round(currentBet * wheelColorMultiplier(selectedColor))
+      : (spinning || isSettled) && activeBet > 0
+        ? Math.round(activeBet * wheelColorMultiplier(round.betColor ?? selectedColor))
+        : 0
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
@@ -134,13 +152,15 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
   function handleSpin() {
     if (!canSpin || spinning) return
 
-    setLastBet(currentBet)
-    setActiveBet(currentBet)
+    const bet = currentBet
+    onBet?.(bet)
+    setLastBet(bet)
+    setActiveBet(bet)
     setSpinning(true)
     setPendingResult(null)
     setQuoteIdx((prev) => pickQuote(prev))
 
-    const result = spinWheel(selectedColor, currentBet)
+    const result = spinWheel(selectedColor, bet)
     const target = getTargetRotation(rotationRef.current, result.resultColor!)
     rotationRef.current = target
     setWheelRotation(target)
@@ -158,19 +178,17 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
         multiplier: result.payoutMultiplier,
       })
 
-      const tone: MatchHistoryTone = result.outcome === 'win' ? 'win' : 'loss'
-      const historyLabel = result.outcome === 'win'
-        ? `+${formatChips(payout - result.betAmount)}`
-        : `−${formatChips(result.betAmount)}`
-      const displayLabel = result.outcome === 'win' ? formatChips(payout) : historyLabel
-      const entry: MatchHistoryEntry = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        at: new Date(),
-        title: historyLabel,
-        subtitle: `${formatChips(result.betAmount)} bet · ${result.resultColor} ${result.resultMultiplier}×`,
-        tone,
-      }
-      setPendingResult({ tone, label: displayLabel, entry })
+      const built = buildPendingResult(
+        { outcome: result.outcome!, betAmount: result.betAmount, payout },
+        `${formatChips(result.betAmount)} bet · ${result.resultColor} ${result.resultMultiplier}×`,
+        { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      )
+      setPendingResult({
+        tone: built.tone === 'win' ? 'win' : 'loss',
+        label: built.label,
+        outcomeLabel: `${result.resultColor} ${result.resultMultiplier}× — ${result.outcome === 'win' ? 'Win' : 'Miss'}`,
+        entry: built.entry,
+      })
     }, SPIN_DURATION)
   }
 
@@ -210,21 +228,15 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
         gameLabel="Fortune Wheel"
       >
 
-        {isBetting && (
-          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-            ← Back
-          </button>
-        )}
-        {/* Active bet badge — shown as soon as spin fires */}
-        {activeBet > 0 && !isBetting && (
-          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
-            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
-            <p className="text-sm font-bold text-white tabular-nums">{formatChips(activeBet)}</p>
-          </div>
-        )}
+        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameActiveBetBadge
+          betAmount={activeBet}
+          betType={activeBet > 0 && !isBetting ? wheelColorLabel(round.betColor ?? selectedColor) : undefined}
+          visible={activeBet > 0 && !isBetting}
+        />
 
-        {/* Wheel + pointer */}
-        <div className="relative flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 shrink-0">
+        <div className="relative flex items-center justify-center shrink-0">
           {/* Pointer — fixed above the wheel, points downward */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 z-20">
             <div className="w-0 h-0 border-l-[8px] border-r-[8px] border-t-[18px] border-l-transparent border-r-transparent border-t-white drop-shadow-lg" />
@@ -259,140 +271,86 @@ export function WheelGame({ mode, bankroll, onResolve }: WheelGameProps) {
           </div>
         </div>
 
+          <div className="min-h-10 flex w-full max-w-sm items-center justify-center px-2 shrink-0">
+            <p className="text-center text-xs text-zinc-500">
+              {isBetting
+                ? 'Pick a color multiplier, place chips, then spin.'
+                : spinning
+                  ? 'Wheel spinning…'
+                  : '\u00A0'}
+            </p>
+          </div>
+        </div>
       </GameFieldWithHistory>
 
-      {/* Control zone — fixed height, evenly divided between the four rows */}
-      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 rounded-b-2xl flex flex-col justify-between py-3 h-[272px]">
-
-        {/* Color picker — hidden while spinning / settled (keeps dock height) */}
-        <div className={`flex-1 flex items-center justify-center ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
-          <div className="flex gap-2">
-          {WHEEL_SEGMENTS.map((seg) => {
-            const cs = COLOR_STYLES[seg.color]
-            const isSelected = selectedColor === seg.color
-            return (
-              <button
-                key={seg.color}
-                type="button"
-                onClick={() => setColor(seg.color)}
-                className={`px-5 py-1.5 rounded-xl border-2 font-bold text-sm transition-all duration-100 ${
-                  isSelected
-                    ? `${cs.bg} ${cs.border} text-white shadow-lg scale-105`
-                    : `${cs.border} ${cs.text} opacity-40 hover:opacity-70`
-                }`}
-              >
-                {seg.multiplier}×
-              </button>
-            )
-          })}
+      <div className={GAME_CONTROL_DOCK_M}>
+        <div className={`${GAME_DOCK_INNER} min-h-[248px]`}>
+          <div className={`flex justify-center min-h-10 ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
+            <div className="flex gap-2">
+              {WHEEL_SEGMENTS.map((seg) => {
+                const cs = COLOR_STYLES[seg.color]
+                const isSelected = selectedColor === seg.color
+                return (
+                  <button
+                    key={seg.color}
+                    type="button"
+                    onClick={() => setColor(seg.color)}
+                    className={`px-5 py-1.5 rounded-xl border-2 font-bold text-sm transition-all duration-100 ${
+                      isSelected
+                        ? `${cs.bg} ${cs.border} text-white shadow-lg scale-105`
+                        : `${cs.border} ${cs.text} opacity-40 hover:opacity-70`
+                    }`}
+                  >
+                    {seg.multiplier}×
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Chips — hidden while spinning / settled (keeps dock height) */}
-        <div className={`flex-1 flex items-center justify-center ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
-        <div className="flex flex-nowrap justify-center gap-2">
-          {CHIPS.map((chip) => (
-            <button
-              key={chip.value}
-              type="button"
-              onClick={() => addChip(chip.value)}
-              disabled={chip.value > bankroll - currentBet}
-              className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
-            >
-              {chip.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => addChip(Math.floor(bankroll / 4))}
-            disabled={currentBet >= bankroll || bankroll <= 0}
-            className="h-12 px-3 rounded-full bg-blue-100 hover:bg-blue-50 border-2 border-blue-200 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-          >
-            ¼
-          </button>
-          <button
-            type="button"
-            onClick={() => addChip(Math.floor(bankroll / 2))}
-            disabled={currentBet >= bankroll || bankroll <= 0}
-            className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-          >
-            ½
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentBet(bankroll)}
-            disabled={currentBet >= bankroll || bankroll <= 0}
-            className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-          >
-            All In
-          </button>
-        </div>
-        </div>
+          <GameDockChipRow
+            visible={isBetting || spinning}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={spinning}
+          />
 
-        {/* Info slot — swaps between bet display / spinning / result */}
-        <div className="flex-1 flex items-center justify-center">
-          {isBetting && (
-            <div className="flex flex-col items-center gap-1">
-              <div className="flex items-center gap-2.5">
-                <span className="text-zinc-500 text-base">Bet</span>
-                <span className="font-bold text-xl text-white tabular-nums">
-                  {currentBet > 0 ? formatChips(currentBet) : '—'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCurrentBet(0)}
-                className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
-              >
-                Clear
-              </button>
-            </div>
-          )}
-          {spinning && (
-            <GameDockRandomQuote quoteIdx={quoteIdx} />
-          )}
-          {isSettled && pendingResult && (
-            <div className="text-center">
-              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-0.5">
-                {pendingResult.tone === 'win'
-                  ? `${round.resultColor} ${round.resultMultiplier}× — Win`
-                  : `${round.resultColor} ${round.resultMultiplier}× — Miss`}
+          <div className="h-10 flex items-center justify-center">
+            {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {spinning && potentialWinnings > 0 && (
+              <p className="text-sm text-zinc-400">
+                Potential total winnings:{' '}
+                <span className="font-semibold text-emerald-400">{formatChips(potentialWinnings)}</span>
               </p>
-              <p className={`text-3xl font-black tabular-nums ${
-                pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'
-              }`}>
-                {pendingResult.label}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Action button — Spin (enabled/disabled) or Next; always occupies same space */}
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-full max-w-sm flex flex-col gap-1">
-          <div className="flex justify-center">
-            {!isSettled ? (
-              <button
-                type="button"
-                onClick={handleSpin}
-                disabled={!canSpin || spinning}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                {spinning ? 'Spinning…' : 'Spin →'}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleNextRound}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Next →
-              </button>
+            )}
+            {isSettled && pendingResult && (
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isBetting && !spinning && !(isSettled && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
             )}
           </div>
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
+
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={isSettled ? handleNextRound : handleSpin}
+                disabled={!isSettled && (!canSpin || spinning)}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                {isSettled ? 'Next →' : spinning ? 'Spinning…' : 'Spin →'}
+              </button>
+            </div>
+            {minBet > 1 && isBetting && (
+              <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
+            )}
           </div>
         </div>
       </div>

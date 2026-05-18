@@ -1,26 +1,23 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
-import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
-import { formatChips } from '@/utils/format'
 import {
-  cashOut,
-  flipAgain,
-  initCoinFlip,
-  startFlip,
-} from '@/games/coin-flip/engine'
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockBetRow,
+  GameDockChipRow,
+  GameDockSettledRow,
+} from '@/components/game-dock-parts'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
+import { formatChips } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
+import { pickQuote } from '@/lib/gambling-quotes'
+import { cashOut, flipAgain, initCoinFlip, startFlip } from '@/games/coin-flip/engine'
 import type { CoinFlipState, CoinSide } from '@/games/coin-flip/types'
-
-const CHIPS = [
-  { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
-  { value: 25,  label: '$25',  cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
-  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
-  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
-]
 
 const COIN_SPIN_MS = 1500
 const COIN_LAND_MS = 900
@@ -47,17 +44,18 @@ interface CoinFlipResult {
 interface CoinFlipGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
+  onBet?: (amount: number) => void
   onResolve: (result: CoinFlipResult) => void
 }
 
 interface PendingResult {
-  tone: MatchHistoryTone
+  tone: 'win' | 'loss'
   label: string
+  outcomeLabel: string
   entry: MatchHistoryEntry
 }
 
-export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
-  const router = useRouter()
+export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -67,63 +65,68 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
   const [lastBet, setLastBet] = useState(0)
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
-  // 'idle' | 'spinning' | 'landing'
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
   const [coinAnim, setCoinAnim] = useState<'idle' | 'spinning' | 'landing'>('idle')
   const [spinKeyframes, setSpinKeyframes] = useState({ from: '0deg', end: '1440deg' })
   const pendingFlipRef = useRef<CoinFlipState | null>(null)
-  const lastPickRef   = useRef<CoinSide | null>(null)
+  const lastPickRef = useRef<CoinSide | null>(null)
   const t1Ref = useRef<ReturnType<typeof setTimeout> | null>(null)
   const t2Ref = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const isBetting  = state.stage === 'betting'
-  const isRiding   = state.stage === 'riding'
-  const isSettled  = state.stage === 'settled'
+  const isBetting = state.stage === 'betting'
+  const isRiding = state.stage === 'riding'
+  const isSettled = state.stage === 'settled'
   const isFlipping = coinAnim !== 'idle'
-  const canFlip    = currentBet >= minBet && currentBet <= bankroll && state.pick !== null
+  const canFlip = currentBet >= minBet && currentBet <= bankroll && state.pick !== null
 
   const cashoutAmount = isRiding ? Math.round(state.betAmount * state.multiplier) : 0
+  const activeBet = !isBetting && state.betAmount > 0 ? state.betAmount : 0
+  const pickLabel = (side: CoinSide | null) => (side === 'heads' ? 'Heads' : side === 'tails' ? 'Tails' : undefined)
+  /** Quote in chip row from flip start until Next (covers flip anim, riding, and settled). */
+  const showQuoteUntilNext = isFlipping || !isBetting
 
   function addChip(v: number) {
-    setCurrentBet(p => Math.min(p + v, bankroll))
+    setCurrentBet((p) => Math.min(p + v, bankroll))
   }
 
   function handlePickSide(side: CoinSide) {
     if (isFlipping) return
     lastPickRef.current = side
-    if (isBetting) setState(prev => ({ ...prev, pick: side }))
-    else if (isRiding) setState(prev => ({ ...prev, nextPick: side }))
+    if (isBetting) setState((prev) => ({ ...prev, pick: side }))
+    else if (isRiding) setState((prev) => ({ ...prev, nextPick: side }))
   }
 
-  // Auto-select last pick when autoReBet is on and we're waiting for a pick
   useEffect(() => {
     if (!autoReBet || isFlipping || !lastPickRef.current) return
     if (isRiding && !state.nextPick)
-      setState(prev => ({ ...prev, nextPick: lastPickRef.current }))
+      setState((prev) => ({ ...prev, nextPick: lastPickRef.current }))
   }, [state.stage, state.streak, isRiding, isFlipping, autoReBet, state.nextPick])
 
-  useEffect(() => {
-    return () => {
-      if (t1Ref.current) clearTimeout(t1Ref.current)
-      if (t2Ref.current) clearTimeout(t2Ref.current)
-    }
+  useEffect(() => () => {
+    if (t1Ref.current) clearTimeout(t1Ref.current)
+    if (t2Ref.current) clearTimeout(t2Ref.current)
   }, [])
 
   function resolveGame(s: CoinFlipState) {
     const payout = s.outcome === 'win' ? Math.round(s.betAmount * s.multiplier) : 0
-    onResolve({ outcome: s.outcome!, betAmount: s.betAmount, payout, multiplier: s.outcome === 'win' ? s.multiplier : 0 })
-    const net   = payout - s.betAmount
-    const tone: MatchHistoryTone = s.outcome === 'win' ? 'win' : 'loss'
-    const title = s.outcome === 'win' ? `+${formatChips(net)}` : `−${formatChips(s.betAmount)}`
-    const label = s.outcome === 'win' ? formatChips(payout) : title
+    const outcome = s.outcome ?? 'loss'
+    onResolve({
+      outcome,
+      betAmount: s.betAmount,
+      payout,
+      multiplier: s.outcome === 'win' ? s.multiplier : 0,
+    })
+    const built = buildPendingResult(
+      { outcome, betAmount: s.betAmount, payout },
+      `${formatChips(s.betAmount)} · ${outcome === 'win' ? `${s.multiplier}× (${s.streak}× streak)` : 'Loss'}`,
+      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+    )
     setPendingResult({
-      tone, label,
-      entry: {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        at: new Date(),
-        title,
-        subtitle: `${formatChips(s.betAmount)} · ${s.outcome === 'win' ? `${s.multiplier}× (${s.streak}× streak)` : 'Loss'}`,
-        tone,
-      },
+      tone: built.tone === 'win' ? 'win' : 'loss',
+      label: built.label,
+      outcomeLabel:
+        outcome === 'win' ? `${s.multiplier}× — ${s.streak}× streak` : built.outcomeLabel,
+      entry: built.entry,
     })
   }
 
@@ -148,15 +151,19 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
 
   function handleFlip() {
     if (!canFlip || !state.pick || isFlipping) return
-    const next = startFlip(currentBet, state.pick)
-    setLastBet(currentBet)
+    const bet = currentBet
+    onBet?.(bet)
+    const next = startFlip(bet, state.pick)
+    setLastBet(bet)
     setCurrentBet(0)
     setPendingResult(null)
+    setQuoteIdx((prev) => pickQuote(prev))
     triggerFlip(next)
   }
 
   function handleFlipAgain() {
     if (!state.nextPick || isFlipping) return
+    setQuoteIdx((prev) => pickQuote(prev))
     triggerFlip(flipAgain(state))
   }
 
@@ -168,7 +175,7 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
   }
 
   const handleNext = useCallback(() => {
-    if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
+    if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
     setState({ ...initCoinFlip(), pick: autoReBet ? lastPickRef.current : null })
     setSpinKeyframes({ from: '0deg', end: '1440deg' })
@@ -194,24 +201,17 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 flex-col items-center justify-center px-4 py-6 gap-5"
+        boardClassName="relative flex min-h-0 h-full w-full flex-col items-center justify-center px-4 py-6 gap-5"
         entries={matchHistory}
         gameLabel="Coin Flip"
       >
-        {isBetting && !isFlipping && (
-          <button onClick={() => router.push(`/${mode}`)}
-            className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-            ← Back
-          </button>
-        )}
-
-        {/* Coin visual — always in DOM */}
-        {!isBetting && state.betAmount > 0 && (
-          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
-            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
-            <p className="text-sm font-bold text-white tabular-nums">{formatChips(state.betAmount)}</p>
-          </div>
-        )}
+        <GameDockBackButton mode={mode} visible={isBetting && !isFlipping} />
+        <GameActiveBetBadge
+          betAmount={activeBet}
+          betType={pickLabel(isBetting ? state.pick : isRiding ? state.nextPick : state.pick)}
+          extra={isRiding && !isFlipping ? `${state.multiplier}× · ${state.streak}× streak` : undefined}
+          visible={activeBet > 0 && !isBetting}
+        />
 
         <div
           className={`coin-3d aspect-square w-40 shrink-0 sm:w-48 ${coinAnimClass}`}
@@ -229,15 +229,13 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
           </div>
         </div>
 
-        {/* Streak indicator — always in DOM, invisible outside riding */}
-        <div className={`flex items-center gap-2 text-sm font-bold text-yellow-300 ${(!isRiding || isFlipping) ? 'invisible' : ''}`}>
+        <div className={`flex items-center gap-2 text-sm font-bold text-yellow-300 min-h-6 ${!isRiding || isFlipping ? 'invisible' : ''}`}>
           <span>{'🔥'.repeat(Math.min(state.streak, 5))}</span>
           <span>{state.streak}× streak · {state.multiplier}× multiplier</span>
         </div>
 
-        {/* Heads / Tails selector — always in DOM, invisible when settled or flipping */}
-        <div className={`flex gap-4 ${(isSettled || isFlipping) ? 'invisible pointer-events-none' : ''}`}>
-          {(['heads', 'tails'] as CoinSide[]).map(side => {
+        <div className={`flex gap-4 shrink-0 ${isSettled || isFlipping ? 'invisible pointer-events-none' : ''}`}>
+          {(['heads', 'tails'] as CoinSide[]).map((side) => {
             const isActive = isBetting ? state.pick === side : state.nextPick === side
             return (
               <button
@@ -256,74 +254,53 @@ export function CoinFlipGame({ mode, bankroll, onResolve }: CoinFlipGameProps) {
             )
           })}
         </div>
+
+        <div className="min-h-10 flex w-full max-w-sm items-center justify-center px-2 shrink-0">
+          <p className="text-center text-xs text-zinc-500">
+            {isBetting && !isFlipping
+              ? 'Pick heads or tails, place chips, then flip.'
+              : isFlipping
+                ? 'Flipping…'
+                : isRiding
+                  ? 'Win streak — cash out or flip again.'
+                  : '\u00A0'}
+          </p>
+        </div>
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-        <div className="flex min-h-[188px] flex-col justify-between py-3">
+        <div className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible={isBetting || showQuoteUntilNext}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={showQuoteUntilNext}
+          />
 
-          {/* Chip strip */}
-          <div className={`flex flex-nowrap justify-center gap-2 ${(!isBetting || isFlipping) ? 'invisible pointer-events-none' : ''}`}>
-            {CHIPS.map(chip => (
-              <button key={chip.value} type="button" onClick={() => addChip(chip.value)}
-                disabled={chip.value > bankroll - currentBet}
-                className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}>
-                {chip.label}
-              </button>
-            ))}
-            <button type="button" onClick={() => addChip(Math.floor(bankroll / 2))}
-              disabled={currentBet >= bankroll || bankroll <= 0}
-              className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
-              ½
-            </button>
-            <button type="button" onClick={() => setCurrentBet(bankroll)}
-              disabled={currentBet >= bankroll || bankroll <= 0}
-              className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
-              All In
-            </button>
-          </div>
-
-          {/* Info row */}
           <div className="h-10 flex items-center justify-center">
-            {isBetting && !isFlipping && (
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">
-                    {currentBet > 0 ? formatChips(currentBet) : '—'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(0)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
-                >
-                  Clear
-                </button>
-              </div>
-            )}
-            {isFlipping && (
-              <p className="text-sm text-zinc-500 italic tracking-wide">Flipping the coin…</p>
+            {isBetting && !showQuoteUntilNext && (
+              <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />
             )}
             {isRiding && !isFlipping && (
-              <div className="flex items-center gap-2.5">
-                <span className="text-zinc-500 text-base">Cash out</span>
-                <span className="font-bold text-xl text-emerald-400 tabular-nums">{formatChips(cashoutAmount)}</span>
-                <span className="text-xs text-zinc-500">{state.multiplier}×</span>
-              </div>
+              <p className="text-sm text-zinc-400">
+                Potential total winnings:{' '}
+                <span className="font-semibold text-emerald-400">{formatChips(cashoutAmount)}</span>
+              </p>
             )}
             {isSettled && pendingResult && (
-              <div className="flex items-center gap-3">
-                <p className="text-xs uppercase tracking-widest text-zinc-500">
-                  {pendingResult.tone === 'win' ? 'Win' : 'No win'}
-                </p>
-                <p className={`text-2xl font-black tabular-nums ${pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {pendingResult.label}
-                </p>
-              </div>
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!((isBetting && !showQuoteUntilNext) || (isRiding && !isFlipping) || (isSettled && pendingResult)) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
             )}
           </div>
 
-          {/* Action row — riding: Cash Out + Flip Again centered; otherwise single centered Flip/Next */}
           <div className="flex justify-center items-center gap-3">
             <button
               type="button"

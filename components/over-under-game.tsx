@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,9 +9,17 @@ import {
   GAME_CONTROL_DOCK_M,
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
-import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
-import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
+import {
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockBetRow,
+  GameDockChipRow,
+  GameDockSettledRow,
+} from '@/components/game-dock-parts'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getOverUnderPayout,
@@ -22,13 +29,6 @@ import {
   startOverUnderRound,
 } from '@/games/over-under/engine'
 import type { OverUnderState } from '@/games/over-under/types'
-
-const CHIPS = [
-  { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
-  { value: 25,  label: '$25',  cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
-  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
-  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
-]
 
 const ROLL_ANIM_MS = 620
 
@@ -42,17 +42,18 @@ interface OverUnderResult {
 interface OverUnderGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
+  onBet?: (amount: number) => void
   onResolve: (result: OverUnderResult) => void
 }
 
 interface PendingResult {
-  tone: MatchHistoryTone
+  tone: 'win' | 'loss'
   label: string
+  outcomeLabel: string
   entry: MatchHistoryEntry
 }
 
-export function OverUnderGame({ mode, bankroll, onResolve }: OverUnderGameProps) {
-  const router = useRouter()
+export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -65,8 +66,6 @@ export function OverUnderGame({ mode, bankroll, onResolve }: OverUnderGameProps)
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
   const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
-  // markerAt: position on bar (1–100), null = hidden
-  // markerOutcome: null during animation (white marker), set after animation (colored)
   const [markerAt, setMarkerAt] = useState<number | null>(null)
   const [markerOutcome, setMarkerOutcome] = useState<'win' | 'loss' | null>(null)
   const animTimers = useRef<ReturnType<typeof setTimeout>[]>([])
@@ -78,6 +77,12 @@ export function OverUnderGame({ mode, bankroll, onResolve }: OverUnderGameProps)
   const displaySafeZone = isBetting ? safeZone : round.safeZone
   const payoutMult = isBetting ? getOverUnderPayoutMultiplier(safeZone) : round.payoutMultiplier
   const canRoll = currentBet >= minBet && currentBet <= bankroll
+  const potentialWinnings =
+    isInProgress && round.betAmount > 0
+      ? Math.round(round.betAmount * round.payoutMultiplier)
+      : isBetting && currentBet > 0
+        ? Math.round(currentBet * payoutMult)
+        : 0
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
@@ -90,20 +95,18 @@ export function OverUnderGame({ mode, bankroll, onResolve }: OverUnderGameProps)
     animTimers.current = []
 
     const bet = currentBet
+    onBet?.(bet)
     setLastBet(bet)
     setCurrentBet(0)
     setPendingResult(null)
     setQuoteIdx((prev) => pickQuote(prev))
 
-    // Lock bet + safe zone, move to inProgress
     const started = startOverUnderRound(bet, safeZone)
     const settled = resolveOverUnderRound(started)
     const rollPos  = settled.rollResult!
     const outcome  = settled.outcome!
 
     setRound(started)
-
-    // Marker starts at right edge (danger side), then sweeps to roll position
     setMarkerAt(100)
     setMarkerOutcome(null)
 
@@ -116,17 +119,18 @@ export function OverUnderGame({ mode, bankroll, onResolve }: OverUnderGameProps)
       const po = getOverUnderPayout(settled)
       onResolve({ outcome, betAmount: bet, payout: po, multiplier: settled.payoutMultiplier })
 
-      const tone: MatchHistoryTone = outcome === 'win' ? 'win' : 'loss'
-      const historyLabel = outcome === 'win' ? `+${formatChips(po - bet)}` : `−${formatChips(bet)}`
-      const displayLabel = outcome === 'win' ? formatChips(po) : historyLabel
-      const entry: MatchHistoryEntry = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        at: new Date(),
-        title: historyLabel,
-        subtitle: `${formatChips(bet)} bet · Roll ${rollPos} · ${safeZone}% zone · ${formatMultiplier(settled.payoutMultiplier)}`,
-        tone,
-      }
-      setPendingResult({ tone, label: displayLabel, entry })
+      const subtitle = `${formatChips(bet)} · Roll ${rollPos} · ${safeZone}% safe · ${formatMultiplier(settled.payoutMultiplier)}`
+      const built = buildPendingResult(
+        { outcome, betAmount: bet, payout: po },
+        subtitle,
+        { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      )
+      setPendingResult({
+        tone: built.tone === 'win' ? 'win' : 'loss',
+        label: built.label,
+        outcomeLabel: built.outcomeLabel,
+        entry: built.entry,
+      })
     }, ROLL_ANIM_MS + 80)
 
     animTimers.current = [t1, t2]
@@ -160,210 +164,139 @@ export function OverUnderGame({ mode, bankroll, onResolve }: OverUnderGameProps)
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 flex-col items-center justify-center px-6 md:px-10 py-6 gap-6"
+        boardClassName="relative flex min-h-0 flex-col items-center justify-center px-4 md:px-8 py-4"
         entries={matchHistory}
         gameLabel="Over-Under"
       >
+        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameActiveBetBadge
+          betAmount={round.betAmount}
+          betType={!isBetting ? `${displaySafeZone}% safe zone` : undefined}
+          visible={!isBetting && round.betAmount > 0}
+        />
 
-        {isBetting && (
-          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-            ← Back
-          </button>
-        )}
-        {/* Active bet badge */}
-        {!isBetting && round.betAmount > 0 && (
-          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
-            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
-            <p className="text-sm font-bold text-white tabular-nums">{formatChips(round.betAmount)}</p>
-          </div>
-        )}
-
-        {/* Stats row */}
-        <div className="flex gap-8 sm:gap-14">
-          <div className="text-center">
-            <p className="text-[10px] uppercase tracking-widest text-teal-600 mb-0.5">Safe</p>
-            <p className="text-2xl font-black text-teal-300 tabular-nums">{displaySafeZone}%</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-0.5">Payout</p>
-            <p className="text-2xl font-black text-white tabular-nums">{formatMultiplier(payoutMult)}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[10px] uppercase tracking-widest text-red-600 mb-0.5">Danger</p>
-            <p className="text-2xl font-black text-red-300 tabular-nums">{100 - displaySafeZone}%</p>
-          </div>
-        </div>
-
-        {/* Risk bar — slider and animation live here */}
-        <div className="w-full max-w-md">
-          <div className="relative h-14 rounded-full overflow-hidden">
-            {/* Danger background */}
-            <div className="absolute inset-0 bg-red-900/50" />
-            {/* Safe fill */}
-            <div
-              className="absolute inset-y-0 left-0 bg-teal-700/80 transition-all duration-100"
-              style={{ width: `${displaySafeZone}%` }}
-            />
-            {/* Threshold line */}
-            <div
-              className="absolute inset-y-0 w-[3px] bg-white/40"
-              style={{ left: `calc(${displaySafeZone}% - 1.5px)` }}
-            />
-            {/* Animated roll marker */}
-            {markerAt !== null && (
-              <div
-                className={`absolute top-[12%] bottom-[12%] w-[5px] rounded-full ${
-                  markerOutcome === 'win'
-                    ? 'bg-emerald-400 shadow-lg shadow-emerald-400/60'
-                    : markerOutcome === 'loss'
-                      ? 'bg-red-400 shadow-lg shadow-red-400/60'
-                      : 'bg-white shadow-lg shadow-white/40'
-                }`}
-                style={{
-                  left: `${markerAt}%`,
-                  transform: 'translateX(-50%)',
-                  transition:
-                    markerAt === 100 || markerOutcome !== null
-                      ? 'none'
-                      : `left ${ROLL_ANIM_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`,
-                }}
-              />
-            )}
-            {/* Zone labels */}
-            <div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none select-none">
-              <span className="text-teal-100/50 text-sm font-bold">← Safe</span>
-              <span className="text-red-200/50 text-sm font-bold">Danger →</span>
+        <div className="flex w-full max-w-md flex-col items-center gap-4 shrink-0">
+          <div className="flex h-14 shrink-0 items-center gap-8 sm:gap-14">
+            <div className="text-center">
+              <p className="text-[10px] uppercase tracking-widest text-teal-600 mb-0.5">Safe</p>
+              <p className="text-2xl font-black text-teal-300 tabular-nums">{displaySafeZone}%</p>
             </div>
-            {/* Invisible range input — makes the bar draggable */}
-            <input
-              type="range"
-              min={10}
-              max={90}
-              step={1}
-              value={safeZone}
-              onChange={(e) => { if (isBetting) setSafeZone(Number(e.currentTarget.value)) }}
-              disabled={!isBetting}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-default appearance-none"
-            />
+            <div className="text-center">
+              <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-0.5">Payout</p>
+              <p className="text-2xl font-black text-white tabular-nums">{formatMultiplier(payoutMult)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] uppercase tracking-widest text-red-600 mb-0.5">Danger</p>
+              <p className="text-2xl font-black text-red-300 tabular-nums">{100 - displaySafeZone}%</p>
+            </div>
           </div>
-          <div className="flex justify-between mt-2 px-1 text-xs text-zinc-600">
-            <span>Low risk</span>
-            <span>{isBetting ? 'Drag to adjust' : `Rolled ${round.rollResult ?? '—'}`}</span>
-            <span>High risk</span>
+
+          <div className="w-full shrink-0">
+            <div className="relative h-14 rounded-full overflow-hidden">
+              <div className="absolute inset-0 bg-red-900/50" />
+              <div
+                className="absolute inset-y-0 left-0 bg-teal-700/80 transition-all duration-100"
+                style={{ width: `${displaySafeZone}%` }}
+              />
+              <div
+                className="absolute inset-y-0 w-[3px] bg-white/40"
+                style={{ left: `calc(${displaySafeZone}% - 1.5px)` }}
+              />
+              {markerAt !== null && (
+                <div
+                  className={`absolute top-[12%] bottom-[12%] w-[5px] rounded-full ${
+                    markerOutcome === 'win'
+                      ? 'bg-emerald-400 shadow-lg shadow-emerald-400/60'
+                      : markerOutcome === 'loss'
+                        ? 'bg-red-400 shadow-lg shadow-red-400/60'
+                        : 'bg-white shadow-lg shadow-white/40'
+                  }`}
+                  style={{
+                    left: `${markerAt}%`,
+                    transform: 'translateX(-50%)',
+                    transition:
+                      markerAt === 100 || markerOutcome !== null
+                        ? 'none'
+                        : `left ${ROLL_ANIM_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`,
+                  }}
+                />
+              )}
+              <div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none select-none">
+                <span className="text-teal-100/50 text-sm font-bold">← Safe</span>
+                <span className="text-red-200/50 text-sm font-bold">Danger →</span>
+              </div>
+              <input
+                type="range"
+                min={10}
+                max={90}
+                step={1}
+                value={safeZone}
+                onChange={(e) => { if (isBetting) setSafeZone(Number(e.currentTarget.value)) }}
+                disabled={!isBetting}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-default appearance-none"
+              />
+            </div>
+            <div className="flex justify-between mt-2 px-1 text-xs text-zinc-600">
+              <span>Low risk</span>
+              <span>{isBetting ? 'Drag to adjust' : `Rolled ${round.rollResult ?? '—'}`}</span>
+              <span>High risk</span>
+            </div>
+          </div>
+
+          <div className="min-h-10 flex w-full shrink-0 items-center justify-center px-2">
+            <p className="text-center text-xs text-zinc-500">
+              {isBetting
+                ? `Roll 1–${displaySafeZone} wins · ${displaySafeZone + 1}–100 loses. Drag the bar to set risk.`
+                : isInProgress
+                  ? 'Marker rolling…'
+                  : '\u00A0'}
+            </p>
           </div>
         </div>
-
-        {/* Rules */}
-        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-xs text-zinc-600">
-          <span>Roll 1–{displaySafeZone} wins</span>
-          <span className="text-zinc-800">·</span>
-          <span>Roll {displaySafeZone + 1}–100 loses</span>
-        </div>
-
       </GameFieldWithHistory>
 
-      {/* Control zone */}
       <div className={GAME_CONTROL_DOCK_M}>
-        {/* Top: variable content */}
-        <div className="flex-1 flex flex-col items-center justify-start pt-3 gap-1 min-h-0">
-          {isBetting && (
-            <div className="w-full max-w-sm flex flex-col gap-1">
-              <div className="flex flex-nowrap justify-center gap-2">
-                {CHIPS.map((chip) => (
-                  <button
-                    key={chip.value}
-                    type="button"
-                    onClick={() => addChip(chip.value)}
-                    disabled={chip.value > bankroll - currentBet}
-                    className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => addChip(Math.floor(bankroll / 4))}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-blue-100 hover:bg-blue-50 border-2 border-blue-200 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  ¼
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addChip(Math.floor(bankroll / 2))}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  ½
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(bankroll)}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  All In
-                </button>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">
-                    {currentBet > 0 ? formatChips(currentBet) : '—'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(0)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
-          {isInProgress && (
-            <GameDockRandomQuote quoteIdx={quoteIdx} />
-          )}
-          {isSettled && pendingResult && (
-            <div className="text-center">
-              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
-                {pendingResult.tone === 'win' ? 'Safe' : 'Danger'}
-              </p>
-              <p className={`text-3xl font-black tabular-nums ${
-                pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'
-              }`}>
-                {pendingResult.label}
-              </p>
-            </div>
-          )}
-        </div>
+        <div className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible={isBetting || isInProgress}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={isInProgress}
+          />
 
-        {/* Bottom: action button — anchored */}
-        <div className="mx-auto w-full max-w-sm flex flex-col gap-1 pb-2">
-          {isBetting && (
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={handleRoll}
-                disabled={!canRoll}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Roll →
-              </button>
-            </div>
-          )}
-          {isSettled && pendingResult && (
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={handleNextRound}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Next →
-              </button>
-            </div>
-          )}
+          <div className="h-10 flex items-center justify-center">
+            {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {isInProgress && potentialWinnings > 0 && (
+              <p className="text-sm text-zinc-400">
+                Potential total winnings:{' '}
+                <span className="font-semibold text-emerald-400">{formatChips(potentialWinnings)}</span>
+              </p>
+            )}
+            {isSettled && pendingResult && (
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isBetting && !isInProgress && !(isSettled && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
+            )}
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={isSettled ? handleNextRound : handleRoll}
+              disabled={isBetting && !canRoll}
+              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+            >
+              {isSettled ? 'Next →' : 'Roll →'}
+            </button>
+          </div>
+
           {minBet > 1 && isBetting && (
             <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
           )}

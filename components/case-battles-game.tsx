@@ -1,12 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
-import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
+import {
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockSettledRow,
+} from '@/components/game-dock-parts'
+import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
+import { pickQuote } from '@/lib/gambling-quotes'
 import {
   CASES,
   addCase,
@@ -27,12 +35,14 @@ interface CaseBattlesResult {
 interface CaseBattlesGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
+  onBet?: (amount: number) => void
   onResolve: (result: CaseBattlesResult) => void
 }
 
 interface PendingResult {
-  tone: MatchHistoryTone
+  tone: 'win' | 'loss'
   label: string
+  outcomeLabel: string
   entry: MatchHistoryEntry
 }
 
@@ -92,8 +102,7 @@ function ItemSlot({
   )
 }
 
-export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGameProps) {
-  const router = useRouter()
+export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattlesGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -104,11 +113,13 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
   const [lastSelectedCases, setLastSelectedCases] = useState<number[]>([])
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
-  const isSetup   = state.stage === 'setup'
+  const isSetup = state.stage === 'setup'
   const isOpening = state.stage === 'opening'
   const isSettled = state.stage === 'settled'
+  const showQuoteUntilNext = isOpening || isSettled
 
   const canBattle = state.selectedCases.length > 0 && state.totalCost <= bankroll && state.totalCost >= minBet
   const numCases  = state.selectedCases.length
@@ -162,37 +173,35 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
       : s.outcome === 'push'
         ? 1
         : 0
-    onResolve({ outcome: s.outcome!, betAmount: s.totalCost, payout, multiplier: mult })
-    const net = payout - s.totalCost
-    const tone: MatchHistoryTone = s.outcome === 'win' ? 'win' : s.outcome === 'push' ? 'push' : 'loss'
-    const title = s.outcome === 'win'
-      ? `+${formatChips(net)}`
-      : s.outcome === 'push'
-        ? 'Push'
-        : `−${formatChips(s.totalCost)}`
-    const label = s.outcome === 'win' ? formatChips(payout) : s.outcome === 'push' ? formatChips(s.totalCost) : title
-    const resultLabel = s.outcome === 'win'
-      ? `Won ${formatChips(payout)}`
-      : s.outcome === 'push'
-        ? 'Tie — bet returned'
-        : 'Loss'
+    const outcome = s.outcome!
+    onResolve({ outcome, betAmount: s.totalCost, payout, multiplier: mult })
+    const resultLabel =
+      outcome === 'win'
+        ? `Won ${formatChips(payout)}`
+        : outcome === 'push'
+          ? 'Tie — bet returned'
+          : 'Loss'
+    const built = buildPendingResult(
+      { outcome, betAmount: s.totalCost, payout },
+      `${s.selectedCases.length} cases · ${formatChips(s.totalCost)} · ${resultLabel}`,
+      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+    )
     setPendingResult({
-      tone, label,
-      entry: {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        at: new Date(),
-        title,
-        subtitle: `${s.selectedCases.length} cases · ${formatChips(s.totalCost)} · ${resultLabel}`,
-        tone,
-      },
+      tone: built.tone === 'win' ? 'win' : 'loss',
+      label: built.label,
+      outcomeLabel:
+        outcome === 'push' ? 'Push' : outcome === 'win' ? 'Total winnings' : built.outcomeLabel,
+      entry: built.entry,
     })
   }
 
   function handleBattle() {
     if (!canBattle) return
+    onBet?.(state.totalCost)
     setLastSelectedCases(state.selectedCases)
+    setQuoteIdx((prev) => pickQuote(prev))
     clearTimeouts()
-    setState(prev => startBattle(prev))
+    setState((prev) => startBattle(prev))
     setPendingResult(null)
   }
 
@@ -221,23 +230,16 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 flex-col items-center justify-center px-3 py-4 gap-3"
+        boardClassName="relative flex min-h-0 h-full w-full flex-col items-center justify-center px-3 py-4 gap-3"
         entries={matchHistory}
         gameLabel="Case Battles"
       >
-        {isSetup && (
-          <button onClick={() => router.push(`/${mode}`)}
-            className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-            ← Back
-          </button>
-        )}
-
-        {!isSetup && state.totalCost > 0 && (
-          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
-            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
-            <p className="text-sm font-bold text-white tabular-nums">{formatChips(state.totalCost)}</p>
-          </div>
-        )}
+        <GameDockBackButton mode={mode} visible={isSetup} />
+        <GameActiveBetBadge
+          betAmount={!isSetup ? state.totalCost : 0}
+          betType={!isSetup && numCases > 0 ? `${numCases} case${numCases === 1 ? '' : 's'}` : undefined}
+          visible={!isSetup && state.totalCost > 0}
+        />
 
         {/* Setup phase: case selector */}
         {isSetup && (
@@ -341,55 +343,57 @@ export function CaseBattlesGame({ mode, bankroll, onResolve }: CaseBattlesGamePr
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-        <div className="flex min-h-[188px] flex-col justify-between py-3">
-
-          {/* Invisible chip strip placeholder for consistent height */}
-          <div className="invisible pointer-events-none flex flex-nowrap justify-center gap-2">
-            <div className="w-12 h-12 rounded-full" />
-            <div className="w-12 h-12 rounded-full" />
-            <div className="w-12 h-12 rounded-full" />
-            <div className="w-12 h-12 rounded-full" />
-            <div className="h-12 w-10 rounded-full" />
-            <div className="h-12 w-14 rounded-full" />
+        <div className={GAME_DOCK_INNER}>
+          <div className="flex min-h-12 items-center justify-center">
+            {showQuoteUntilNext ? (
+              <GameDockRandomQuote quoteIdx={quoteIdx} />
+            ) : (
+              <div className="invisible pointer-events-none flex gap-2" aria-hidden>
+                <div className="w-12 h-12 rounded-full" />
+                <div className="w-12 h-12 rounded-full" />
+                <div className="w-12 h-12 rounded-full" />
+                <div className="w-12 h-12 rounded-full" />
+              </div>
+            )}
           </div>
 
-          {/* Info row */}
           <div className="h-10 flex items-center justify-center">
             {isSetup && (
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-zinc-500 text-base">Total cost</span>
-                  <span className={`font-bold text-xl tabular-nums ${state.totalCost > bankroll ? 'text-red-400' : 'text-white'}`}>
-                    {state.totalCost > 0 ? formatChips(state.totalCost) : '—'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setState(initCaseBattle())}
-                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${numCases === 0 ? 'invisible' : ''}`}
+              <div className="flex items-center gap-2.5">
+                <span className="text-zinc-500 text-base">Total cost</span>
+                <span
+                  className={`font-bold text-xl tabular-nums ${state.totalCost > bankroll ? 'text-red-400' : 'text-white'}`}
                 >
-                  Clear
-                </button>
+                  {state.totalCost > 0 ? formatChips(state.totalCost) : '—'}
+                </span>
+                {numCases > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setState(initCaseBattle())}
+                    className="px-2 py-0.5 text-xs font-medium rounded border border-zinc-700 hover:border-zinc-500 text-zinc-500 hover:text-white transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             )}
             {isOpening && (
-              <p className="text-sm text-zinc-500 italic">
+              <p className="text-sm text-zinc-500">
                 Opening {Math.min(revealedCount + 1, numCases)} of {numCases}…
               </p>
             )}
             {isSettled && pendingResult && (
-              <div className="flex items-center gap-3">
-                <p className="text-xs uppercase tracking-widest text-zinc-500">
-                  {pendingResult.tone === 'win' ? 'Win' : pendingResult.tone === 'push' ? 'Push' : 'No win'}
-                </p>
-                <p className={`text-2xl font-black tabular-nums ${pendingResult.tone === 'win' ? 'text-emerald-400' : pendingResult.tone === 'push' ? 'text-zinc-300' : 'text-red-400'}`}>
-                  {pendingResult.label}
-                </p>
-              </div>
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isSetup && !isOpening && !(isSettled && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
             )}
           </div>
 
-          {/* Action button */}
           <div className="flex justify-center">
             <button
               type="button"

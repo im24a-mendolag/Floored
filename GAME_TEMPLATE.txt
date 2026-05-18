@@ -126,6 +126,9 @@ interface <GameName>GameProps {
     )}
 
     {/* ── GAME BOARD CONTENT HERE ── */}
+    {/* Board stack: fixed-height slots (stats, selectors, playfield, hints).
+        Never mount/unmount rows that change height — use invisible + fixed h-*.
+        Anchor with justify-start on the arena so the playfield does not re-center. */}
 
   </GameFieldWithHistory>
 
@@ -138,7 +141,22 @@ interface <GameName>GameProps {
 
 
 ────────────────────────────────────────────
-6. CONTROL ZONE LAYOUT
+6. BOARD ARENA LAYOUT STABILITY
+────────────────────────────────────────────
+
+CRITICAL RULE: Game components in the board arena must NOT move between betting / playing /
+settled. The playfield (grid, wheel, track, etc.) must stay at the same pixel position every phase.
+
+- Wrap board content in a fixed stack: stats row, option selectors (e.g. difficulty), playfield,
+  hint row — each with explicit height (h-10, h-9, min-h-10) always in the DOM.
+- Hide phase-specific rows with `invisible pointer-events-none`, not conditional render.
+- Swap hint text inside a fixed min-height slot; use `\u00A0` when empty.
+- Use `justify-start` (not `justify-center`) on boardClassName so flex centering does not
+  re-position the stack when total height is constant.
+- Reference: `components/mines-game.tsx` board stack.
+
+────────────────────────────────────────────
+7. CONTROL ZONE LAYOUT
 ────────────────────────────────────────────
 
 CRITICAL RULE: Never use conditional rendering for layout-affecting elements in the control

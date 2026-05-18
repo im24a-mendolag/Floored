@@ -32,7 +32,7 @@ const GAMES: GameEntry[] = [
     // pos 2 — Teal
     name: 'crash',
     label: 'Crash',
-    sub: 'Cash out before it crashes',
+    sub: 'Cash out before the crash',
     symbol: '🚀',
     availableFreeplay: true,
     availableSurvival: true,
@@ -43,8 +43,8 @@ const GAMES: GameEntry[] = [
     // pos 3 — Amber
     name: 'plinko',
     label: 'Plinko',
-    sub: 'Drop the puck',
-    symbol: '🎯',
+    sub: 'Drop balls down the board',
+    symbol: '⚪',
     availableFreeplay: true,
     availableSurvival: false,
     gradient: 'from-amber-950 to-amber-900',
@@ -54,7 +54,7 @@ const GAMES: GameEntry[] = [
     // pos 4 — Indigo
     name: 'over-under',
     label: 'Over-Under',
-    sub: 'Pick your safe zone',
+    sub: 'Stay inside your safe zone',
     symbol: '⇅',
     availableFreeplay: true,
     availableSurvival: false,
@@ -65,7 +65,7 @@ const GAMES: GameEntry[] = [
     // pos 5 — Lime
     name: 'wheel',
     label: 'Fortune Wheel',
-    sub: '2× to 5× — pick your color',
+    sub: 'Pick a color and spin',
     symbol: '◎',
     availableFreeplay: true,
     availableSurvival: false,
@@ -76,7 +76,7 @@ const GAMES: GameEntry[] = [
     // pos 6 — Violet
     name: 'run-dice',
     label: 'Run Dice',
-    sub: 'Roll to survive',
+    sub: 'Roll dice up the meter',
     symbol: '⚅',
     availableFreeplay: true,
     availableSurvival: false,
@@ -98,7 +98,7 @@ const GAMES: GameEntry[] = [
     // pos 8 — Sky
     name: 'chicken-road',
     label: 'Chicken Road',
-    sub: 'Cross without getting hit',
+    sub: 'Cross the road safely',
     symbol: '🐔',
     availableFreeplay: true,
     availableSurvival: false,
@@ -109,7 +109,7 @@ const GAMES: GameEntry[] = [
     // pos 9 — Rose
     name: 'slots',
     label: 'Slots',
-    sub: '3 reels · jackpot meter',
+    sub: 'Spin the reels for payouts',
     symbol: '🎰',
     availableFreeplay: true,
     availableSurvival: false,
@@ -120,7 +120,7 @@ const GAMES: GameEntry[] = [
     // pos 10 — Emerald
     name: 'roulette',
     label: 'Roulette',
-    sub: 'Pick your number, spin the wheel',
+    sub: 'Bet on the wheel and spin',
     symbol: '🎡',
     availableFreeplay: true,
     availableSurvival: true,
@@ -142,7 +142,7 @@ const GAMES: GameEntry[] = [
     // pos 12 — Slate
     name: 'chicken-race',
     label: 'Chicken Race',
-    sub: 'Back your bird',
+    sub: 'Pick the winning chicken',
     symbol: '🏁',
     availableFreeplay: true,
     availableSurvival: false,
@@ -150,21 +150,21 @@ const GAMES: GameEntry[] = [
     accent: 'border-slate-500 hover:border-slate-400',
   },
   {
-    // pos 13 — Gold
-    name: 'coin-flip',
-    label: 'Coin Flip',
-    sub: '50/50 — heads or tails',
-    symbol: '🪙',
+    // pos 13 — Stone
+    name: 'street-cups',
+    label: 'Street Cups',
+    sub: 'Find the cup with the crown',
+    symbol: '👑',
     availableFreeplay: true,
     availableSurvival: false,
-    gradient: 'from-yellow-950 to-yellow-900',
-    accent: 'border-yellow-600 hover:border-yellow-500',
+    gradient: 'from-stone-950 to-stone-800',
+    accent: 'border-stone-500 hover:border-stone-400',
   },
   {
     // pos 14 — Cyan
     name: 'case-battles',
     label: 'Case Battles',
-    sub: 'Open cases, beat opponents',
+    sub: 'Open cases and beat rivals',
     symbol: '🎁',
     availableFreeplay: true,
     availableSurvival: false,
@@ -175,7 +175,7 @@ const GAMES: GameEntry[] = [
     // pos 15 — Green
     name: 'poker-1p',
     label: '1 Player Poker',
-    sub: 'Hold cards, draw, win on your hand',
+    sub: 'Build the best poker hand',
     symbol: '🃏',
     availableFreeplay: true,
     availableSurvival: false,
@@ -186,34 +186,34 @@ const GAMES: GameEntry[] = [
     // pos 16 — Purple
     name: 'hilo',
     label: 'HiLo',
-    sub: 'Higher or lower',
+    sub: 'Guess higher or lower each card',
     symbol: '↕',
-    availableFreeplay: false,
+    availableFreeplay: true,
     availableSurvival: false,
     gradient: 'from-purple-950 to-purple-900',
     accent: 'border-purple-600 hover:border-purple-500',
   },
   {
-    // pos 17 — Orange
-    name: 'flipper',
-    label: 'Flipper',
-    sub: 'Flip for the win',
-    symbol: '🕹️',
-    availableFreeplay: false,
+    // pos 17 — Pink (between purple HiLo and stone Street Cups; avoids cyan above)
+    name: 'keno',
+    label: 'Keno',
+    sub: 'Match numbers to the draw',
+    symbol: '🎱',
+    availableFreeplay: true,
     availableSurvival: false,
-    gradient: 'from-orange-950 to-orange-900',
-    accent: 'border-orange-600 hover:border-orange-500',
+    gradient: 'from-pink-950 to-pink-900',
+    accent: 'border-pink-600 hover:border-pink-500',
   },
   {
-    // pos 18 — Stone
-    name: 'street-cups',
-    label: 'Street Cups',
-    sub: 'Find the ball',
-    symbol: '🥤',
-    availableFreeplay: false,
+    // pos 18 — Gold
+    name: 'coin-flip',
+    label: 'Coin Flip',
+    sub: 'Call heads or tails on a flip',
+    symbol: '🪙',
+    availableFreeplay: true,
     availableSurvival: false,
-    gradient: 'from-stone-950 to-stone-800',
-    accent: 'border-stone-500 hover:border-stone-400',
+    gradient: 'from-yellow-950 to-yellow-900',
+    accent: 'border-yellow-600 hover:border-yellow-500',
   },
 ]
 

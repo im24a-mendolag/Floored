@@ -1,12 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
-import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
+import {
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockBetRow,
+  GameDockChipRow,
+} from '@/components/game-dock-parts'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
+import { pickQuote } from '@/lib/gambling-quotes'
 import { PLINKO_ROWS, computePlinkoPayout, generatePlinkoPath, getSlotMultipliers } from '@/games/plinko/engine'
 import {
   SLOT_BAND_HEIGHT,
@@ -28,15 +36,10 @@ import {
 } from '@/games/plinko/drop-animation'
 import type { PlinkoOutcome } from '@/games/plinko/types'
 
-const CHIPS = [
-  { value: 10, label: '$10', cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
-  { value: 25, label: '$25', cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
-  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
-  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
-] as const
-
 /** One ball per drop — spam Drop for rapid low-stake plays. */
 const BALLS_PER_DROP = 1
+/** Minimum time between quote changes while balls are dropping. */
+const PLINKO_QUOTE_COOLDOWN_MS = 5_000
 const PIN_R = 5
 const BALL_R = 7
 
@@ -88,13 +91,13 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const uid = useId().replace(/:/g, '')
   const ballGlowId = `plinko-ball-${uid}`
 
-  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
   const [sessions, setSessions] = useState<PlinkoSession[]>([])
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [statusHint, setStatusHint] = useState('Place chips — Drop anytime, even while balls are falling.')
@@ -102,6 +105,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const [animNow, setAnimNow] = useState(0)
 
   const sessionsRef = useRef<PlinkoSession[]>([])
+  const lastQuoteRefreshRef = useRef(0)
   const rafRef = useRef<number | null>(null)
   const reportedSessionIdsRef = useRef<Set<string>>(new Set())
   const onResolveRef = useRef(onResolve)
@@ -128,6 +132,12 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   }, [currentBet, lastBet, minBet])
 
   const canDrop = commitBet >= minBet && commitBet + pendingBet <= bankroll && bankroll > 0
+  const ballsInFlight = sessions.length > 0
+  const inFlightBalls = sessions.reduce((n, s) => n + s.ballCount, 0)
+  const badgeType =
+    inFlightBalls > 0
+      ? `${inFlightBalls} ball${inFlightBalls === 1 ? '' : 's'} in flight`
+      : undefined
 
   const stopLoop = useCallback(() => {
     if (rafRef.current != null) {
@@ -195,37 +205,26 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
           multiplier: effectiveMultiplier,
         })
 
-        let title: string
-        let tone: MatchHistoryTone
-        const netPL = totalPayout - bet
-        if (outcome === 'win') {
-          title = `+${formatChips(netPL)}`
-          tone = 'win'
-        } else if (outcome === 'push') {
-          title = `Push`
-          tone = 'push'
-        } else if (totalPayout > 0) {
-          title = `−${formatChips(Math.abs(netPL))}`
-          tone = 'partial'
-        } else {
-          title = `−${formatChips(bet)}`
-          tone = 'loss'
+        const subtitle = `${formatChips(bet)} · ${formatMultiplier(effectiveMultiplier)}`
+        const built = buildPendingResult(
+          { outcome, betAmount: bet, payout: totalPayout },
+          subtitle,
+          { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+        )
+        const entry: MatchHistoryEntry = {
+          ...built.entry,
+          id: `${c.sessionId}-log`,
+          tone:
+            outcome === 'push'
+              ? 'push'
+              : totalPayout > bet
+                ? 'win'
+                : totalPayout > 0
+                  ? 'partial'
+                  : 'loss',
         }
 
-        const subtitle = `${formatChips(bet)} bet · ${formatMultiplier(effectiveMultiplier)}`
-
-        setMatchHistory((prev) =>
-          [
-            {
-              id: `${c.sessionId}-log`,
-              at: new Date(),
-              title,
-              subtitle,
-              tone,
-            },
-            ...prev,
-          ].slice(0, 80),
-        )
+        setMatchHistory((prev) => [entry, ...prev].slice(0, 80))
       }
 
       if (completions.length) {
@@ -286,6 +285,11 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     }
 
     onBetRef.current?.(bet)
+    const now = Date.now()
+    if (now - lastQuoteRefreshRef.current >= PLINKO_QUOTE_COOLDOWN_MS) {
+      lastQuoteRefreshRef.current = now
+      setQuoteIdx((prev) => pickQuote(prev))
+    }
     setLastBet(bet)
     if (currentBet >= minBet) setCurrentBet(0)
 
@@ -308,19 +312,22 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex flex-col min-h-0 bg-[#111113]"
+        boardClassName="relative flex min-h-0 flex-col bg-[#111113] px-0 py-2"
         entries={matchHistory}
         gameLabel="Plinko"
         emptyHint="No drops yet — results appear after each ball lands."
       >
-          {sessions.length === 0 && (
-            <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-              ← Back
-            </button>
-          )}
+        <GameDockBackButton mode={mode} visible={!ballsInFlight} />
+        <GameActiveBetBadge
+          betAmount={pendingBet}
+          betType={badgeType}
+          visible={ballsInFlight && pendingBet > 0}
+        />
+
+        <div className="flex min-h-0 flex-1 w-full flex-col">
           <svg
             viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-            className="flex-1 min-h-0 w-full select-none"
+            className="min-h-0 w-full flex-1 select-none"
             preserveAspectRatio="xMidYMid meet"
             aria-hidden
           >
@@ -386,77 +393,55 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
                   )
                 }),
               )}
-            </svg>
+          </svg>
+
+          <div className="min-h-10 flex shrink-0 items-center justify-center px-3">
+            <p className="text-center text-xs text-zinc-500">
+              {ballsInFlight
+                ? 'Balls still dropping — you can queue another drop anytime.'
+                : 'Drop sends one ball. Stake chips or reuse your last bet for rapid plays.'}
+            </p>
+          </div>
+        </div>
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-          <div className="space-y-0 pb-2 pt-3">
-            <div className="flex flex-nowrap justify-center gap-2">
-              {CHIPS.map((chip) => (
-                <button
-                  key={chip.value}
-                  type="button"
-                  onClick={() => addChip(chip.value)}
-                  disabled={chip.value > bankroll - pendingBet - currentBet}
-                  className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
-                >
-                  {chip.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => addChip(Math.floor(bankroll / 4))}
-                disabled={currentBet >= bankroll - pendingBet || bankroll - pendingBet <= 0}
-                className="h-12 px-3 rounded-full bg-blue-100 hover:bg-blue-50 border-2 border-blue-200 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                ¼
-              </button>
-              <button
-                type="button"
-                onClick={() => addChip(Math.floor(bankroll / 2))}
-                disabled={currentBet >= bankroll - pendingBet || bankroll - pendingBet <= 0}
-                className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                ½
-              </button>
-              <button
-                type="button"
-                onClick={() => setCurrentBet(Math.max(0, bankroll - pendingBet))}
-                disabled={currentBet >= bankroll - pendingBet || bankroll <= 0}
-                className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                All In
-              </button>
-            </div>
+        <div className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible
+            bankroll={Math.max(0, bankroll - pendingBet)}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={ballsInFlight}
+          />
 
-            <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
-              <div className="flex items-center gap-2.5">
-                <span className="text-zinc-500 text-base">Bet</span>
-                <span className="font-bold text-xl text-white">
-                  {commitBet > 0 ? formatChips(commitBet) : '—'}
-                </span>
-                {commitBet > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => { setCurrentBet(0); setLastBet(0) }}
-                    className="px-3 py-1.5 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ml-1"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={handleDrop}
-                disabled={!canDrop}
-                className="px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Drop →
-              </button>
-            </div>
-            {minBet > 1 && <p className="text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>}
+          <div className="h-10 flex items-center justify-center">
+            <GameDockBetRow
+              currentBet={commitBet}
+              onClear={() => {
+                setCurrentBet(0)
+                setLastBet(0)
+              }}
+            />
           </div>
+
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={handleDrop}
+              disabled={!canDrop}
+              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+            >
+              Drop →
+            </button>
+          </div>
+
+          {minBet > 1 && (
+            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
+          )}
         </div>
+      </div>
     </div>
   )
 }

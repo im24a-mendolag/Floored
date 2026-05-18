@@ -1,22 +1,23 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
+import {
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockBetRow,
+  GameDockChipRow,
+  GameDockSettledRow,
+} from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
+import { pickQuote } from '@/lib/gambling-quotes'
 import { computeMultiplier, initCrash, startCrashRound } from '@/games/crash/engine'
 import type { CrashState } from '@/games/crash/types'
-import { GAMBLING_QUOTES, pickQuote } from '@/lib/gambling-quotes'
-
-const CHIPS = [
-  { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
-  { value: 25,  label: '$25',  cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
-  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
-  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
-]
 
 interface CrashResult {
   outcome: 'win' | 'loss'
@@ -35,7 +36,31 @@ interface CrashGameProps {
 interface PendingResult {
   tone: 'win' | 'loss'
   label: string
+  outcomeLabel: string
   entry: MatchHistoryEntry
+}
+
+function crashPendingResult(
+  outcome: 'win' | 'loss',
+  betAmount: number,
+  payout: number,
+  multiplier: number,
+): PendingResult {
+  const subtitle =
+    outcome === 'win'
+      ? `${formatChips(betAmount)} · Cashed at ${formatMultiplier(multiplier)}`
+      : `${formatChips(betAmount)} · Crashed at ${formatMultiplier(multiplier)}`
+  const built = buildPendingResult(
+    { outcome, betAmount, payout },
+    subtitle,
+    { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+  )
+  return {
+    tone: built.tone === 'win' ? 'win' : 'loss',
+    label: built.label,
+    outcomeLabel: built.outcomeLabel,
+    entry: built.entry,
+  }
 }
 
 // Inline growth formula so CrashCurve has no engine dependency
@@ -148,7 +173,6 @@ function CrashCurve({
 }
 
 export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) {
-  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -196,17 +220,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
           message: `Crashed at ${formatMultiplier(crashAt)}`,
         }))
         onResolve({ outcome: 'loss', betAmount, payout: 0, multiplier: crashAt })
-        setPendingResult({
-          tone: 'loss',
-          label: `−${formatChips(betAmount)}`,
-          entry: {
-            id: `${Date.now()}-crash-${Math.random().toString(36).slice(2)}`,
-            at: new Date(),
-            title: `−${formatChips(betAmount)}`,
-            subtitle: `${formatChips(betAmount)} bet · Busted at ${formatMultiplier(crashAt)}`,
-            tone: 'loss',
-          },
-        })
+        setPendingResult(crashPendingResult('loss', betAmount, 0, crashAt))
       }
     }, 50)
 
@@ -240,17 +254,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
       message: `Cashed out at ${formatMultiplier(m)}`,
     }))
     onResolve({ outcome: 'win', betAmount: round.betAmount, payout, multiplier: m })
-    setPendingResult({
-      tone: 'win',
-      label: formatChips(payout),
-      entry: {
-        id: `${Date.now()}-crash-${Math.random().toString(36).slice(2)}`,
-        at: new Date(),
-        title: `+${formatChips(payout - round.betAmount)}`,
-        subtitle: `${formatChips(round.betAmount)} bet · Cashed at ${formatMultiplier(m)}`,
-        tone: 'win',
-      },
-    })
+    setPendingResult(crashPendingResult('win', round.betAmount, payout, m))
   }
 
   function handleNextCrash() {
@@ -281,170 +285,101 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 items-center justify-center"
+        boardClassName="relative flex min-h-0 flex-col items-center justify-center px-4 py-4"
         entries={matchHistory}
         gameLabel="Crash"
       >
-        {/* SVG curve */}
-        <div className="absolute inset-0 px-4 py-3">
-          <CrashCurve elapsedMs={elapsedMs} outcome={round.outcome} />
-        </div>
+        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameActiveBetBadge betAmount={round.betAmount} visible={(isInProgress || isSettled) && round.betAmount > 0} />
 
-        {isBetting && (
-          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-20 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-            ← Back
-          </button>
-        )}
-        {/* Active bet badge — shown in top-left while round is live */}
-        {(isInProgress || isSettled) && round.betAmount > 0 && (
-          <div className="absolute left-2 top-2 z-20 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
-            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
-            <p className="text-sm font-bold text-white tabular-nums">{formatChips(round.betAmount)}</p>
+        <div className="flex w-full max-w-md flex-1 min-h-0 flex-col items-center justify-center gap-2">
+          <div className="relative z-10 flex min-h-[7.5rem] flex-col items-center justify-center text-center pointer-events-none select-none">
+            {isBetting ? (
+              <>
+                <p className="text-zinc-700 text-xs uppercase tracking-widest mb-2">Ready</p>
+                <p className="text-7xl sm:text-8xl font-black text-zinc-800 tabular-nums">1.00×</p>
+                <p className="text-sm mt-2 invisible">{'\u00A0'}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs uppercase tracking-widest text-zinc-600 mb-2">
+                  {isSettled
+                    ? round.outcome === 'win'
+                      ? 'Cashed Out At'
+                      : 'Crashed At'
+                    : 'Multiplier'}
+                </p>
+                <p className={`text-7xl sm:text-8xl font-black tabular-nums transition-colors duration-100 ${multColor}`}>
+                  {formatMultiplier(displayMult)}
+                </p>
+                <p className="text-sm mt-2 invisible">{'\u00A0'}</p>
+              </>
+            )}
           </div>
-        )}
 
-        {/* Multiplier overlay */}
-        <div className="relative z-10 text-center pointer-events-none select-none">
-          {isBetting ? (
-            <>
-              <p className="text-zinc-700 text-xs uppercase tracking-widest mb-2">Ready</p>
-              <p className="text-7xl sm:text-8xl font-black text-zinc-800 tabular-nums">1.00×</p>
-              <p className="text-zinc-700 text-sm mt-2">Place your bet to start</p>
-            </>
-          ) : (
-            <>
-              <p className="text-xs uppercase tracking-widest text-zinc-600 mb-2">
-                {isSettled
-                  ? (round.outcome === 'win' ? 'Cashed Out At' : 'Crashed At')
-                  : 'Multiplier'}
-              </p>
-              <p className={`text-7xl sm:text-8xl font-black tabular-nums transition-colors duration-100 ${multColor}`}>
-                {formatMultiplier(displayMult)}
-              </p>
-              <p className={`text-zinc-500 text-sm mt-2 ${isInProgress ? '' : 'invisible'}`}>
-                Potential{' '}
-                <span className="text-zinc-300 font-semibold">
-                  {formatChips(Math.round(round.betAmount * displayMult))}
-                </span>
-              </p>
-            </>
-          )}
+          <div className="min-h-10 flex w-full shrink-0 items-center justify-center">
+            <p className="max-w-md px-2 text-center text-xs text-zinc-500">
+              {isBetting
+                ? 'Place chips and start. Cash out before the curve crashes.'
+                : isInProgress
+                  ? 'Multiplier rises until crash — cash out anytime to lock winnings.'
+                  : '\u00A0'}
+            </p>
+          </div>
+
+          <div className="relative h-28 w-full shrink-0 sm:h-32">
+            <div className="absolute inset-0">
+              <CrashCurve elapsedMs={elapsedMs} outcome={round.outcome} />
+            </div>
+          </div>
         </div>
       </GameFieldWithHistory>
 
-      {/* Control zone */}
       <div className={GAME_CONTROL_DOCK_M}>
-        {/* Top: variable content (chips during betting, result after settled) */}
-        <div className="flex-1 flex flex-col items-center justify-start pt-3 gap-1 min-h-0">
-          {isBetting && (
-            <div className="w-full max-w-sm flex flex-col gap-1">
-              <div className="flex flex-nowrap justify-center gap-2">
-                {CHIPS.map((chip) => (
-                  <button
-                    key={chip.value}
-                    type="button"
-                    onClick={() => addChip(chip.value)}
-                    disabled={chip.value > bankroll - currentBet}
-                    className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => addChip(Math.floor(bankroll / 4))}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-blue-100 hover:bg-blue-50 border-2 border-blue-200 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  ¼
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addChip(Math.floor(bankroll / 2))}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  ½
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(bankroll)}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  All In
-                </button>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">
-                    {currentBet > 0 ? formatChips(currentBet) : '—'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(0)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
-          {isInProgress && (
-            <p className="max-w-xs text-center text-sm italic text-zinc-600">
-              &quot;{GAMBLING_QUOTES[quoteIdx]}&quot;
-            </p>
-          )}
-          {isSettled && pendingResult && (
-            <div className="text-center">
-              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
-                {pendingResult.tone === 'win' ? 'Cashed Out' : 'Crashed'}
-              </p>
-              <p className={`text-3xl font-black tabular-nums ${
-                pendingResult.tone === 'win' ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {pendingResult.label}
-              </p>
-            </div>
-          )}
-        </div>
+        <div className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible={isBetting || isInProgress}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={isInProgress}
+          />
 
-        {/* Bottom: action button — always anchored at the same position */}
-        <div className="mx-auto w-full max-w-sm flex flex-col gap-1 pb-2">
-          {isBetting && (
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={handleStart}
-                disabled={!canStart}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Start →
-              </button>
-            </div>
-          )}
-          {isInProgress && (
+          <div className="h-10 flex items-center justify-center">
+            {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {isSettled && pendingResult && (
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isBetting && !(isSettled && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
+            )}
+          </div>
+
+          <div className="flex justify-center">
             <button
               type="button"
-              onClick={handleCashOut}
-              className="w-full py-3 bg-white hover:bg-zinc-100 text-zinc-900 font-black rounded-lg text-lg transition-colors shadow-lg"
+              onClick={isSettled ? handleNextCrash : isInProgress ? handleCashOut : handleStart}
+              disabled={isBetting && !canStart}
+              className={[
+                'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                isInProgress
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
+              ].join(' ')}
             >
-              Cash Out · {formatMultiplier(displayMult)}
+              {isSettled
+                ? 'Next →'
+                : isInProgress
+                  ? `Cash Out · ${formatMultiplier(displayMult)}`
+                  : 'Start →'}
             </button>
-          )}
-          {isSettled && pendingResult && (
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={handleNextCrash}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Next →
-              </button>
-            </div>
-          )}
+          </div>
+
           {minBet > 1 && isBetting && (
             <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
           )}

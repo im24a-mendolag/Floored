@@ -1,12 +1,21 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
-import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
+import {
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockBetRow,
+  GameDockChipRow,
+  GameDockSettledRow,
+} from '@/components/game-dock-parts'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
+import { pickQuote } from '@/lib/gambling-quotes'
 import {
   HAND_LABELS,
   HAND_PAYOUTS,
@@ -17,16 +26,16 @@ import {
 } from '@/games/poker-1p/engine'
 import type { Card, PokerHandRank, PokerState } from '@/games/poker-1p/types'
 
-const CHIPS = [
-  { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
-  { value: 25,  label: '$25',  cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
-  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
-  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
-]
-
 const HAND_ORDER: PokerHandRank[] = [
-  'royal-flush', 'straight-flush', 'four-of-a-kind', 'full-house',
-  'flush', 'straight', 'three-of-a-kind', 'two-pair', 'jacks-or-better',
+  'royal-flush',
+  'straight-flush',
+  'four-of-a-kind',
+  'full-house',
+  'flush',
+  'straight',
+  'three-of-a-kind',
+  'two-pair',
+  'jacks-or-better',
 ]
 
 interface PokerResult {
@@ -39,16 +48,24 @@ interface PokerResult {
 interface Poker1pGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
+  onBet?: (amount: number) => void
   onResolve: (result: PokerResult) => void
 }
 
 interface PendingResult {
-  tone: MatchHistoryTone
+  tone: 'win' | 'loss'
   label: string
+  outcomeLabel: string
   entry: MatchHistoryEntry
 }
 
-function CardView({ card, held, isWinning, selectable, onToggle }: {
+function CardView({
+  card,
+  held,
+  isWinning,
+  selectable,
+  onToggle,
+}: {
   card: Card
   held: boolean
   isWinning: boolean
@@ -74,7 +91,9 @@ function CardView({ card, held, isWinning, selectable, onToggle }: {
     >
       <span className={`text-xl sm:text-2xl font-black leading-none ${color}`}>{card.rank}</span>
       <span className={`text-2xl sm:text-3xl leading-none ${color}`}>{card.suit}</span>
-      <span className={`text-[8px] font-bold text-yellow-400 tracking-widest ${held && !isWinning ? '' : 'invisible'}`}>
+      <span
+        className={`text-[8px] font-bold text-yellow-400 tracking-widest ${held && !isWinning ? '' : 'invisible'}`}
+      >
         HOLD
       </span>
     </button>
@@ -82,20 +101,19 @@ function CardView({ card, held, isWinning, selectable, onToggle }: {
 }
 
 const HAND_RANK_COLOR: Record<PokerHandRank, string> = {
-  'royal-flush':     'text-yellow-300',
-  'straight-flush':  'text-yellow-400',
-  'four-of-a-kind':  'text-purple-400',
-  'full-house':      'text-blue-400',
-  'flush':           'text-green-400',
-  'straight':        'text-teal-400',
+  'royal-flush': 'text-yellow-300',
+  'straight-flush': 'text-yellow-400',
+  'four-of-a-kind': 'text-purple-400',
+  'full-house': 'text-blue-400',
+  flush: 'text-green-400',
+  straight: 'text-teal-400',
   'three-of-a-kind': 'text-emerald-400',
-  'two-pair':        'text-emerald-500',
+  'two-pair': 'text-emerald-500',
   'jacks-or-better': 'text-emerald-600',
-  'none':            'text-red-400',
+  none: 'text-red-400',
 }
 
-export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
-  const router = useRouter()
+export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -105,30 +123,39 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
   const [lastBet, setLastBet] = useState(0)
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
-  const isBetting   = state.stage === 'betting'
+  const isBetting = state.stage === 'betting'
   const isSelecting = state.stage === 'selecting'
-  const isSettled   = state.stage === 'settled'
-  const canDeal     = currentBet >= minBet && currentBet <= bankroll
+  const isSettled = state.stage === 'settled'
+  const canDeal = currentBet >= minBet && currentBet <= bankroll
+  const showQuoteUntilNext = !isBetting
+  const potentialWinnings =
+    isSelecting && state.betAmount > 0
+      ? Math.round(state.betAmount * HAND_PAYOUTS['royal-flush'])
+      : 0
 
   function addChip(v: number) {
-    setCurrentBet(p => Math.min(p + v, bankroll))
+    setCurrentBet((p) => Math.min(p + v, bankroll))
   }
 
   function handleDeal() {
     if (!canDeal) return
-    setLastBet(currentBet)
-    setState(dealHand(currentBet))
+    const bet = currentBet
+    onBet?.(bet)
+    setLastBet(bet)
+    setQuoteIdx((prev) => pickQuote(prev))
+    setState(dealHand(bet))
     setCurrentBet(0)
     setPendingResult(null)
   }
 
   function handleToggleHold(index: number) {
-    setState(prev => toggleHold(prev, index))
+    setState((prev) => toggleHold(prev, index))
   }
 
   function handleDraw() {
-    setState(prev => {
+    setState((prev) => {
       const settled = drawCards(prev)
       resolveGame(settled)
       return settled
@@ -137,32 +164,35 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
 
   function resolveGame(s: PokerState) {
     const payout = s.outcome === 'win' ? Math.round(s.betAmount * s.multiplier) : 0
-    onResolve({ outcome: s.outcome!, betAmount: s.betAmount, payout, multiplier: s.multiplier })
-    const net  = payout - s.betAmount
-    const tone: MatchHistoryTone = s.outcome === 'win' ? 'win' : 'loss'
-    const title = s.outcome === 'win' ? `+${formatChips(net)}` : `−${formatChips(s.betAmount)}`
-    const label = s.outcome === 'win' ? formatChips(payout) : title
+    const outcome = s.outcome ?? 'loss'
+    onResolve({
+      outcome,
+      betAmount: s.betAmount,
+      payout,
+      multiplier: s.multiplier,
+    })
+    const built = buildPendingResult(
+      { outcome, betAmount: s.betAmount, payout },
+      `${formatChips(s.betAmount)} · ${HAND_LABELS[s.handRank]}${s.multiplier > 0 ? ` · ${s.multiplier}×` : ''}`,
+      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+    )
     setPendingResult({
-      tone, label,
-      entry: {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        at: new Date(),
-        title,
-        subtitle: `${formatChips(s.betAmount)} · ${HAND_LABELS[s.handRank]}${s.multiplier > 0 ? ` · ${s.multiplier}×` : ''}`,
-        tone,
-      },
+      tone: outcome === 'win' ? 'win' : 'loss',
+      label: built.label,
+      outcomeLabel:
+        outcome === 'win' ? `${HAND_LABELS[s.handRank]} · ${s.multiplier}×` : built.outcomeLabel,
+      entry: built.entry,
     })
   }
 
   const handleNext = useCallback(() => {
-    if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
+    if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
     setState(initPoker())
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
   }, [pendingResult, autoReBet, lastBet, bankroll])
 
   const heldCount = state.held.filter(Boolean).length
-  const payout    = isSettled ? Math.round(state.betAmount * state.multiplier) : 0
 
   return (
     <div className={GAME_CARD_SHELL}>
@@ -173,32 +203,23 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 flex-col items-center justify-center px-4 py-4 gap-4"
+        boardClassName="relative flex min-h-0 h-full w-full flex-col items-center justify-center px-4 py-4 gap-4"
         entries={matchHistory}
         gameLabel="1 Player Poker"
       >
-        {isBetting && (
-          <button onClick={() => router.push(`/${mode}`)}
-            className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-            ← Back
-          </button>
-        )}
-
-        {/* Pay table — shown during betting */}
-        {!isBetting && state.betAmount > 0 && (
-          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
-            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
-            <p className="text-sm font-bold text-white tabular-nums">{formatChips(state.betAmount)}</p>
-          </div>
-        )}
+        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameActiveBetBadge
+          betAmount={!isBetting ? state.betAmount : 0}
+          visible={!isBetting && state.betAmount > 0}
+        />
 
         {isBetting && (
-          <div className="w-full max-w-xs bg-zinc-900/60 rounded-xl border border-zinc-800 overflow-hidden">
+          <div className="w-full max-w-xs bg-zinc-900/60 rounded-xl border border-zinc-800 overflow-hidden shrink-0">
             <div className="px-4 py-2 border-b border-zinc-800">
               <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 text-center">Pay Table</p>
             </div>
             <div className="px-3 py-2 flex flex-col gap-0.5">
-              {HAND_ORDER.map(rank => (
+              {HAND_ORDER.map((rank) => (
                 <div key={rank} className="flex items-center justify-between py-0.5">
                   <span className="text-xs text-zinc-400">{HAND_LABELS[rank]}</span>
                   <span className="text-xs font-bold text-zinc-200 tabular-nums">{HAND_PAYOUTS[rank]}×</span>
@@ -208,10 +229,8 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
           </div>
         )}
 
-        {/* Cards — shown during selecting and settled */}
         {(isSelecting || isSettled) && (
-          <div className="flex flex-col items-center gap-3">
-            {/* Hand rank badge — shown after draw */}
+          <div className="flex flex-col items-center gap-3 shrink-0">
             <div className={`text-center min-h-[1.5rem] ${!isSettled ? 'invisible' : ''}`}>
               <p className={`text-base font-black tracking-wide ${HAND_RANK_COLOR[state.handRank]}`}>
                 {HAND_LABELS[state.handRank]}
@@ -219,7 +238,6 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
               </p>
             </div>
 
-            {/* Card row */}
             <div className="flex gap-2 sm:gap-2.5">
               {state.hand.map((card, i) => (
                 <CardView
@@ -233,74 +251,55 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
               ))}
             </div>
 
-            <p className={`text-sm font-medium text-zinc-400 tracking-wide ${!isSelecting ? 'invisible' : ''}`}>
+            <p className={`text-sm font-medium text-zinc-400 tracking-wide min-h-5 ${!isSelecting ? 'invisible' : ''}`}>
               Tap cards to hold · {heldCount} held · then draw
             </p>
           </div>
         )}
+
+        <div className="min-h-10 flex w-full max-w-sm items-center justify-center px-2 shrink-0">
+          <p className="text-center text-xs text-zinc-500">
+            {isBetting
+              ? 'Place chips and deal. Jacks or better pays.'
+              : isSelecting
+                ? 'Hold cards, then draw.'
+                : '\u00A0'}
+          </p>
+        </div>
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-        <div className="flex min-h-[188px] flex-col justify-between py-3">
+        <div className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible={isBetting || showQuoteUntilNext}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={showQuoteUntilNext}
+          />
 
-          {/* Chip strip */}
-          <div className={`flex flex-nowrap justify-center gap-2 ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
-            {CHIPS.map(chip => (
-              <button key={chip.value} type="button" onClick={() => addChip(chip.value)}
-                disabled={chip.value > bankroll - currentBet}
-                className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}>
-                {chip.label}
-              </button>
-            ))}
-            <button type="button" onClick={() => addChip(Math.floor(bankroll / 2))}
-              disabled={currentBet >= bankroll || bankroll <= 0}
-              className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
-              ½
-            </button>
-            <button type="button" onClick={() => setCurrentBet(bankroll)}
-              disabled={currentBet >= bankroll || bankroll <= 0}
-              className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
-              All In
-            </button>
-          </div>
-
-          {/* Info row */}
           <div className="h-10 flex items-center justify-center">
-            {isBetting && (
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">
-                    {currentBet > 0 ? formatChips(currentBet) : '—'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(0)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
-                >
-                  Clear
-                </button>
-              </div>
-            )}
-            {isSelecting && (
-              <p className="text-sm text-zinc-500">
-                Bet {formatChips(state.betAmount)} · Hold cards, then draw
+            {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {isSelecting && potentialWinnings > 0 && (
+              <p className="text-sm text-zinc-400">
+                Potential total winnings:{' '}
+                <span className="font-semibold text-emerald-400">{formatChips(potentialWinnings)}</span>
+                <span className="text-zinc-600 ml-1">(max)</span>
               </p>
             )}
             {isSettled && pendingResult && (
-              <div className="flex items-center gap-3">
-                <p className="text-xs uppercase tracking-widest text-zinc-500">
-                  {pendingResult.tone === 'win' ? 'Win' : 'No win'}
-                </p>
-                <p className={`text-2xl font-black tabular-nums ${pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {pendingResult.label}
-                </p>
-              </div>
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isBetting && !isSelecting && !(isSettled && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
             )}
           </div>
 
-          {/* Action button */}
           <div className="flex justify-center">
             <button
               type="button"
@@ -308,7 +307,7 @@ export function Poker1pGame({ mode, bankroll, onResolve }: Poker1pGameProps) {
               disabled={isBetting && !canDeal}
               className={[
                 'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
-                isSettled && payout > 0
+                isSettled && state.outcome === 'win'
                   ? 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-zinc-800 disabled:text-zinc-600'
                   : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
               ].join(' ')}

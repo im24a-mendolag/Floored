@@ -1,0 +1,136 @@
+      <GameFieldWithHistory
+        className={GAME_BOARD_ARENA}
+        boardClassName="relative flex min-h-0 h-full w-full flex-col items-center px-4 py-4 md:px-6"
+        entries={matchHistory}
+        gameLabel="Slots"
+      >
+        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameActiveBetBadge
+          betAmount={round.betAmount || lastBet}
+          visible={!isBetting && (round.betAmount > 0 || lastBet > 0)}
+        />
+
+        <DIVTAG className="flex min-h-0 flex-1 w-full max-w-sm flex-col">
+          <DIVTAG className="min-h-0 flex-1 shrink" aria-hidden />
+          <DIVTAG className="flex w-full flex-col items-center gap-4 shrink-0">
+            <DIVTAG
+              className={`w-full h-[2.75rem] shrink-0 flex flex-col justify-center ${
+                mode !== 'survival' || !runActive ? 'invisible pointer-events-none' : ''
+              }`}
+            >
+              <DIVTAG className="flex items-center justify-between text-xs text-white/40 mb-1.5">
+                <span className="uppercase tracking-wider">Jackpot Meter</span>
+                <span
+                  className={`font-semibold ${jackpotReady ? 'text-yellow-400 animate-pulse' : 'text-white/60'}`}
+                >
+                  {jackpotReady ? 'READY — Next spin is 100×!' : `${jackpotMeter}%`}
+                </span>
+              </DIVTAG>
+              <DIVTAG className="h-2 rounded-full bg-white/10 overflow-hidden">
+                <DIVTAG
+                  className={`h-full rounded-full transition-all duration-500 ${jackpotReady ? 'bg-yellow-400' : 'bg-gradient-to-r from-purple-600 to-yellow-400'}`}
+                  style={{ width: `${jackpotMeter}%` }}
+                />
+              </DIVTAG>
+            </DIVTAG>
+
+            <DIVTAG className="flex h-[8.5rem] shrink-0 items-center justify-center gap-3">
+              <Reel symbol={displayedReels[0]} spinning={spinningReels[0]} landed={landedReels[0]} />
+              <DIVTAG className="relative">
+                <Reel symbol={displayedReels[1]} spinning={spinningReels[1]} landed={landedReels[1]} />
+                <DIVTAG className="absolute -left-3 top-1/2 -translate-y-1/2 text-yellow-400/60 text-xs">▶</DIVTAG>
+                <DIVTAG className="absolute -right-3 top-1/2 -translate-y-1/2 text-yellow-400/60 text-xs">◀</DIVTAG>
+              </DIVTAG>
+              <Reel symbol={displayedReels[2]} spinning={spinningReels[2]} landed={landedReels[2]} />
+            </DIVTAG>
+
+            <DIVTAG
+              className={`w-full min-h-[12.5rem] shrink-0 ${isSpinning ? 'invisible pointer-events-none' : ''}`}
+            >
+              <p className="text-white/25 text-xs uppercase tracking-wider mb-2">Paytable</p>
+              <DIVTAG className="grid grid-cols-2 gap-1">
+                {PAYTABLE.map((row) => (
+                  <DIVTAG key={row.label} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-white/5">
+                    <DIVTAG className="flex items-center gap-1.5">
+                      {row.symbols
+                        .slice(0, row.label.startsWith('Two') || row.label.startsWith('Double') ? 2 : 3)
+                        .map((s, i) => (
+                          <span key={i} className={`font-bold text-xs ${SYMBOL_DISPLAY[s].color}`}>
+                            {PAYTABLE_GLYPH[s]}
+                          </span>
+                        ))}
+                    </DIVTAG>
+                    <span
+                      className={`font-bold text-sm ${row.multiplier >= 25 ? 'text-yellow-400' : row.multiplier >= 10 ? 'text-emerald-400' : 'text-white/60'}`}
+                    >
+                      {row.multiplier}×
+                    </span>
+                  </DIVTAG>
+                ))}
+                <DIVTAG className="flex items-center px-3 py-1.5 rounded-lg bg-purple-900/30 border border-purple-700/30">
+                  <span className="text-purple-300 text-xs font-semibold">★ Wild — any</span>
+                </DIVTAG>
+              </DIVTAG>
+            </DIVTAG>
+
+            <DIVTAG className="min-h-10 flex w-full items-center justify-center px-2 shrink-0">
+              <p className="text-center text-xs text-zinc-500 max-w-md">
+                {isBetting
+                  ? 'Match symbols on the center line. Fill the jackpot meter in Survival for a 100× spin.'
+                  : isSpinning
+                    ? 'Reels spinning…'
+                    : '\u00A0'}
+              </p>
+            </DIVTAG>
+          </DIVTAG>
+          <DIVTAG className="min-h-0 flex-1 shrink" aria-hidden />
+        </DIVTAG>
+      </GameFieldWithHistory>
+
+      <DIVTAG className={GAME_CONTROL_DOCK_L}>
+        <DIVTAG className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible={isBetting || isSpinning}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={isSpinning}
+          />
+
+          <DIVTAG className="h-10 flex items-center justify-center">
+            {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {isSettled && pendingResult && (
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isBetting && !isSpinning && !(isSettled && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
+            )}
+          </DIVTAG>
+
+          <DIVTAG className="flex min-h-[2.75rem] w-full flex-col items-center justify-center gap-1">
+            <button
+              type="button"
+              onClick={isSettled ? handleNext : handleSpin}
+              disabled={!isSettled && (!canSpin || isSpinning)}
+              className={`min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg ${
+                jackpotReady && isBetting
+                  ? 'bg-yellow-400 hover:bg-yellow-300 text-black animate-pulse'
+                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900'
+              }`}
+            >
+              {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : jackpotReady ? '★ Spin ★' : 'Spin →'}
+            </button>
+            {minBet > 1 && isBetting && (
+              <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
+            )}
+          </DIVTAG>
+        </DIVTAG>
+      </DIVTAG>
+    </DIVTAG>
+  )
+}

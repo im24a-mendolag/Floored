@@ -1,12 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
-import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
+import {
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockBetRow,
+  GameDockChipRow,
+  GameDockSettledRow,
+} from '@/components/game-dock-parts'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
+import { pickQuote } from '@/lib/gambling-quotes'
 import {
   CHICKENS,
   PAYOUT_MULTIPLIER,
@@ -19,13 +28,6 @@ import {
 } from '@/games/chicken-race/engine'
 import type { ChickenRaceState } from '@/games/chicken-race/types'
 
-const CHIPS = [
-  { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
-  { value: 25,  label: '$25',  cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
-  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
-  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
-]
-
 interface ChickenRaceResult {
   outcome: 'win' | 'loss'
   betAmount: number
@@ -36,17 +38,18 @@ interface ChickenRaceResult {
 interface ChickenRaceGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
+  onBet?: (amount: number) => void
   onResolve: (result: ChickenRaceResult) => void
 }
 
 interface PendingResult {
-  tone: MatchHistoryTone
+  tone: 'win' | 'loss'
   label: string
+  outcomeLabel: string
   entry: MatchHistoryEntry
 }
 
-export function ChickenRaceGame({ mode, bankroll, onResolve }: ChickenRaceGameProps) {
-  const router = useRouter()
+export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRaceGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -58,31 +61,40 @@ export function ChickenRaceGame({ mode, bankroll, onResolve }: ChickenRaceGamePr
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [progress, setProgress] = useState<number[]>(CHICKENS.map(() => 0))
+  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
   const raceFramesRef = useRef<number[][]>([])
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const isBetting = state.stage === 'betting'
-  const isRacing  = state.stage === 'racing'
+  const isRacing = state.stage === 'racing'
   const isSettled = state.stage === 'settled'
-  const canRace   = state.pickedChicken !== null && currentBet >= minBet && currentBet <= bankroll
+  const canRace = state.pickedChicken !== null && currentBet >= minBet && currentBet <= bankroll
+  const activeBet = isRacing || isSettled ? state.betAmount : 0
+  const potentialWinnings =
+    (isRacing || isBetting) && (isRacing ? state.betAmount : currentBet) > 0
+      ? Math.round((isRacing ? state.betAmount : currentBet) * PAYOUT_MULTIPLIER)
+      : 0
 
   function addChip(value: number) {
-    setCurrentBet(prev => Math.min(prev + value, bankroll))
+    setCurrentBet((prev) => Math.min(prev + value, bankroll))
   }
 
   function selectChicken(id: number) {
     if (!isBetting) return
-    setState(prev => ({ ...prev, pickedChicken: prev.pickedChicken === id ? null : id }))
+    setState((prev) => ({ ...prev, pickedChicken: prev.pickedChicken === id ? null : id }))
   }
 
   function handleRace() {
     if (!canRace || state.pickedChicken === null) return
-    const next = startRace(currentBet, state.pickedChicken)
-    setLastBet(currentBet)
+    const bet = currentBet
+    onBet?.(bet)
+    const next = startRace(bet, state.pickedChicken)
+    setLastBet(bet)
     setLastPicked(state.pickedChicken)
     setCurrentBet(0)
     setPendingResult(null)
+    setQuoteIdx((prev) => pickQuote(prev))
     setProgress(CHICKENS.map(() => 0))
     raceFramesRef.current = generateRaceFrames(next.winner!)
     setState(next)
@@ -96,7 +108,7 @@ export function ChickenRaceGame({ mode, bankroll, onResolve }: ChickenRaceGamePr
         clearInterval(tickRef.current!)
         tickRef.current = null
         setProgress([...raceFramesRef.current[RACE_TICKS - 1]!])
-        setState(prev => {
+        setState((prev) => {
           const settled = settleRace(prev)
           resolveGame(settled)
           return settled
@@ -108,25 +120,28 @@ export function ChickenRaceGame({ mode, bankroll, onResolve }: ChickenRaceGamePr
   function resolveGame(settled: ChickenRaceState) {
     const won = settled.pickedChicken === settled.winner
     const payout = won ? Math.round(settled.betAmount * PAYOUT_MULTIPLIER) : 0
-    onResolve({ outcome: settled.outcome!, betAmount: settled.betAmount, payout, multiplier: won ? PAYOUT_MULTIPLIER : 0 })
-    const net = payout - settled.betAmount
-    const tone: MatchHistoryTone = won ? 'win' : 'loss'
-    const title = won ? `+${formatChips(net)}` : `−${formatChips(settled.betAmount)}`
-    const label = won ? formatChips(payout) : title
+    const outcome = settled.outcome ?? (won ? 'win' : 'loss')
+    onResolve({
+      outcome,
+      betAmount: settled.betAmount,
+      payout,
+      multiplier: won ? PAYOUT_MULTIPLIER : 0,
+    })
+    const built = buildPendingResult(
+      { outcome, betAmount: settled.betAmount, payout },
+      `${formatChips(settled.betAmount)} on ${CHICKENS[settled.pickedChicken!]!.name} · ${CHICKENS[settled.winner!]!.name} won`,
+      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+    )
     setPendingResult({
-      tone, label,
-      entry: {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        at: new Date(),
-        title,
-        subtitle: `${formatChips(settled.betAmount)} on ${CHICKENS[settled.pickedChicken!]!.name} · ${CHICKENS[settled.winner!]!.name} won`,
-        tone,
-      },
+      tone: built.tone === 'win' ? 'win' : 'loss',
+      label: built.label,
+      outcomeLabel: won ? `${PAYOUT_MULTIPLIER}× — Win` : built.outcomeLabel,
+      entry: built.entry,
     })
   }
 
   const handleNext = useCallback(() => {
-    if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
+    if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
     const next = initChickenRace()
     if (autoReBet && lastBet <= bankroll && lastPicked !== null) {
@@ -138,7 +153,9 @@ export function ChickenRaceGame({ mode, bankroll, onResolve }: ChickenRaceGamePr
     setProgress(CHICKENS.map(() => 0))
   }, [pendingResult, autoReBet, lastBet, lastPicked, bankroll])
 
-  useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current) }, [])
+  useEffect(() => () => {
+    if (tickRef.current) clearInterval(tickRef.current)
+  }, [])
 
   const actionDisabled = isRacing || (isBetting && !canRace)
 
@@ -151,154 +168,135 @@ export function ChickenRaceGame({ mode, bankroll, onResolve }: ChickenRaceGamePr
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 flex-col items-center justify-center px-4 py-4"
+        boardClassName="relative flex min-h-0 h-full w-full flex-col items-center px-4 py-4"
         entries={matchHistory}
         gameLabel="Chicken Race"
       >
-        {isBetting && (
-          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-            ← Back
-          </button>
-        )}
-        {isRacing && state.pickedChicken !== null && (
-          <div className="absolute left-2 top-2 z-10 rounded-lg border border-zinc-700 bg-zinc-900/90 px-2.5 py-1.5 text-xs shadow">
-            <div style={{ color: CHICKENS[state.pickedChicken]!.color }}>{CHICKENS[state.pickedChicken]!.name}</div>
-            <div className="text-white font-semibold">{formatChips(state.betAmount)}</div>
-          </div>
-        )}
+        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameActiveBetBadge
+          betAmount={activeBet}
+          betType={
+            activeBet > 0 && state.pickedChicken !== null
+              ? CHICKENS[state.pickedChicken]!.name
+              : undefined
+          }
+          extra={activeBet > 0 ? `${PAYOUT_MULTIPLIER}×` : undefined}
+          visible={activeBet > 0 && !isBetting}
+        />
 
-        <div className="flex flex-col gap-2.5 w-full max-w-sm">
-          {/* Payout label above all chickens */}
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs text-zinc-600 uppercase tracking-wider">Pick your chicken</span>
-            <span className="text-sm font-bold text-zinc-300 tabular-nums">{PAYOUT_MULTIPLIER.toFixed(2)}×</span>
-          </div>
+        <div className="flex min-h-0 flex-1 w-full flex-col items-center">
+          <div className="min-h-0 flex-1 shrink" aria-hidden />
+          <div className="flex w-full max-w-sm flex-col gap-2.5 shrink-0">
+            <p className="text-xs text-zinc-600 uppercase tracking-wider px-1">Pick your chicken</p>
 
-          {/* Race lanes — fixed height always so layout never shifts */}
-          {CHICKENS.map(chicken => {
-            const isSelected = state.pickedChicken === chicken.id
-            const isWinner   = isSettled && state.winner === chicken.id
-            const isLoser    = isSettled && state.winner !== chicken.id
-            const prog       = progress[chicken.id] ?? 0
+            {CHICKENS.map((chicken) => {
+              const isSelected = state.pickedChicken === chicken.id
+              const isWinner = isSettled && state.winner === chicken.id
+              const isLoser = isSettled && state.winner !== chicken.id
+              const prog = progress[chicken.id] ?? 0
 
-            return (
-              <button
-                key={chicken.id}
-                type="button"
-                disabled={!isBetting}
-                onClick={() => selectChicken(chicken.id)}
-                className={[
-                  'w-full rounded-xl border-2 px-3 py-2.5 text-left transition-all duration-150',
-                  isBetting
-                    ? isSelected
-                      ? 'bg-yellow-400/10 border-yellow-400 cursor-pointer'
-                      : 'bg-zinc-800/60 border-zinc-700 hover:border-zinc-500 cursor-pointer'
-                    : isWinner
-                      ? 'border-2'
-                      : isLoser
-                        ? 'bg-zinc-900/40 border-zinc-800 opacity-40'
-                        : 'bg-zinc-800/60 border-zinc-700',
-                ].join(' ')}
-                style={isWinner ? { borderColor: chicken.color, backgroundColor: `${chicken.color}18` } : undefined}
-              >
-                {/* Name row — fixed layout, "Winner!" takes space always */}
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg leading-none">🐔</span>
+              return (
+                <button
+                  key={chicken.id}
+                  type="button"
+                  disabled={!isBetting}
+                  onClick={() => selectChicken(chicken.id)}
+                  className={[
+                    'w-full rounded-xl border-2 px-3 py-2.5 text-left transition-all duration-150',
+                    isBetting
+                      ? isSelected
+                        ? 'bg-yellow-400/10 border-yellow-400 cursor-pointer'
+                        : 'bg-zinc-800/60 border-zinc-700 hover:border-zinc-500 cursor-pointer'
+                      : isWinner
+                        ? 'border-2'
+                        : isLoser
+                          ? 'bg-zinc-900/40 border-zinc-800 opacity-40'
+                          : 'bg-zinc-800/60 border-zinc-700',
+                  ].join(' ')}
+                  style={isWinner ? { borderColor: chicken.color, backgroundColor: `${chicken.color}18` } : undefined}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg leading-none">🐔</span>
+                      <span
+                        className="text-sm font-bold"
+                        style={{ color: isSelected ? '#facc15' : isWinner ? chicken.color : undefined }}
+                      >
+                        {chicken.name}
+                      </span>
+                    </div>
                     <span
-                      className="text-sm font-bold"
-                      style={{ color: isSelected ? '#facc15' : isWinner ? chicken.color : undefined }}
+                      className={`text-xs font-semibold ${isWinner ? '' : 'invisible'}`}
+                      style={{ color: chicken.color }}
                     >
-                      {chicken.name}
+                      Winner!
                     </span>
                   </div>
-                  {/* Winner badge — always takes space, invisible when not winner */}
-                  <span
-                    className={`text-xs font-semibold ${isWinner ? '' : 'invisible'}`}
-                    style={{ color: chicken.color }}
-                  >
-                    Winner!
-                  </span>
-                </div>
 
-                {/* Track — always rendered, emoji always present (invisible during betting) */}
-                <div className="relative">
-                  <div className="h-2.5 rounded-full bg-zinc-700/60 overflow-hidden">
+                  <div className="relative">
+                    <div className="h-2.5 rounded-full bg-zinc-700/60 overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${prog}%`, backgroundColor: chicken.color, transition: 'none' }}
+                      />
+                    </div>
                     <div
-                      className="h-full rounded-full"
-                      style={{ width: `${prog}%`, backgroundColor: chicken.color, transition: 'none' }}
-                    />
+                      className={`absolute -top-1 text-base leading-none pointer-events-none ${isBetting ? 'invisible' : ''}`}
+                      style={{ left: `calc(${prog}% - 10px)`, transition: 'none' }}
+                    >
+                      🐔
+                    </div>
                   </div>
-                  <div
-                    className={`absolute -top-1 text-base leading-none pointer-events-none ${isBetting ? 'invisible' : ''}`}
-                    style={{ left: `calc(${prog}% - 10px)`, transition: 'none' }}
-                  >
-                    🐔
-                  </div>
-                </div>
-                {/* Spacer for emoji overflow — always present so card height never changes */}
-                <div className="h-4" />
-              </button>
-            )
-          })}
+                  <div className="h-4" />
+                </button>
+              )
+            })}
+
+            <div className="min-h-10 flex w-full items-center justify-center px-2">
+              <p className="text-center text-xs text-zinc-500 max-w-md">
+                {isBetting
+                  ? 'Pick a chicken, place chips, then race.'
+                  : isRacing
+                    ? 'Race in progress…'
+                    : '\u00A0'}
+              </p>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 shrink" aria-hidden />
         </div>
       </GameFieldWithHistory>
 
-      {/* Control zone — fully stable layout across all phases */}
       <div className={GAME_CONTROL_DOCK_M}>
-        <div className="flex flex-col gap-3 py-3">
+        <div className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible={isBetting || isRacing}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={isRacing}
+          />
 
-          {/* Chips row — invisible (not removed) when not betting so height is preserved */}
-          <div className={`flex flex-nowrap justify-center gap-2 ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
-            {CHIPS.map(chip => (
-              <button key={chip.value} type="button" onClick={() => addChip(chip.value)}
-                disabled={chip.value > bankroll - currentBet}
-                className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}>
-                {chip.label}
-              </button>
-            ))}
-            <button type="button" onClick={() => addChip(Math.floor(bankroll / 2))}
-              disabled={currentBet >= bankroll || bankroll <= 0}
-              className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
-              ½
-            </button>
-            <button type="button" onClick={() => setCurrentBet(bankroll)}
-              disabled={currentBet >= bankroll || bankroll <= 0}
-              className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100">
-              All In
-            </button>
-          </div>
-
-          {/* Info row — fixed height, swaps content per phase */}
           <div className="h-10 flex items-center justify-center">
-            {isBetting && (
-              <div className="flex items-center gap-2.5">
-                <span className="text-zinc-500 text-base">Bet</span>
-                <span className="font-bold text-xl text-white tabular-nums">
-                  {currentBet > 0 ? formatChips(currentBet) : '—'}
-                </span>
-                {currentBet > 0 && (
-                  <button type="button" onClick={() => setCurrentBet(0)}
-                    className="px-2 py-0.5 text-xs font-medium rounded border border-zinc-700 hover:border-zinc-500 text-zinc-500 hover:text-white transition-colors">
-                    Clear
-                  </button>
-                )}
-              </div>
+            {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {isRacing && potentialWinnings > 0 && (
+              <p className="text-sm text-zinc-400">
+                Potential total winnings:{' '}
+                <span className="font-semibold text-emerald-400">{formatChips(potentialWinnings)}</span>
+              </p>
             )}
-            {isRacing && <p className="text-sm text-zinc-500 italic">Race in progress…</p>}
             {isSettled && pendingResult && (
-              <div className="flex items-center gap-3">
-                <p className="text-xs uppercase tracking-widest text-zinc-500">
-                  {pendingResult.tone === 'win' ? 'Win' : 'No win'}
-                </p>
-                <p className={`text-2xl font-black tabular-nums ${pendingResult.tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {pendingResult.label}
-                </p>
-              </div>
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isBetting && !isRacing && !(isSettled && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
             )}
           </div>
 
-          {/* Single action button — always in same position, label/handler changes per phase */}
           <div className="flex justify-center">
             <button
               type="button"

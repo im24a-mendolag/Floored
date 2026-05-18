@@ -107,7 +107,7 @@ export function spinRouletteMulti(bets: BetMap): RouletteState {
     stage: 'settled',
     result,
     resultColor,
-    outcome: net > 0 ? 'win' : 'loss',
+    outcome: net > 0 ? 'win' : net === 0 && totalBetAmount > 0 ? 'push' : 'loss',
     totalBetAmount,
     totalPayout,
     message,

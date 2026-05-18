@@ -1,14 +1,22 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
-import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
+import {
+  GAME_DOCK_INNER,
+  GameActiveBetBadge,
+  GameDockBackButton,
+  GameDockBetRow,
+  GameDockChipRow,
+  GameDockSettledRow,
+} from '@/components/game-dock-parts'
+import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import { buildPendingResult } from '@/lib/game-result-labels'
+import { pickQuote } from '@/lib/gambling-quotes'
 import type { BlackjackCard, BlackjackOutcome, BlackjackState } from '@/games/blackjack/types'
-import { GAMBLING_QUOTES, pickQuote } from '@/lib/gambling-quotes'
 import {
   calculateHandValue,
   doubleDownBlackjack,
@@ -17,13 +25,6 @@ import {
   startBlackjackRound,
   standBlackjack,
 } from '@/games/blackjack/engine'
-
-const CHIPS = [
-  { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
-  { value: 25,  label: '$25',  cls: 'bg-blue-900 hover:bg-blue-800 border-blue-700 text-blue-200' },
-  { value: 100, label: '$100', cls: 'bg-blue-600 hover:bg-blue-500 border-blue-400 text-white' },
-  { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
-]
 
 const CARD_BACK_PATTERN = 'repeating-linear-gradient(45deg, #27272a, #27272a 4px, #1f1f23 4px, #1f1f23 8px)'
 
@@ -49,8 +50,9 @@ interface BlackjackGameProps {
 }
 
 interface PendingResult {
-  tone: MatchHistoryTone
+  tone: 'win' | 'loss'
   label: string
+  outcomeLabel: string
   entry: MatchHistoryEntry
 }
 
@@ -141,7 +143,6 @@ function CardBack() {
 }
 
 export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGameProps) {
-  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -193,22 +194,25 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
         payout,
         multiplier: state.payoutMultiplier,
       })
-      const o = state.outcome
-      const tone: MatchHistoryTone = o === 'win' ? 'win' : o === 'push' ? 'push' : 'loss'
-      const net = payout - state.betAmount
-      const title =
-        o === 'win' ? `+${formatChips(net)}` : o === 'push' ? `Push` : `−${formatChips(state.betAmount)}`
-      const displayLabel = o === 'win' ? formatChips(payout) : title
-      const outcomeLabel =
-        o === 'push' ? 'Push' :
-        o === 'loss' ? 'Bust' :
-        state.payoutMultiplier >= 2.5 ? 'Blackjack' : 'Win'
-      const subtitle = `${formatChips(state.betAmount)} bet · ${outcomeLabel} · ${formatMultiplier(state.payoutMultiplier)}`
-      setTimeout(() => setPendingResult({
-        tone,
-        label: displayLabel,
-        entry: { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, at: new Date(), title, subtitle, tone },
-      }), resultDelay)
+      const o = state.outcome!
+      const resultKind =
+        o === 'push' ? 'Push' : o === 'loss' ? 'Loss' : state.payoutMultiplier >= 2.5 ? 'Blackjack' : 'Win'
+      const subtitle = `${formatChips(state.betAmount)} · ${resultKind} · ${formatMultiplier(state.payoutMultiplier)}`
+      const built = buildPendingResult(
+        { outcome: o, betAmount: state.betAmount, payout },
+        subtitle,
+        { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      )
+      setTimeout(
+        () =>
+          setPendingResult({
+            tone: built.tone === 'win' ? 'win' : 'loss',
+            label: built.label,
+            outcomeLabel: built.outcomeLabel,
+            entry: built.entry,
+          }),
+        resultDelay,
+      )
     }
   }
 
@@ -271,6 +275,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
 
   function handleDouble() {
     if (!canDouble) return
+    onBet?.(round.betAmount)
     const finalState = doubleDownBlackjack(round)
     const playerBusted = calculateHandValue(finalState.playerHand) > 21
 
@@ -329,26 +334,17 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 flex-col px-4 md:px-8 py-2"
+        boardClassName="relative flex min-h-0 flex-col items-center justify-center px-4 md:px-8 py-4"
         entries={matchHistory}
         gameLabel="Blackjack"
       >
 
-        {isBetting && (
-          <button onClick={() => router.push(`/${mode}`)} className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors">
-            ← Back
-          </button>
-        )}
-        {/* Active bet badge — shown in top-left while hand is in progress */}
-        {!isBetting && round.betAmount > 0 && (
-          <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg">
-            <p className="text-[9px] uppercase tracking-wider text-zinc-600">Bet</p>
-            <p className="text-sm font-bold text-white tabular-nums">{formatChips(round.betAmount)}</p>
-          </div>
-        )}
+        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameActiveBetBadge betAmount={round.betAmount} visible={!isBetting && round.betAmount > 0} />
 
+        <div className="flex w-full max-w-lg flex-1 min-h-0 flex-col items-center justify-center gap-2">
         {/* Dealer zone */}
-        <div className="flex-1 flex flex-col items-center justify-center">
+        <div className="flex min-h-[calc(var(--card-h)+2rem)] flex-col items-center justify-end">
           <p className="text-sm uppercase tracking-widest text-zinc-600 mb-2">
             Dealer
             {!isBetting && !isInProgress && dealerVisibleLen > 0 && (
@@ -395,7 +391,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
         </div>
 
         {/* Player zone */}
-        <div className="flex-1 flex flex-col items-center justify-center">
+        <div className="flex min-h-[calc(var(--card-h)+2rem)] flex-col items-center justify-start">
           <p className="text-sm uppercase tracking-widest text-zinc-600 mb-2">
             You
             {playerVisibleLen > 0 && (
@@ -415,92 +411,45 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
           </div>
         </div>
 
+          <div className="min-h-10 flex w-full shrink-0 items-center justify-center">
+            <p className="max-w-md px-2 text-center text-xs text-zinc-500">
+              {isBetting
+                ? 'Place chips and deal. Blackjack pays 3:2; push returns your bet.'
+                : playerCanAct
+                  ? 'Hit, stand, or double on two cards. Dealer hits on 16 and below.'
+                  : '\u00A0'}
+            </p>
+          </div>
+        </div>
       </GameFieldWithHistory>
 
-      {/* Control zone */}
       <div className={GAME_CONTROL_DOCK_M}>
-        {/* Top: variable content (chips during betting, result after settled) */}
-        <div className="flex-1 flex flex-col items-center justify-start pt-3 gap-1 min-h-0">
-          {isBetting && (
-            <div className="w-full max-w-sm flex flex-col gap-1">
-              <div className="flex flex-nowrap justify-center gap-2">
-                {CHIPS.map((chip) => (
-                  <button
-                    key={chip.value}
-                    type="button"
-                    onClick={() => addChip(chip.value)}
-                    disabled={chip.value > bankroll - currentBet}
-                    className={`w-12 h-12 rounded-full ${chip.cls} border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100`}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => addChip(Math.floor(bankroll / 4))}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-blue-100 hover:bg-blue-50 border-2 border-blue-200 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  ¼
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addChip(Math.floor(bankroll / 2))}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-blue-50 hover:bg-white border-2 border-blue-100 text-blue-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  ½
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(bankroll)}
-                  disabled={currentBet >= bankroll || bankroll <= 0}
-                  className="h-12 px-3 rounded-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 text-zinc-900 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  All In
-                </button>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-zinc-500 text-base">Bet</span>
-                  <span className="font-bold text-xl text-white tabular-nums">
-                    {currentBet > 0 ? formatChips(currentBet) : '—'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCurrentBet(0)}
-                  className={`px-3 py-1 text-sm font-medium rounded-md border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors ${currentBet === 0 ? 'invisible' : ''}`}
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-          )}
-          {!isBetting && playerCanAct && (
-            <p className="max-w-xs text-center text-sm italic text-zinc-600">
-              &quot;{GAMBLING_QUOTES[quoteIdx]}&quot;
-            </p>
-          )}
-          {round.stage === 'settled' && pendingResult && (
-            <div className="text-center">
-              <p className="text-xs uppercase tracking-widest text-zinc-500 mb-1">
-                {pendingResult.tone === 'win' ? 'Win' : pendingResult.tone === 'push' ? 'Push' : 'Bust'}
-              </p>
-              <p className={`text-3xl font-black tabular-nums ${
-                pendingResult.tone === 'win' ? 'text-green-400' :
-                pendingResult.tone === 'push' ? 'text-zinc-300' : 'text-red-400'
-              }`}>
-                {pendingResult.label}
-              </p>
-            </div>
-          )}
-        </div>
+        <div className={GAME_DOCK_INNER}>
+          <GameDockChipRow
+            visible={isBetting || playerCanAct}
+            bankroll={bankroll}
+            currentBet={currentBet}
+            onAddChip={addChip}
+            quoteIdx={quoteIdx}
+            showQuote={playerCanAct}
+          />
 
-        {/* Bottom: action button — always anchored at the same position */}
-        <div className="mx-auto w-full max-w-sm flex flex-col gap-1 pb-2">
-          {isBetting && (
-            <div className="flex justify-center">
+          <div className="h-10 flex items-center justify-center">
+            {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {round.stage === 'settled' && pendingResult && (
+              <GameDockSettledRow
+                outcomeLabel={pendingResult.outcomeLabel}
+                label={pendingResult.label}
+                tone={pendingResult.tone}
+              />
+            )}
+            {!isBetting && !(round.stage === 'settled' && pendingResult) && (
+              <p className="text-sm invisible select-none">{'\u00A0'}</p>
+            )}
+          </div>
+
+          <div className="flex min-h-[2.75rem] w-full flex-col items-center justify-center gap-1">
+            {isBetting && (
               <button
                 type="button"
                 onClick={handleDeal}
@@ -509,37 +458,19 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
               >
                 Deal →
               </button>
-            </div>
-          )}
-          {!isBetting && playerCanAct && (
-            <div className="flex flex-wrap justify-center gap-2.5">
-              <button type="button" onClick={handleHit} className="min-w-[5.25rem] px-6 py-2.5 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg text-base transition-colors shadow">
-                Hit
-              </button>
-              <button type="button" onClick={handleStand} className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg text-base transition-colors">
-                Stand
-              </button>
-              <button
-                type="button"
-                onClick={handleDouble}
-                disabled={!canDouble}
-                className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-25 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-base transition-colors"
-              >
-                Double
-              </button>
-            </div>
-          )}
-          {round.stage === 'settled' && pendingResult && (
-            <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={handleNextHand}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Next →
-              </button>
-            </div>
-          )}
+            )}
+            {!isBetting && playerCanAct && (
+              <div className="flex flex-wrap justify-center gap-2.5">
+                <button type="button" onClick={handleHit} className="min-w-[5.25rem] px-6 py-2.5 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg text-base shadow-lg transition-colors">Hit</button>
+                <button type="button" onClick={handleStand} className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold rounded-lg text-base transition-colors">Stand</button>
+                <button type="button" onClick={handleDouble} disabled={!canDouble} className="min-w-[5.25rem] px-6 py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-25 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-base transition-colors">Double</button>
+              </div>
+            )}
+            {round.stage === 'settled' && pendingResult && (
+              <button type="button" onClick={handleNextHand} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
+            )}
+          </div>
+
           {minBet > 1 && isBetting && (
             <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
           )}
