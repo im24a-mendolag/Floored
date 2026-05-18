@@ -79,28 +79,26 @@ interface PendingResult {
 function betBtnStyle(type: RouletteBetType, isActive: boolean, hasBet: boolean): string {
   const base = 'rounded-lg transition-all duration-150 flex flex-col items-center'
 
+  const activeStyle = 'bg-yellow-400 border-yellow-300 text-zinc-900'
+
   if (type === 'red') return `${base} border-2 ${
-    isActive ? 'bg-red-600 border-red-400 text-white' :
-    hasBet   ? 'bg-red-900/50 border-red-700/60 text-red-200 hover:border-red-600/70' :
-               'border-red-900/30 text-red-800/50 hover:border-red-800/50 hover:text-red-600/70'
+    isActive ? activeStyle :
+               'bg-red-950/70 border-red-700 text-red-300 hover:bg-red-900/80 hover:border-red-500 hover:text-red-100'
   }`
 
   if (type === 'black') return `${base} border-2 ${
-    isActive ? 'bg-zinc-500 border-zinc-300 text-white' :
-    hasBet   ? 'bg-zinc-700/60 border-zinc-500/60 text-zinc-200 hover:border-zinc-400/70' :
-               'border-zinc-700/30 text-zinc-600/50 hover:border-zinc-600/50 hover:text-zinc-500/70'
+    isActive ? activeStyle :
+               'bg-zinc-800 border-zinc-500 text-zinc-200 hover:bg-zinc-700 hover:border-zinc-300 hover:text-white'
   }`
 
   if (type === 'green') return `${base} border-2 ${
-    isActive ? 'bg-emerald-600 border-emerald-400 text-white' :
-    hasBet   ? 'bg-emerald-900/50 border-emerald-700/60 text-emerald-200 hover:border-emerald-600/70' :
-               'border-emerald-900/30 text-emerald-800/50 hover:border-emerald-800/50 hover:text-emerald-600/70'
+    isActive ? activeStyle :
+               'bg-emerald-950/70 border-emerald-700 text-emerald-300 hover:bg-emerald-900/80 hover:border-emerald-500 hover:text-emerald-100'
   }`
 
-  return `${base} border ${
-    isActive ? 'bg-white/15 border-white/40 text-white' :
-    hasBet   ? 'bg-white/10 border-white/25 text-white/80 hover:border-white/35' :
-               'border-white/15 text-white/30 hover:border-white/30 hover:text-white/60'
+  return `${base} border-2 ${
+    isActive ? activeStyle :
+               'bg-zinc-800 border-zinc-500 text-zinc-200 hover:bg-zinc-700 hover:border-zinc-300 hover:text-white'
   }`
 }
 
@@ -131,9 +129,9 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
     currentTarget !== null && currentBet >= minBet && currentBet <= bankroll
 
   function selectTarget(target: string) {
-    if (currentTarget === target && currentBet === 0) {
+    if (currentTarget === target) {
       setCurrentTarget(null)
-    } else if (currentBet === 0) {
+    } else {
       setCurrentTarget(target)
     }
   }
@@ -264,7 +262,7 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 flex-col items-center justify-center px-4 py-4 gap-4"
+        boardClassName="relative flex min-h-0 flex-col items-center px-4 py-4"
         entries={matchHistory}
         gameLabel="Roulette"
       >
@@ -273,6 +271,16 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
             ← Back
           </button>
         )}
+        {spinning && lastTarget && (
+          <div className="absolute left-2 top-2 z-10 rounded-lg border border-zinc-700 bg-zinc-900/90 px-2.5 py-1.5 text-xs shadow">
+            <div className="text-zinc-400">{getLabelForTarget(lastTarget)}</div>
+            {lastBet > 0 && <div className="text-white font-semibold">{formatChips(lastBet)}</div>}
+          </div>
+        )}
+
+        {/* Ball + board pinned in flex-1 center — bottom section is a fixed-height sibling so this never shifts */}
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-4">
+
         {/* Spinning ball */}
         <div className="relative flex items-center justify-center">
           {spinning && (
@@ -305,7 +313,7 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
         <div className={`flex flex-col gap-0.5 ${!isBetting ? 'pointer-events-none' : ''}`}>
           {/* Zero */}
           {(() => {
-            const isActive = currentTarget === '0' && currentBet === 0
+            const isActive = currentTarget === '0'
             const isResult = isSettled && round.result === 0
             const isSpinning = spinningPosition === '0'
             return (
@@ -315,7 +323,7 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
                 className={[
                   'relative h-6 sm:h-7 rounded flex items-center justify-center text-[10px] sm:text-xs font-bold text-white bg-emerald-700 transition-all duration-150 select-none',
                   isResult ? 'ring-2 ring-white ring-offset-1 ring-offset-zinc-950 shadow-lg shadow-white/20' : isActive ? 'ring-2 ring-yellow-400 ring-offset-1 ring-offset-zinc-950' : isSpinning ? 'ring-2 ring-white/60 ring-offset-1 ring-offset-zinc-950' : '',
-                  isBetting && currentBet === 0 ? 'cursor-pointer hover:brightness-125 active:scale-95' : 'cursor-default',
+                  isBetting ? 'cursor-pointer hover:brightness-125 active:scale-95' : 'cursor-default',
                 ].join(' ')}>
                 0
               </button>
@@ -326,7 +334,7 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
             <div key={ri} className="flex gap-0.5">
               {row.map(n => {
                 const nStr = String(n)
-                const isActive = currentTarget === nStr && currentBet === 0
+                const isActive = currentTarget === nStr
                 const isResult = isSettled && round.result === n
                 const isSpinning = spinningPosition === nStr
                 const color = getNumberColor(n)
@@ -346,7 +354,7 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
                     className={[
                       'relative w-6 h-6 sm:w-7 sm:h-7 rounded flex items-center justify-center text-[10px] sm:text-xs font-bold text-white transition-all duration-150 select-none',
                       colorBase, ring,
-                      isBetting && currentBet === 0 ? 'cursor-pointer hover:brightness-125 active:scale-90' : 'cursor-default',
+                      isBetting ? 'cursor-pointer hover:brightness-125 active:scale-90' : 'cursor-default',
                     ].join(' ')}>
                     {n}
                   </button>
@@ -355,43 +363,33 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
             </div>
           ))}
         </div>
+        </div>{/* end flex-1 centering group */}
 
-        {isSettled && resultProps && (
-          <p className="text-[11px] text-zinc-500 text-center">{resultProps}</p>
-        )}
-
-        {/* New: Betting selection buttons below board */}
-        {isBetting && (
-          <div className="flex flex-col items-center gap-2 mt-2">
-            <div className="flex gap-2 flex-wrap justify-center">
-              {(['red', 'black'] as const).map(type => {
-                const isActive = currentTarget === type && currentBet === 0
-                return (
-                  <button key={type} type="button" onClick={() => selectTarget(type)}
-                    className={`${betBtnStyle(type, isActive, false)} px-3 py-1.5`}>
-                    <span className="text-xs font-bold">{BET_LABELS[type]}</span>
-                  </button>
-                )
-              })}
-              {(['odd', 'even'] as const).map(type => {
-                const isActive = currentTarget === type && currentBet === 0
-                return (
-                  <button key={type} type="button" onClick={() => selectTarget(type)}
-                    className={`${betBtnStyle(type, isActive, false)} px-3 py-1.5`}>
-                    <span className="text-xs font-bold">{BET_LABELS[type]}</span>
-                  </button>
-                )
-              })}
-            </div>
-            <p className="text-xs text-zinc-500 text-center">Click to select a tile to bet on</p>
-          </div>
-        )}
+        {/* Fixed-height bottom section — always 72px so the board above never shifts */}
+        <div className="h-[72px] shrink-0 flex flex-col items-center justify-center gap-1">
+          {isBetting && (
+            <>
+              <div className="flex gap-2 flex-wrap justify-center">
+                {(['red', 'black', 'odd', 'even'] as const).map(type => {
+                  const isActive = currentTarget === type
+                  return (
+                    <button key={type} type="button" onClick={() => selectTarget(type)}
+                      className={`${betBtnStyle(type, isActive, false)} px-3 py-1.5`}>
+                      <span className="text-xs font-bold">{BET_LABELS[type]}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-zinc-500 text-center">Click to select a tile to bet on</p>
+            </>
+          )}
+        </div>
       </GameFieldWithHistory>
 
       {/* Control zone — fixed height, aligned with Wheel / other table shells */}
       <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 px-5 rounded-b-2xl flex flex-col justify-between py-3 h-[272px]">
 
-        <div className={`flex-1 flex items-center justify-center transition-opacity duration-200 ${!isBetting ? 'opacity-25 pointer-events-none' : ''}`}>
+        <div className={`flex-1 flex items-center justify-center transition-opacity duration-200 ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
           <div className="flex flex-nowrap justify-center gap-2">
             {CHIPS.map(chip => (
               <button key={chip.value} type="button" onClick={() => addChip(chip.value)}
@@ -451,6 +449,9 @@ export function RouletteGame({ mode, bankroll, onResolve }: RouletteGameProps) {
           )}
           {isSettled && pendingResult && (
             <div className="text-center">
+              {lastTarget && (
+                <p className="text-xs text-zinc-500 mb-0.5">{getLabelForTarget(lastTarget)} · {formatChips(lastBet)}</p>
+              )}
               <p className="text-xs uppercase tracking-widest text-zinc-500 mb-0.5">
                 {pendingResult.tone === 'win' ? 'Win' : 'No win'}
               </p>

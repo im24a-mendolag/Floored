@@ -17,7 +17,10 @@ Live at [floored.paulkuehn.ch](https://floored.paulkuehn.ch)
 | Blackjack | ✓ | ✓ | Live |
 | Crash | ✓ | ✓ | Live |
 | Plinko | ✓ | — | Live |
-| Hi-Lo | | | Coming soon |
+| Over-Under | ✓ | — | Live |
+| HiLo | | | Coming soon |
+| Flipper | | | Coming soon |
+| Street Cups | | | Coming soon |
 | Wheel | | | Coming soon |
 | Slots | | | Coming soon |
 | Mines | | | Coming soon |

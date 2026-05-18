@@ -1,46 +1,46 @@
-import type { HiloState, HiloOutcome } from './types'
+import type { OverUnderOutcome, OverUnderState } from './types'
 
 function randomRoll() {
   return Math.floor(Math.random() * 100) + 1
 }
 
-export function getHiloPayoutMultiplier(safeZone: number) {
+export function getOverUnderPayoutMultiplier(safeZone: number) {
   const safeRatio = safeZone / 100
   if (safeRatio <= 0) return 0
   return Number((Math.max(1 / safeRatio, 1.05) * 0.92).toFixed(2))
 }
 
-export function initHilo(): HiloState {
+export function initOverUnder(): OverUnderState {
   const safeZone = 40
   return {
     stage: 'betting',
     safeZone,
     betAmount: 0,
     rollResult: null,
-    payoutMultiplier: getHiloPayoutMultiplier(safeZone),
+    payoutMultiplier: getOverUnderPayoutMultiplier(safeZone),
     outcome: null,
     message: 'Choose your safe zone and place your bet.',
   }
 }
 
-export function startHiloRound(amount: number, safeZone: number): HiloState {
+export function startOverUnderRound(amount: number, safeZone: number): OverUnderState {
   return {
     stage: 'inProgress',
     safeZone,
     betAmount: amount,
     rollResult: null,
-    payoutMultiplier: getHiloPayoutMultiplier(safeZone),
+    payoutMultiplier: getOverUnderPayoutMultiplier(safeZone),
     outcome: null,
     message: `Safe zone is ${safeZone}%. Place your bet.`,
   }
 }
 
-export function resolveHiloRound(state: HiloState): HiloState {
+export function resolveOverUnderRound(state: OverUnderState): OverUnderState {
   if (state.stage !== 'inProgress') return state
 
   const rollResult = randomRoll()
   const isWin = rollResult <= state.safeZone
-  const outcome: HiloOutcome = isWin ? 'win' : 'loss'
+  const outcome: OverUnderOutcome = isWin ? 'win' : 'loss'
 
   return {
     ...state,
@@ -54,6 +54,6 @@ export function resolveHiloRound(state: HiloState): HiloState {
   }
 }
 
-export function getHiloPayout(state: HiloState) {
+export function getOverUnderPayout(state: OverUnderState) {
   return state.outcome === 'win' ? Math.round(state.betAmount * state.payoutMultiplier) : 0
 }

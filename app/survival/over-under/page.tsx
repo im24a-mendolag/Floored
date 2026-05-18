@@ -2,11 +2,11 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { HiloGame } from '@/components/hilo-game'
+import { OverUnderGame } from '@/components/over-under-game'
 import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips } from '@/utils/format'
 
-export default function SurvivalHiloPage() {
+export default function SurvivalOverUnderPage() {
   const router = useRouter()
   const runActive = useSurvivalStore((s) => s.runActive)
   const bankroll = useSurvivalStore((s) => s.bankroll)
@@ -31,8 +31,8 @@ export default function SurvivalHiloPage() {
   }) {
     const shouldAdvance = slotsUsed >= 2
     recordResult({
-      id: `hilo-${Date.now()}`,
-      game: 'hilo',
+      id: `over-under-${Date.now()}`,
+      game: 'over-under',
       floor: currentFloor,
       betAmount: result.betAmount,
       payout: result.payout,
@@ -62,7 +62,7 @@ export default function SurvivalHiloPage() {
           <span>{slotsUsed}/3 slots</span>
         </div>
       </div>
-      <HiloGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
+      <OverUnderGame mode="survival" bankroll={bankroll} onResolve={handleResolve} />
     </div>
   )
 }

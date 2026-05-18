@@ -1,11 +1,11 @@
-export type HiloOutcome = 'win' | 'loss'
+export type OverUnderOutcome = 'win' | 'loss'
 
-export interface HiloState {
+export interface OverUnderState {
   stage: 'betting' | 'inProgress' | 'settled'
   safeZone: number
   betAmount: number
   rollResult: number | null
   payoutMultiplier: number
-  outcome: HiloOutcome | null
+  outcome: OverUnderOutcome | null
   message: string
 }

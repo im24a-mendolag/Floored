@@ -1,10 +1,10 @@
 'use client'
 
-import { HiloGame } from '@/components/hilo-game'
+import { OverUnderGame } from '@/components/over-under-game'
 import { BankruptModal } from '@/components/bankrupt-modal'
 import { useFreeplayStore } from '@/store/freeplay-store'
 
-export default function FreeplayHiloPage() {
+export default function FreeplayOverUnderPage() {
   const bankroll = useFreeplayStore((s) => s.bankroll)
   const setBankroll = useFreeplayStore((s) => s.setBankroll)
   const bust = useFreeplayStore((s) => s.bust)
@@ -25,7 +25,7 @@ export default function FreeplayHiloPage() {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       {bust && <BankruptModal onReset={reset} />}
-      <HiloGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
+      <OverUnderGame mode="freeplay" bankroll={Math.max(0, bankroll)} onResolve={handleResolve} />
     </div>
   )
 }

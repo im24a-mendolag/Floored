@@ -14,8 +14,14 @@ import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry, type MatchHistoryTone } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import { pickQuote } from '@/lib/gambling-quotes'
-import { getHiloPayout, getHiloPayoutMultiplier, initHilo, resolveHiloRound, startHiloRound } from '@/games/hilo/engine'
-import type { HiloState } from '@/games/hilo/types'
+import {
+  getOverUnderPayout,
+  getOverUnderPayoutMultiplier,
+  initOverUnder,
+  resolveOverUnderRound,
+  startOverUnderRound,
+} from '@/games/over-under/engine'
+import type { OverUnderState } from '@/games/over-under/types'
 
 const CHIPS = [
   { value: 10,  label: '$10',  cls: 'bg-blue-950 hover:bg-blue-900 border-blue-800 text-blue-300' },
@@ -26,17 +32,17 @@ const CHIPS = [
 
 const ROLL_ANIM_MS = 620
 
-interface HiloResult {
+interface OverUnderResult {
   outcome: 'win' | 'loss'
   betAmount: number
   payout: number
   multiplier: number
 }
 
-interface HiloGameProps {
+interface OverUnderGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
-  onResolve: (result: HiloResult) => void
+  onResolve: (result: OverUnderResult) => void
 }
 
 interface PendingResult {
@@ -45,14 +51,14 @@ interface PendingResult {
   entry: MatchHistoryEntry
 }
 
-export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
+export function OverUnderGame({ mode, bankroll, onResolve }: OverUnderGameProps) {
   const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [safeZone, setSafeZone] = useState(40)
-  const [round, setRound] = useState<HiloState>(initHilo())
+  const [round, setRound] = useState<OverUnderState>(initOverUnder())
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
@@ -70,7 +76,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
   const isSettled    = round.stage === 'settled'
 
   const displaySafeZone = isBetting ? safeZone : round.safeZone
-  const payoutMult = isBetting ? getHiloPayoutMultiplier(safeZone) : round.payoutMultiplier
+  const payoutMult = isBetting ? getOverUnderPayoutMultiplier(safeZone) : round.payoutMultiplier
   const canRoll = currentBet >= minBet && currentBet <= bankroll
 
   function addChip(value: number) {
@@ -90,8 +96,8 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
     setQuoteIdx((prev) => pickQuote(prev))
 
     // Lock bet + safe zone, move to inProgress
-    const started = startHiloRound(bet, safeZone)
-    const settled = resolveHiloRound(started)
+    const started = startOverUnderRound(bet, safeZone)
+    const settled = resolveOverUnderRound(started)
     const rollPos  = settled.rollResult!
     const outcome  = settled.outcome!
 
@@ -107,7 +113,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
       setMarkerOutcome(outcome)
       setRound(settled)
 
-      const po = getHiloPayout(settled)
+      const po = getOverUnderPayout(settled)
       onResolve({ outcome, betAmount: bet, payout: po, multiplier: settled.payoutMultiplier })
 
       const tone: MatchHistoryTone = outcome === 'win' ? 'win' : 'loss'
@@ -131,7 +137,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
     animTimers.current = []
     setMarkerAt(null)
     setMarkerOutcome(null)
-    setRound(initHilo())
+    setRound(initOverUnder())
     setPendingResult(null)
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
   }, [autoReBet, lastBet, bankroll])
@@ -148,7 +154,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
   return (
     <div className={GAME_CARD_SHELL}>
       <div className={GAME_STATUS_BAR}>
-        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Hi-Lo</span>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Over-Under</span>
         <span className="text-sm text-zinc-600">{round.message}</span>
       </div>
 
@@ -156,7 +162,7 @@ export function HiloGame({ mode, bankroll, onResolve }: HiloGameProps) {
         className={GAME_BOARD_ARENA}
         boardClassName="relative flex min-h-0 flex-col items-center justify-center px-6 md:px-10 py-6 gap-6"
         entries={matchHistory}
-        gameLabel="Hi-Lo"
+        gameLabel="Over-Under"
       >
 
         {isBetting && (

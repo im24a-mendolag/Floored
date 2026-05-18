@@ -52,10 +52,10 @@ const GAMES: GameEntry[] = [
   },
   {
     // pos 4 — Indigo
-    name: 'hilo',
-    label: 'Hi-Lo',
+    name: 'over-under',
+    label: 'Over-Under',
     sub: 'Pick your safe zone',
-    symbol: '↕',
+    symbol: '⇅',
     availableFreeplay: true,
     availableSurvival: false,
     gradient: 'from-indigo-950 to-indigo-900',
@@ -181,6 +181,39 @@ const GAMES: GameEntry[] = [
     availableSurvival: false,
     gradient: 'from-green-950 to-green-900',
     accent: 'border-green-600 hover:border-green-500',
+  },
+  {
+    // pos 16 — Purple
+    name: 'hilo',
+    label: 'HiLo',
+    sub: 'Higher or lower',
+    symbol: '↕',
+    availableFreeplay: false,
+    availableSurvival: false,
+    gradient: 'from-purple-950 to-purple-900',
+    accent: 'border-purple-600 hover:border-purple-500',
+  },
+  {
+    // pos 17 — Orange
+    name: 'flipper',
+    label: 'Flipper',
+    sub: 'Flip for the win',
+    symbol: '🕹️',
+    availableFreeplay: false,
+    availableSurvival: false,
+    gradient: 'from-orange-950 to-orange-900',
+    accent: 'border-orange-600 hover:border-orange-500',
+  },
+  {
+    // pos 18 — Stone
+    name: 'street-cups',
+    label: 'Street Cups',
+    sub: 'Find the ball',
+    symbol: '🥤',
+    availableFreeplay: false,
+    availableSurvival: false,
+    gradient: 'from-stone-950 to-stone-800',
+    accent: 'border-stone-500 hover:border-stone-400',
   },
 ]
 

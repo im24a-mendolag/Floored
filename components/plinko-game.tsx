@@ -14,12 +14,18 @@ import {
   SLOT_WIDTH,
   VIEWBOX_HEIGHT,
   VIEWBOX_WIDTH,
-  getBallCenterY,
   getBallX,
   getPinX,
   getPinY,
   slotRectX,
 } from '@/games/plinko/board-geometry'
+import {
+  PLINKO_DROP_STAGGER_MS,
+  buildPlinkoDropTrack,
+  plinkoDropEndMs,
+  samplePlinkoDropTrack,
+  type PlinkoDropTrack,
+} from '@/games/plinko/drop-animation'
 import type { PlinkoOutcome } from '@/games/plinko/types'
 
 const CHIPS = [
@@ -29,8 +35,6 @@ const CHIPS = [
   { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
 ] as const
 
-const STAGGER_MS = 100
-const STEP_MS = 130
 /** One ball per drop — spam Drop for rapid low-stake plays. */
 const BALLS_PER_DROP = 1
 const PIN_R = 5
@@ -50,7 +54,7 @@ interface PlinkoBall {
   id: string
   path: number[]
   ballIndex: number
-  currentStep: number
+  track: PlinkoDropTrack
 }
 
 interface PlinkoSession {
@@ -80,10 +84,6 @@ function formatSlotMult(m: number): string {
   return `${m}x`
 }
 
-function maxEndMs(ballCount: number) {
-  return (ballCount - 1) * STAGGER_MS + PLINKO_ROWS * STEP_MS
-}
-
 export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
   const uid = useId().replace(/:/g, '')
   const ballGlowId = `plinko-ball-${uid}`
@@ -98,6 +98,8 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const [sessions, setSessions] = useState<PlinkoSession[]>([])
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [statusHint, setStatusHint] = useState('Place chips — Drop anytime, even while balls are falling.')
+  /** Drives per-frame ball interpolation while drops are in flight. */
+  const [animNow, setAnimNow] = useState(0)
 
   const sessionsRef = useRef<PlinkoSession[]>([])
   const rafRef = useRef<number | null>(null)
@@ -157,12 +159,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
       for (const s of list) {
         const elapsed = now - s.startedAt
         const n = s.balls.length
-        const endMs = maxEndMs(n)
-        const newBalls = s.balls.map((b) => {
-          const t = elapsed - b.ballIndex * STAGGER_MS
-          const step = t < 0 ? 0 : Math.min(PLINKO_ROWS, Math.floor(t / STEP_MS))
-          return { ...b, currentStep: step }
-        })
+        const endMs = plinkoDropEndMs(n)
 
         if (elapsed >= endMs) {
           if (!reportedSessionIdsRef.current.has(s.id)) {
@@ -171,26 +168,20 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
               sessionId: s.id,
               betAmount: s.betAmount,
               ballCount: s.ballCount,
-              paths: newBalls.map((b) => b.path),
+              paths: s.balls.map((b) => b.path),
             })
           }
         } else {
-          next.push({ ...s, balls: newBalls })
+          next.push(s)
         }
       }
 
-      const changed =
-        next.length !== list.length ||
-        next.some((s, si) => {
-          const o = list[si]
-          if (!o || s.id !== o.id) return true
-          return s.balls.some((b, bi) => b.currentStep !== o.balls[bi]?.currentStep)
-        })
-
-      if (changed) {
+      if (next.length !== list.length) {
         sessionsRef.current = next
         setSessions(next)
       }
+
+      setAnimNow(now)
 
       for (const c of completions) {
         const result = computePlinkoPayout(c.betAmount, c.ballCount, c.paths)
@@ -279,11 +270,12 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     const paths = generatePlinkoPath(BALLS_PER_DROP)
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const startedAt = performance.now()
+    setAnimNow(startedAt)
     const balls: PlinkoBall[] = paths.map((path, ballIndex) => ({
       id: `${id}-b${ballIndex}`,
       path,
       ballIndex,
-      currentStep: 0,
+      track: buildPlinkoDropTrack(path),
     }))
     const session: PlinkoSession = {
       id,
@@ -377,10 +369,9 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
               {sessions.flatMap((session) =>
                 session.balls.map((ball) => {
-                  const step = Math.min(ball.currentStep, ball.path.length - 1)
-                  const slotIdx = ball.path[step] ?? 0
-                  const cx = getBallX(step, slotIdx)
-                  const cy = getBallCenterY(step)
+                  const elapsed =
+                    animNow - session.startedAt - ball.ballIndex * PLINKO_DROP_STAGGER_MS
+                  const { x: cx, y: cy } = samplePlinkoDropTrack(ball.track, elapsed)
                   return (
                     <circle
                       key={`${session.id}-${ball.id}`}
