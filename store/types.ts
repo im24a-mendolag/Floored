@@ -16,7 +16,7 @@ export type GameName =
   | 'chicken-road'
   | 'slots'
   | 'roulette'
-  | 'towers'
+  | 'dragon-tower'
   | 'chicken-race'
   | 'coin-flip'
   | 'case-battles'

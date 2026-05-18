@@ -1,0 +1,152 @@
+# Floored — AI Handshake File
+
+> Read this before touching anything. It captures decisions, gotchas, and current state
+> that aren't obvious from reading the code alone.
+
+---
+
+## What this project is
+
+**Floored** is a Next.js 14 (App Router) gambling-simulation platform with freeplay and
+survival modes. Players start with a bankroll and play casino-style games. There is no real
+money — it's a frontend-only project.
+
+Tech: Next.js 14 App Router · TypeScript · Tailwind CSS (JIT) · Zustand stores · `'use client'` components throughout.
+
+---
+
+## Key files to know
+
+| Path | Purpose |
+|---|---|
+| `GAME_TEMPLATE.txt` | **The law.** All conventions for building a new game. Read before writing any game code. |
+| `components/game-layout.ts` | Exports `GAME_CARD_SHELL`, `GAME_BOARD_ARENA`, `GAME_CONTROL_DOCK_M`, `GAME_STATUS_BAR` — layout constants shared by all games. |
+| `components/game-match-history.tsx` | `GameFieldWithHistory` — board wrapper with slide-out history panel. |
+| `components/lobby.tsx` | Game grid for freeplay/survival. Edit `GAMES[]` to add/unlock games. |
+| `store/types.ts` | `GameName` union type — must be kept in sync with `GAMES[]` in lobby.tsx. |
+| `store/freeplay-store.ts` | Bankroll, bust flag, reset for freeplay mode. |
+| `store/survival-store.ts` | Bankroll, floor, min-bet for survival mode. |
+| `store/settings-store.ts` | `autoReBet` toggle used by all games. |
+| `utils/format.ts` | `formatChips`, `formatMultiplier` — always use these, never format numbers manually. |
+
+---
+
+## Games inventory
+
+| Game | Freeplay | Survival | Engine | Component |
+|---|---|---|---|---|
+| Blackjack | ✓ | ✓ | `games/blackjack/` | `components/blackjack-game.tsx` |
+| Crash | ✓ | ✓ | `games/crash/` | `components/crash-game.tsx` |
+| Plinko | ✓ | — | `games/plinko/` | `components/plinko-game.tsx` |
+| Over-Under | ✓ | — | `games/over-under/` | `components/over-under-game.tsx` |
+| Fortune Wheel | ✓ | — | `games/wheel/` | `components/wheel-game.tsx` |
+| Run Dice | ✓ | — | `games/run-dice/` | `components/run-dice-game.tsx` |
+| Mines | ✓ | — | `games/mines/` | `components/mines-game.tsx` |
+| Chicken Road | ✓ | — | `games/chicken-road/` | `components/chicken-road-game.tsx` |
+| Slots | ✓ | — | `games/slots/` | `components/slots-game.tsx` |
+| Roulette | ✓ | ✓ | `games/roulette/` | `components/roulette-game.tsx` |
+| Dragon Tower | ✓ | — | `games/dragon-tower/` | `components/dragon-tower-game.tsx` |
+| Chicken Race | ✓ | — | `games/chicken-race/` | `components/chicken-race-game.tsx` |
+| Coin Flip | ✓ | — | `games/coin-flip/` | `components/coin-flip-game.tsx` |
+| Case Battles | ✓ | — | `games/case-battles/` | `components/case-battles-game.tsx` |
+| 1P Poker | ✓ | — | `games/poker-1p/` | `components/poker-1p-game.tsx` |
+| HiLo | — | — | (stub) | (stub) |
+| Flipper | — | — | (stub) | — |
+| Street Cups | — | — | (stub) | — |
+
+Games marked `—` in Survival are lobby-locked (`availableSurvival: false`). Games with both
+columns `—` are listed in lobby as "Coming soon" (`availableFreeplay: false, availableSurvival: false`).
+
+---
+
+## Non-obvious conventions
+
+### Layout stability (most important)
+The control zone dock must never resize when transitioning between betting / playing / settled.
+The rule: **never conditionally render elements that have height in the control zone.**
+Instead use two techniques:
+- `invisible pointer-events-none` — hides visually but keeps DOM space (use for chip row)
+- Fixed-height wrapper `h-10 flex items-center justify-center` — keeps height stable while
+  swapping inner content with normal `{condition && <...>}` (use for info row)
+- Single adaptive button — one `<button>` whose `onClick`, label, and className change per
+  phase. Never three separate conditionally-rendered buttons.
+
+See section 6 of `GAME_TEMPLATE.txt` for the exact DOM structure.
+Reference: `components/chicken-race-game.tsx` and `components/dragon-tower-game.tsx`.
+
+### Tailwind JIT + data objects
+Tailwind JIT only scans `.tsx`/`.ts` files for class names at build time. If a color class
+is constructed from a string in a data array (e.g. `bg-${chicken.color}-500`), it will NOT
+be included in the bundle and will silently render nothing.
+
+**Rule:** store colors as hex strings in engine data (`'#ef4444'`) and apply them via inline
+`style={{ backgroundColor: chicken.color }}`. Never build Tailwind class names from data.
+
+### Engine purity
+`games/<name>/engine.ts` must be pure functions with zero React imports and zero side effects.
+All randomness lives in the engine. The component calls engine functions and manages UI state.
+Engine functions: `init<Game>()`, `start<Game>(bet)`, `<action>(state, args)`, `settle<Game>(state)`.
+
+### Survival mode min-bet
+```ts
+const minBet = mode === 'survival' ? floorMinBet : 1
+const canAct = currentBet >= minBet && currentBet <= bankroll
+```
+Always gate the start action on `canAct`, not just `currentBet > 0`.
+
+### onResolve contract
+The page (`app/freeplay/<game>/page.tsx`) owns bankroll math. The component never reads or
+writes the bankroll store directly — it only calls `onResolve({ outcome, betAmount, payout, multiplier })`.
+Page then does `newBankroll = bankroll - betAmount + payout`.
+
+### Match history
+History entries are staged in `pendingResult` state and pushed to `matchHistory` on the
+*next* round (inside `handleNext`), not immediately on resolve. This gives the player a
+chance to see the result before it scrolls into history.
+Push pattern: `setMatchHistory(h => [entry, ...h].slice(0, 80))`
+
+### autoReBet
+```ts
+const { autoReBet } = useSettingsStore()
+// in handleNext:
+if (autoReBet && lastBet <= bankroll) setCurrentBet(lastBet)
+```
+Some games also restore `lastPicked` (e.g. Chicken Race restores the previously picked chicken).
+
+---
+
+## Roulette specifics
+- Bet types: `'red' | 'black' | 'odd' | 'even' | number (0–36)`
+- Selected bet type highlighted in **yellow** (`bg-yellow-400 border-yellow-300 text-zinc-900`)
+- Player can change their selected tile even after chips are placed
+- Bet+target overlay shown only during spinning, not during betting
+- Odd/even logic: `n % 2 === 1` → odd, `n % 2 === 0` → even (0 is even but loses on even bets — house rule, check engine)
+
+## Dragon Tower specifics
+- 5 floors × 3 tiles, one hidden dragon per row
+- Multipliers bottom→top: `[1.40, 1.96, 2.74, 3.84, 5.38]`
+- Cash out only available after clearing at least one floor (`cashoutMultiplier > 0`)
+- On bust: ALL rows revealed (not just the active one) — `rows.map(r => ({ ...r, revealed: true }))`
+- Active row accent: fuchsia (`bg-fuchsia-950/30 ring-1 ring-fuchsia-800/50`)
+
+## Chicken Race specifics
+- 4 chickens: Nugget (red `#ef4444`), Clucky (blue `#3b82f6`), Feathers (green `#10b981`), Goldie (yellow `#eab308`)
+- Equal 25% win probability each, 3.60× payout
+- Animation: `RACE_TICKS = 36`, `TICK_MS = 90ms`, easeInOutCubic curve with per-chicken phase offsets
+- Progress is monotonically enforced: `raw[f][c] = Math.max(raw[f-1][c], raw[f][c])`
+- Payout label shown once above all lanes, not per-chicken
+- Chicken emoji rider is always rendered in the track (invisible during betting) — prevents height shift
+
+---
+
+## Adding a new game — checklist
+
+1. `games/<name>/types.ts` — state interface + stage union
+2. `games/<name>/engine.ts` — pure init/start/action/settle functions
+3. Add `'<name>'` to `GameName` union in `store/types.ts`
+4. Add entry to `GAMES[]` in `components/lobby.tsx`
+5. `components/<name>-game.tsx` — follow GAME_TEMPLATE.txt exactly
+6. `app/freeplay/<name>/page.tsx` — freeplay page (see template section 2)
+7. `app/survival/<name>/page.tsx` — survival page (only if `availableSurvival: true`)
+
+Pick an unused lobby color for the accent (see lobby.tsx comments for which color each game uses).
