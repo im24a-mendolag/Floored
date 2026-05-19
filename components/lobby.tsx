@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import type { GameName } from '@/store/types'
 import { calcShopPrice } from '@/lib/survival/balance'
@@ -228,6 +228,7 @@ interface Props {
 
 export function Lobby({ mode }: Props) {
   const router = useRouter()
+  const [pendingGame, setPendingGame] = useState<GameName | null>(null)
   const floorGames = useSurvivalStore((s) => s.floorGames)
   const inventory = useSurvivalStore((s) => s.inventory)
   const sparks = useSurvivalStore((s) => s.sparks)
@@ -263,6 +264,8 @@ export function Lobby({ mode }: Props) {
   }
 
   function handlePick(game: GameName) {
+    if (pendingGame) return
+    setPendingGame(game)
     router.push(`/${mode}/${game}`)
   }
 
@@ -296,6 +299,7 @@ export function Lobby({ mode }: Props) {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
       {displayGames.map((g, i) => {
         const available = isAvailable(g)
+        const isLoading = pendingGame === g.name
         // last item spans full width on mobile if it would be orphaned (odd total, 2-col)
         const isOrphan = displayGames.length % 2 !== 0 && i === displayGames.length - 1
 
@@ -307,7 +311,7 @@ export function Lobby({ mode }: Props) {
               isOrphan ? 'col-span-2 sm:col-span-1' : 'col-span-1',
             ].join(' ')}
           >
-            {mode === 'survival' && ticketCount > 0 && (
+            {mode === 'survival' && ticketCount > 0 && !pendingGame && (
               <button
                 type="button"
                 title="Use a ticket to reroll this lobby slot"
@@ -321,13 +325,15 @@ export function Lobby({ mode }: Props) {
               type="button"
               onClick={() => available && handlePick(g.name)}
               onMouseEnter={() => available && router.prefetch(`/${mode}/${g.name}`)}
+              disabled={!!pendingGame}
               className={[
                 'relative overflow-hidden rounded-2xl border transition-all duration-200 text-left w-full',
                 g.gradient ? `bg-gradient-to-br ${g.gradient}` : '',
                 g.accent,
-                available
+                available && !pendingGame
                   ? 'cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group'
                   : 'cursor-default',
+                isLoading ? 'opacity-90' : pendingGame ? 'opacity-40' : '',
               ].join(' ')}
             >
             {/* Felt texture overlay */}
@@ -350,11 +356,20 @@ export function Lobby({ mode }: Props) {
               {available ? (
                 <div className="flex items-center gap-2">
                   <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
-                    <svg viewBox="0 0 10 10" className="w-3 h-3 fill-white translate-x-px" aria-hidden>
-                      <polygon points="2,1 9,5 2,9" />
-                    </svg>
+                    {isLoading ? (
+                      <svg className="w-3.5 h-3.5 animate-spin text-white" viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 10 10" className="w-3 h-3 fill-white translate-x-px" aria-hidden>
+                        <polygon points="2,1 9,5 2,9" />
+                      </svg>
+                    )}
                   </div>
-                  <span className="text-white/50 text-xs font-medium group-hover:text-white/80 transition-colors">Play now</span>
+                  <span className="text-white/50 text-xs font-medium group-hover:text-white/80 transition-colors">
+                    {isLoading ? 'Loading…' : 'Play now'}
+                  </span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-white/20 text-xs">
