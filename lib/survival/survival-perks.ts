@@ -3,6 +3,7 @@ import type { GameName, PurchasedUpgrade } from '@/store/types'
 import { getCatalogItem, normalizeUpgradeId } from './upgrades-catalog'
 import {
   COIN_BIAS_CHANCE_BY_LEVEL,
+  CRASH_ZONE_PAD_BY_LEVEL,
   OPENING_TICKET_CAP_BY_LEVEL,
   STREAK_SHIELD_CHARGES_BY_LEVEL,
   getMaxOwnedLevelForEffect,
@@ -130,8 +131,9 @@ export function pickChickenScoutEliminate(winnerId: number, chickenCount = 4): n
   return others[Math.floor(Math.random() * others.length)]!
 }
 
-export function crashZoneBand(crashAt: number): { low: number; high: number } {
-  const pad = crashAt * 0.08
+export function crashZoneBand(crashAt: number, level = 1): { low: number; high: number } {
+  const padFraction = CRASH_ZONE_PAD_BY_LEVEL[Math.max(1, Math.min(5, level)) - 1] ?? 0.07
+  const pad = crashAt * padFraction
   return {
     low: Math.max(1.01, parseFloat((crashAt - pad).toFixed(2))),
     high: parseFloat((crashAt + pad).toFixed(2)),

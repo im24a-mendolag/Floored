@@ -112,8 +112,12 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
   const { floorMinBet, jackpotMeter, runActive, resetJackpotMeter } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { slotsShield } = useSurvivalPerks('slots')
-  const shieldProc = usePerkProc(mode === 'survival' && slotsShield, 'perk_slots_shield')
+  const { slotsShield, slotsShieldLevel  } = useSurvivalPerks('slots')
+  const shieldProc = usePerkProc(
+    mode === 'survival' && slotsShield,
+    'perk_slots_shield',
+    slotsShieldLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
   const jackpotReady = mode === 'survival' && runActive && jackpotMeter >= 100
 

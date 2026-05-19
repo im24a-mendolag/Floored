@@ -1,21 +1,22 @@
 /** Base per-bet activation chance at level 1 for proc perks. */
 export const PROC_PERK_BASE_CHANCES: Record<string, number> = {
-  perk_mines_safe: 0.35,
-  perk_dragon_blindspot: 0.35,
-  perk_chicken_road_lane: 0.32,
-  perk_chicken_scout: 0.35,
-  perk_street_cups_truth: 0.35,
-  perk_roulette_tracker: 0.3,
-  perk_keno_heat: 0.28,
-  perk_plinko_first_ball: 0.35,
-  perk_poker_hold_bias: 0.4,
-  perk_over_under_shield: 0.35,
-  perk_wheel_scout: 0.35,
-  perk_slots_shield: 0.35,
+  perk_mines_safe: 0.30,
+  perk_dragon_blindspot: 0.30,
+  perk_chicken_road_lane: 0.30,
+  perk_chicken_scout: 0.30,
+  perk_street_cups_truth: 0.30,
+  perk_roulette_tracker: 0.30,
+  perk_keno_heat: 0.30,
+  perk_plinko_first_ball: 0.30,
+  perk_poker_hold_bias: 0.30,
+  perk_over_under_shield: 0.30,
+  perk_wheel_scout: 0.30,
+  perk_slots_shield: 0.30,
+  perk_run_dice_insight: 0.30,
 }
 
-const PROC_LEVEL_BONUS = 0.04
-const PROC_MAX_CHANCE = 0.85
+const PROC_LEVEL_BONUS = 0.1125
+const PROC_MAX_CHANCE = 0.75
 
 export function perkRequiresProcRoll(effectKey: string): boolean {
   return effectKey in PROC_PERK_BASE_CHANCES

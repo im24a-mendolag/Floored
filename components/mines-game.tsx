@@ -73,8 +73,12 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { minesSafe, payoutBoostMult } = useSurvivalPerks('mines')
-  const minesProc = usePerkProc(mode === 'survival' && minesSafe, 'perk_mines_safe')
+  const { minesSafe, minesSafeLevel, payoutBoostMult  } = useSurvivalPerks('mines')
+  const minesProc = usePerkProc(
+    mode === 'survival' && minesSafe,
+    'perk_mines_safe',
+    minesSafeLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [difficulty, setDifficulty] = useState<MinesState['difficulty']>('easy')

@@ -118,8 +118,12 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { rouletteTracker } = useSurvivalPerks('roulette')
-  const trackerProc = usePerkProc(mode === 'survival' && rouletteTracker, 'perk_roulette_tracker')
+  const { rouletteTracker, rouletteTrackerLevel } = useSurvivalPerks('roulette')
+  const trackerProc = usePerkProc(
+    mode === 'survival' && rouletteTracker,
+    'perk_roulette_tracker',
+    rouletteTrackerLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<RouletteState>(initRoulette())

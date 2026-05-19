@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import type { GameName } from '@/store/types'
 import { calcShopPrice } from '@/lib/survival/balance'
@@ -249,6 +250,12 @@ export function Lobby({ mode }: Props) {
           .map((name) => gameByName.get(name))
           .filter((g): g is GameEntry => g != null)
       : GAMES
+
+  useEffect(() => {
+    if (mode === 'survival') {
+      floorGames.forEach((name) => router.prefetch(`/survival/${name}`))
+    }
+  }, [mode, floorGames, router])
 
   function isAvailable(g: GameEntry) {
     if (mode === 'freeplay') return g.availableFreeplay

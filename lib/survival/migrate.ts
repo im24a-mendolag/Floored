@@ -2,7 +2,6 @@ import type { Difficulty, PurchasedUpgrade } from '@/store/types'
 import { SURVIVAL_GAME_POOL, calcQuotaTarget, FLOOR_DURATION_MS } from './balance'
 import { generateFloor } from './floor-generator'
 import { getCatalogItem, normalizeUpgradeId } from './upgrades-catalog'
-import { getMaxOwnedLevelInFamily } from './upgrade-levels'
 
 function migratePurchasedUpgradeIds(raw: unknown): PurchasedUpgrade[] {
   if (!Array.isArray(raw)) return []
@@ -26,7 +25,7 @@ function migratePurchasedUpgradeIds(raw: unknown): PurchasedUpgrade[] {
       byFamily.set(familyId, { id, purchasedAt })
     }
   }
-  return [...byFamily.values()]
+  return Array.from(byFamily.values())
 }
 
 /**

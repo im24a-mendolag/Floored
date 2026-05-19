@@ -125,8 +125,12 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { wheelScout } = useSurvivalPerks('wheel')
-  const scoutProc = usePerkProc(mode === 'survival' && wheelScout, 'perk_wheel_scout')
+  const { wheelScout, wheelScoutLevel  } = useSurvivalPerks('wheel')
+  const scoutProc = usePerkProc(
+    mode === 'survival' && wheelScout,
+    'perk_wheel_scout',
+    wheelScoutLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<WheelState>(initWheel())

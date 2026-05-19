@@ -124,8 +124,12 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { pokerHoldBias } = useSurvivalPerks('poker-1p')
-  const holdProc = usePerkProc(mode === 'survival' && pokerHoldBias, 'perk_poker_hold_bias')
+  const { pokerHoldBias, pokerHoldBiasLevel  } = useSurvivalPerks('poker-1p')
+  const holdProc = usePerkProc(
+    mode === 'survival' && pokerHoldBias,
+    'perk_poker_hold_bias',
+    pokerHoldBiasLevel,
+  )
   const holdBiasRef = useRef(false)
   const minBet = mode === 'survival' ? floorMinBet : 1
 

@@ -24,10 +24,12 @@ import { buildPendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
+  classifyRunDiceTotal,
   getRunDicePayout,
   initRunDice,
   rollRunDice,
@@ -63,14 +65,24 @@ interface RunDiceGameProps {
 }
 
 export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDiceGameProps) {
-  const { floorMinBet, diceConfig: storeDiceConfig } = useSurvivalStore()
+  const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { runDiceInsight } = useSurvivalPerks('run-dice')
+  const { runDiceInsight, runDiceInsightLevel } = useSurvivalPerks('run-dice')
+  const insightProc = usePerkProc(
+    mode === 'survival' && runDiceInsight,
+    'perk_run_dice_insight',
+    runDiceInsightLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
-  const insightConfig = mode === 'survival' && runDiceInsight ? storeDiceConfig : null
 
   const [round, setRound] = useState<RunDiceState>(initRunDice(config))
+  const protectionActiveRef = useRef(false)
+
+  const gameConfig = useMemo((): RunDiceConfig => {
+    if (config && config.win.length > 0) return config
+    return round.config
+  }, [config, round.config])
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
@@ -94,10 +106,19 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
 
   useEffect(() => () => clearAnimTimers(), [])
 
+  useEffect(() => {
+    if (!config?.win.length) return
+    setRound((prev) => {
+      if (prev.stage === 'betting' && prev.betAmount === 0) return initRunDice(config)
+      if (prev.stage === 'inProgress') return { ...prev, config }
+      return prev
+    })
+  }, [config])
+
   const winChance = useMemo(() => {
-    const total = round.config.win.reduce((sum, v) => sum + (DICE_WEIGHT[v] ?? 0), 0)
+    const total = gameConfig.win.reduce((sum, v) => sum + (DICE_WEIGHT[v] ?? 0), 0)
     return total / 36
-  }, [round.config.win])
+  }, [gameConfig.win])
 
   const isBetting    = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
@@ -121,7 +142,8 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
     setLastBet(bet)
     setQuoteIdx((prev) => pickQuote(prev))
     setPendingResult(null)
-    setRound(startRunDiceRound(bet, round.config))
+    protectionActiveRef.current = insightProc.rollForBet()
+    setRound(startRunDiceRound(bet, gameConfig))
     setCurrentBet(0)
     setTargetDice(null)
     setTargetTotal(null)
@@ -131,7 +153,12 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
     if (isRolling) return
     clearAnimTimers()
 
-    const next = rollRunDice(round)
+    const next = rollRunDice(
+      { ...round, config: gameConfig },
+      {
+        lossProtection: mode === 'survival' && protectionActiveRef.current,
+      },
+    )
 
     // Snapshot target values for the animation to reveal
     setTargetDice(next.dice)
@@ -196,6 +223,8 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
   const handleNewRound = useCallback(() => {
     unlock()
     clearAnimTimers()
+    protectionActiveRef.current = false
+    insightProc.resetPerk()
     setRound(initRunDice(config))
     setPendingResult(null)
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
@@ -213,21 +242,24 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
     survivalAfterNext(mode)
   }
 
-  function outcomeColor(val: number, cfg = round.config): string {
+  function outcomeColor(val: number, cfg = gameConfig): string {
     if (cfg.win.includes(val))  return 'bg-emerald-700/80 border-emerald-500 text-emerald-200'
     if (cfg.loss.includes(val)) return 'bg-red-900/80 border-red-700 text-red-300'
     return 'bg-white/10 border-white/20 text-white/50'
   }
 
-  const insightHighlight = (val: number) =>
-    insightConfig != null &&
-    insightConfig.win.includes(val) &&
-    !insightConfig.loss.includes(val)
-
   function dieColor(total: number): string {
-    if (round.config.win.includes(total))  return 'bg-emerald-500 border-emerald-300 text-white'
-    if (round.config.loss.includes(total)) return 'bg-red-600 border-red-400 text-white'
+    const rollClass = classifyRunDiceTotal(gameConfig, total)
+    if (rollClass === 'win') return 'bg-emerald-500 border-emerald-300 text-white'
+    if (rollClass === 'loss') return 'bg-red-600 border-red-400 text-white'
     return 'bg-zinc-200 border-zinc-300 text-zinc-900'
+  }
+
+  function rollLabel(total: number, protectedLossPush = false): string {
+    const rollClass = classifyRunDiceTotal(gameConfig, total)
+    if (rollClass === 'win') return 'Win roll'
+    if (rollClass === 'loss') return protectedLossPush ? 'Loss — protected push' : 'Loss roll'
+    return 'Neutral — re-rolling'
   }
 
   const lastRoll = round.rollResult
@@ -250,9 +282,9 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
         gameLabel="Run Dice"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
-        {insightConfig && (isBetting || isInProgress) && (
+        {insightProc.perkActive && isInProgress && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-            Win faces: {insightConfig.win.join(', ')}
+            Loss rolls return your bet this round
           </PerkHint>
         )}
         <GameActiveBetBadge
@@ -307,11 +339,7 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
               </div>
               <p className="text-white/40 text-xs h-4">
                 {revealStep < 3 ? 'Rolling…' : (
-                  targetTotal != null && (
-                    round.config.win.includes(targetTotal)  ? 'Win roll' :
-                    round.config.loss.includes(targetTotal) ? 'Loss roll' :
-                    'Neutral — re-rolling'
-                  )
+                  targetTotal != null && rollLabel(targetTotal)
                 )}
               </p>
             </div>
@@ -331,9 +359,10 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
                 </div>
               </div>
               <p className="text-white/40 text-xs h-4">
-                {round.config.win.includes(lastRoll)  ? 'Win roll' :
-                 round.config.loss.includes(lastRoll) ? 'Loss roll' :
-                 'Neutral — re-rolling'}
+                {rollLabel(
+                  lastRoll,
+                  round.outcome === 'push' && round.message.includes('protected'),
+                )}
               </p>
             </div>
           ) : (
@@ -352,14 +381,12 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
           <p className="text-white/30 text-xs uppercase tracking-wider mb-2">Outcome map</p>
           <div className="grid grid-cols-11 gap-1">
             {Array.from({ length: 11 }, (_, i) => i + 2).map((val) => (
-              <div key={val} className={`rounded-md border px-1 py-2 text-center text-xs font-bold transition-all ${outcomeColor(val, insightConfig ?? round.config)} ${
-                insightHighlight(val) ? 'ring-2 ring-violet-400/80' : ''
-              } ${
+              <div key={val} className={`rounded-md border px-1 py-2 text-center text-xs font-bold transition-all ${outcomeColor(val)} ${
                 lastRoll === val && !isRolling ? 'ring-2 ring-yellow-400 scale-110 shadow-lg' : ''
               }`}>
                 <p className="text-[10px] leading-none opacity-60 mb-0.5">{val}</p>
                 <p className="leading-none">
-                  {(insightConfig ?? round.config).win.includes(val) ? 'W' : (insightConfig ?? round.config).loss.includes(val) ? 'L' : 'N'}
+                  {gameConfig.win.includes(val) ? 'W' : gameConfig.loss.includes(val) ? 'L' : 'N'}
                 </p>
               </div>
             ))}

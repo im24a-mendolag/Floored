@@ -1,8 +1,8 @@
 import type { CoinFlipState, CoinSide } from './types'
 
-function flip(biasedPick?: CoinSide): CoinSide {
+function flip(biasedPick?: CoinSide, biasChance = 0.55): CoinSide {
   if (biasedPick != null) {
-    return Math.random() < 0.55 ? biasedPick : biasedPick === 'heads' ? 'tails' : 'heads'
+    return Math.random() < biasChance ? biasedPick : biasedPick === 'heads' ? 'tails' : 'heads'
   }
   return Math.random() < 0.5 ? 'heads' : 'tails'
 }
@@ -25,8 +25,12 @@ export function initCoinFlip(): CoinFlipState {
   }
 }
 
-export function startFlip(bet: number, pick: CoinSide, opts?: { biased?: boolean }): CoinFlipState {
-  const result = flip(opts?.biased ? pick : undefined)
+export function startFlip(
+  bet: number,
+  pick: CoinSide,
+  opts?: { biasChance?: number },
+): CoinFlipState {
+  const result = flip(opts?.biasChance != null ? pick : undefined, opts?.biasChance)
   const won = result === pick
 
   if (!won) {
@@ -56,10 +60,13 @@ export function startFlip(bet: number, pick: CoinSide, opts?: { biased?: boolean
   }
 }
 
-export function flipAgain(state: CoinFlipState, opts?: { biased?: boolean }): CoinFlipState {
+export function flipAgain(state: CoinFlipState, opts?: { biasChance?: number }): CoinFlipState {
   if (!state.nextPick) return state
 
-  const result = flip(opts?.biased ? state.nextPick : undefined)
+  const result = flip(
+    opts?.biasChance != null ? state.nextPick : undefined,
+    opts?.biasChance,
+  )
   const won = result === state.nextPick
 
   if (!won) {

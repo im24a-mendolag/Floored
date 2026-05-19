@@ -19,6 +19,7 @@ import { buildPendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { getCoinBiasChance } from '@/lib/survival/survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
@@ -65,9 +66,12 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { coinBias } = useSurvivalPerks('coin-flip')
+  const { coinBias, purchasedUpgrades } = useSurvivalPerks('coin-flip')
   const minBet = mode === 'survival' ? floorMinBet : 1
-  const useBias = mode === 'survival' && coinBias
+  const biasChance =
+    mode === 'survival' && coinBias
+      ? getCoinBiasChance(purchasedUpgrades, 'coin-flip')
+      : undefined
 
   const [state, setState] = useState<CoinFlipState>(initCoinFlip)
   const [currentBet, setCurrentBet] = useState(0)
@@ -162,7 +166,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     if (!canFlip || !state.pick || isFlipping || !lock()) return
     const bet = currentBet
     onBet?.(bet)
-    const next = startFlip(bet, state.pick, useBias ? { biased: true } : undefined)
+    const next = startFlip(bet, state.pick, biasChance != null ? { biasChance } : undefined)
     setLastBet(bet)
     setCurrentBet(0)
     setPendingResult(null)
@@ -173,7 +177,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   function handleFlipAgain() {
     if (!state.nextPick || isFlipping) return
     setQuoteIdx((prev) => pickQuote(prev))
-    triggerFlip(flipAgain(state, useBias ? { biased: true } : undefined))
+    triggerFlip(flipAgain(state, biasChance != null ? { biasChance } : undefined))
   }
 
   function handleCashOut() {
@@ -217,8 +221,10 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
         gameLabel="Coin Flip"
       >
         <GameDockBackButton mode={mode} visible={isBetting && !isFlipping} />
-        {useBias && (isBetting || isRiding) && !isFlipping && (
-          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">Coin biased toward your pick</PerkHint>
+        {biasChance != null && (isBetting || isRiding) && !isFlipping && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Coin biased toward your pick (~{Math.round(biasChance * 100)}%)
+          </PerkHint>
         )}
         <GameActiveBetBadge
           betAmount={activeBet}

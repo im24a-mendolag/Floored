@@ -65,8 +65,12 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { overUnderShield } = useSurvivalPerks('over-under')
-  const shieldProc = usePerkProc(mode === 'survival' && overUnderShield, 'perk_over_under_shield')
+  const { overUnderShield, overUnderShieldLevel  } = useSurvivalPerks('over-under')
+  const shieldProc = usePerkProc(
+    mode === 'survival' && overUnderShield,
+    'perk_over_under_shield',
+    overUnderShieldLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [safeZone, setSafeZone] = useState(40)

@@ -2,9 +2,13 @@ import { SURVIVAL_GAME_POOL } from './balance'
 import { LOBBY_REROLL_TICKET, LOBBY_REROLL_TICKET_ID } from './lobby-ticket'
 import { perkProcChancePercent } from './perk-proc'
 import {
+  COIN_BIAS_CHANCE_BY_LEVEL,
+  CRASH_ZONE_PAD_BY_LEVEL,
   GAME_PAYOUT_MULT_BY_LEVEL,
   MAX_UPGRADE_LEVEL,
+  OPENING_TICKET_CAP_BY_LEVEL,
   RUN_PAYOUT_MULT_BY_LEVEL,
+  STREAK_SHIELD_CHARGES_BY_LEVEL,
   levelCost,
   levelRoman,
   normalizeUpgradeId,
@@ -53,7 +57,7 @@ const GAME_BOOST_LABELS: Record<GameName, { name: string }> = {
 
 const GAME_PERK_DEFS: Record<
   GameName,
-  { name: string; description: string; effectKey: string; baseCost: number; rarity: 'rare' | 'epic' }
+  { name: string; description: string; effectKey: string; baseCost: number; rarity: 'rare' | 'epic'; descriptionForLevel?: (level: number) => string }
 > = {
   blackjack: {
     name: 'Hole Card Reader',
@@ -82,6 +86,10 @@ const GAME_PERK_DEFS: Record<
     effectKey: 'perk_crash_zone',
     baseCost: 22,
     rarity: 'rare',
+    descriptionForLevel: (level) => {
+      const pct = Math.round((CRASH_ZONE_PAD_BY_LEVEL[level - 1] ?? 0.07) * 100)
+      return `Shows a ±${pct}% band around the hidden crash point.`
+    },
   },
   mines: {
     name: 'Mine Sweeper',
@@ -112,8 +120,8 @@ const GAME_PERK_DEFS: Record<
     rarity: 'rare',
   },
   'run-dice': {
-    name: 'Loaded Insight',
-    description: 'Highlights your best winning face on the die.',
+    name: 'Loss Shield',
+    description: 'When active, a loss roll returns your bet (push) instead of losing.',
     effectKey: 'perk_run_dice_insight',
     baseCost: 16,
     rarity: 'rare',
@@ -180,6 +188,10 @@ const GAME_PERK_DEFS: Record<
     effectKey: 'perk_coin_bias',
     baseCost: 20,
     rarity: 'rare',
+    descriptionForLevel: (level) => {
+      const pct = Math.round((COIN_BIAS_CHANCE_BY_LEVEL[level - 1] ?? 0.60) * 100)
+      return `Your chosen side wins ${pct}% of the time.`
+    },
   },
 }
 
@@ -256,7 +268,9 @@ function gamePerkItems(): CatalogItem[] {
       MAX_UPGRADE_LEVEL,
       (level) => ({
         name: `${perk.name} ${levelRoman(level)}`,
-        description: withProcNote(perk.description, perk.effectKey, level),
+        description: perk.descriptionForLevel
+          ? perk.descriptionForLevel(level)
+          : withProcNote(perk.description, perk.effectKey, level),
       }),
     )
   })
@@ -298,7 +312,7 @@ function streakShieldItems(): CatalogItem[] {
     },
     MAX_UPGRADE_LEVEL,
     (level) => {
-      const charges = [1, 1, 2, 2, 3][level - 1]!
+      const charges = STREAK_SHIELD_CHARGES_BY_LEVEL[level - 1]!
       return {
         name: `Streak Shield ${levelRoman(level)}`,
         description:
@@ -323,7 +337,7 @@ function openingTicketItems(): CatalogItem[] {
     },
     MAX_UPGRADE_LEVEL,
     (level) => {
-      const cap = [8, 10, 12, 14, 16][level - 1]!
+      const cap = OPENING_TICKET_CAP_BY_LEVEL[level - 1]!
       return {
         name: `Opening Ticket ${levelRoman(level)}`,
         description: `First bet on each floor is free up to ${cap}× the floor minimum bet. Excess is charged normally.`,
@@ -389,7 +403,7 @@ export function allPurchasedUpgradesForDev(): PurchasedUpgrade[] {
     const prev = byFamily.get(item.familyId)
     if (!prev || (item.level ?? 0) > (prev.level ?? 0)) byFamily.set(item.familyId, item)
   }
-  return [...byFamily.values()].map((item) => ({ id: item.id, purchasedAt }))
+  return Array.from(byFamily.values()).map((item) => ({ id: item.id, purchasedAt }))
 }
 
 export { normalizeUpgradeId } from './upgrade-levels'

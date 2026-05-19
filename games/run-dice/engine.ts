@@ -90,15 +90,27 @@ export function startRunDiceRound(amount: number, config: RunDiceConfig): RunDic
   }
 }
 
-export function rollRunDice(state: RunDiceState): RunDiceState {
+export type RunDiceRollClass = 'win' | 'loss' | 'neutral'
+
+export function classifyRunDiceTotal(config: RunDiceConfig, total: number): RunDiceRollClass {
+  if (config.win.includes(total)) return 'win'
+  if (config.loss.includes(total)) return 'loss'
+  return 'neutral'
+}
+
+export interface RollRunDiceOptions {
+  /** Survival perk: loss totals settle as push (bet returned). */
+  lossProtection?: boolean
+}
+
+export function rollRunDice(state: RunDiceState, opts?: RollRunDiceOptions): RunDiceState {
   if (state.stage !== 'inProgress') return state
   const dice = randomRoll()
   const rollResult = dice[0] + dice[1]
-  const isWin = state.config.win.includes(rollResult)
-  const isLoss = state.config.loss.includes(rollResult)
+  const rollClass = classifyRunDiceTotal(state.config, rollResult)
   const nextRollCount = state.rollCount + 1
 
-  if (isWin) {
+  if (rollClass === 'win') {
     return {
       ...state,
       stage: 'settled',
@@ -109,7 +121,17 @@ export function rollRunDice(state: RunDiceState): RunDiceState {
     }
   }
 
-  if (isLoss) {
+  if (rollClass === 'loss') {
+    if (opts?.lossProtection) {
+      return {
+        ...state,
+        stage: 'settled',
+        rollResult,
+        dice,
+        outcome: 'push',
+        message: `Loss on ${rollResult} — protected push.`,
+      }
+    }
     return {
       ...state,
       stage: 'settled',

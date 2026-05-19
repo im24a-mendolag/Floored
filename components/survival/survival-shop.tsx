@@ -11,7 +11,6 @@ import {
   normalizeUpgradeId,
   type CatalogItem,
 } from '@/lib/survival/upgrades-catalog'
-import { getMaxOwnedLevelInFamily } from '@/lib/survival/upgrade-levels'
 import type { GameName } from '@/store/types'
 import { calcShopRerollCost } from '@/lib/survival/balance'
 
@@ -196,7 +195,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
             </div>
           )
         })}
-      </motion.div>
+      </div>
 
       {offers.length === 0 && (
         <p className="text-xs text-zinc-500 text-center py-4">

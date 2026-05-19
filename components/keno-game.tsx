@@ -72,8 +72,12 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { kenoHeat } = useSurvivalPerks('keno')
-  const heatProc = usePerkProc(mode === 'survival' && kenoHeat, 'perk_keno_heat')
+  const { kenoHeat, kenoHeatLevel  } = useSurvivalPerks('keno')
+  const heatProc = usePerkProc(
+    mode === 'survival' && kenoHeat,
+    'perk_keno_heat',
+    kenoHeatLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<KenoState>(initKeno())
