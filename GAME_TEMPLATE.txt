@@ -385,3 +385,53 @@ COMPONENT (components/<game-name>-game.tsx):
   const next = cursed ? loseGame(...) : normalAction(...)
 
   The swap must be invisible to the player — same animation, same message style, same timing.
+
+
+────────────────────────────────────────────
+15. BLESS MECHANIC (required for every game)
+────────────────────────────────────────────
+
+Every game engine MUST export a winGame() function that rigs the outcome to a win.
+Every game component MUST wire it in via useBless().
+
+Priority order in every action handler: blessed → cursed → normal.
+Blessed overrides curse — if both are active, the player wins.
+
+ENGINE (games/<game-name>/engine.ts):
+
+  /**
+   * Blessed outcome: forces a win that looks like natural good luck.
+   * Called instead of the normal action function when the player is blessed.
+   */
+  export function winGame(/* same params as the normal action fn */): <GameName>State {
+    // Pick a winning outcome from the same pool the normal function uses.
+    // Always return a win — never a loss or push.
+  }
+
+  Rules:
+  - Use the same state shape and message format as a real win.
+  - Never return 'loss' or 'push' as outcome.
+  - Give variety — do NOT hardcode the minimum win every time. Use weighted randomness
+    so rarer/better outcomes still appear (e.g. slots: spin one weighted reel symbol for
+    all three reels; blackjack: deal from A/7/8/9/10 as first card so totals vary 17–BJ).
+  - Respect any held/selected state the player already set before the action (e.g. poker:
+    keep held cards, fill non-held slots to match the most-common held rank; do NOT replace
+    the entire hand ignoring what the player held).
+  - Player skill can still matter: if the player makes a clearly bad move (e.g. holds nothing
+    in poker), the blessed draw is still favoured but not guaranteed to win.
+  - If multiple action phases exist (e.g. riding/streak), add a winGame variant per phase.
+  - For games with a manual cash-out and a visual settlement board (e.g. mines): also export
+    a blessedCashOut variant that correctly populates the settled board to match game rules
+    (correct mine count for the chosen difficulty, distributed randomly among unrevealed tiles).
+
+COMPONENT (components/<game-name>-game.tsx):
+
+  import { useBless } from '@/hooks/use-bless'
+  import { winGame, ... } from '@/games/<game-name>/engine'
+
+  const { blessed } = useBless()
+
+  // In the action handler, priority: blessed → cursed → normal:
+  const next = blessed ? winGame(...) : cursed ? loseGame(...) : normalAction(...)
+
+  The swap must be invisible to the player — same animation, same message style, same timing.
