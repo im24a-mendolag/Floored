@@ -149,6 +149,7 @@ export function GameDockChipRow({
   showQuote?: boolean
   minBet?: number
 }) {
+  const openingTicketActive = useOpeningTicketActive()
   const useSurvivalChips = (minBet ?? 1) > 1
   const survivalChips = useSurvivalChips
     ? [
@@ -167,6 +168,16 @@ export function GameDockChipRow({
         <GameDockRandomQuote quoteIdx={quoteIdx} />
       ) : (
         <>
+          {openingTicketActive && useSurvivalChips && minBet && (
+            <button
+              type="button"
+              onClick={() => onAddChip(minBet * 10 - currentBet)}
+              disabled={currentBet >= minBet * 10}
+              className={`${FRAC_BTN} bg-emerald-950 hover:bg-emerald-900 border-emerald-600 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.25)]`}
+            >
+              Opening Ticket
+            </button>
+          )}
           {useSurvivalChips
             ? survivalChips!.map((chip) => (
                 <button

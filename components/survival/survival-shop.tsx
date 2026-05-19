@@ -8,8 +8,10 @@ import {
   getCatalogItem,
   catalogScopeLabel,
   formatGameLabel,
+  normalizeUpgradeId,
   type CatalogItem,
 } from '@/lib/survival/upgrades-catalog'
+import { getMaxOwnedLevelInFamily } from '@/lib/survival/upgrade-levels'
 import type { GameName } from '@/store/types'
 import { calcShopRerollCost } from '@/lib/survival/balance'
 
@@ -43,10 +45,9 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
       difficulty,
       floorGames,
       rerollCount: shopRerollCount,
+      ownedUpgradeIds,
     })
-  // ownedUpgradeIds intentionally excluded — offers stay stable after purchase
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runSeed, currentFloor, difficulty, floorGames, shopRerollCount])
+  }, [runSeed, currentFloor, difficulty, floorGames, shopRerollCount, ownedUpgradeIds])
 
   const rerollCost = difficulty != null ? calcShopRerollCost(shopRerollCount, difficulty) : 0
   const poolRemaining =
@@ -57,7 +58,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     if (scope === 'consumable') {
       return (inventory.find((i) => i.id === id)?.count ?? 0) > 0
     }
-    return purchasedUpgrades.some((u) => u.id === id)
+    return purchasedUpgrades.some((u) => normalizeUpgradeId(u.id) === id)
   }
 
   function ownedLabel(id: string, scope: string): string | null {
@@ -65,7 +66,10 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
       const count = inventory.find((i) => i.id === id)?.count ?? 0
       return count > 0 ? `×${count}` : null
     }
-    return purchasedUpgrades.some((u) => u.id === id) ? 'Owned' : null
+    const owned = purchasedUpgrades.some((u) => normalizeUpgradeId(u.id) === id)
+    if (!owned) return null
+    const catalog = getCatalogItem(id)
+    return catalog?.level != null ? `Owned · Lv.${catalog.level}` : 'Owned'
   }
 
   return (
@@ -111,6 +115,9 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
                     <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5 text-violet-400/80">{scopeLabel}</p>
                   )}
                   <p className="text-sm font-semibold text-zinc-200">{item.name}</p>
+                  {item.level != null && (
+                    <p className="text-[10px] text-zinc-500">Level {item.level}</p>
+                  )}
                   {item.rarity && <p className="text-[10px] uppercase tracking-wider text-zinc-600">{item.rarity}</p>}
                 </div>
                 <span className="text-sm font-bold text-amber-400 tabular-nums shrink-0">✦ {price}</span>
@@ -167,6 +174,9 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
                     </p>
                   )}
                   <p className="text-sm font-semibold text-zinc-200">{item.name}</p>
+                  {item.level != null && (
+                    <p className="text-[10px] text-zinc-500">Level {item.level}</p>
+                  )}
                   {item.rarity && (
                     <p className="text-[10px] uppercase tracking-wider text-zinc-600">{item.rarity}</p>
                   )}
@@ -186,7 +196,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
             </div>
           )
         })}
-      </div>
+      </motion.div>
 
       {offers.length === 0 && (
         <p className="text-xs text-zinc-500 text-center py-4">

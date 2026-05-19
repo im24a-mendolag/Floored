@@ -14,7 +14,9 @@ import {
   LOBBY_REROLL_TICKET_ID,
   rerollLobbySlot,
 } from '@/lib/survival/lobby-ticket'
-import { hasStreakShield } from '@/lib/survival/survival-perks'
+import { canPurchaseUpgrade } from '@/lib/survival/upgrade-levels'
+import { getStreakShieldCharges } from '@/lib/survival/survival-perks'
+import { normalizeUpgradeId } from '@/lib/survival/upgrades-catalog'
 import { generateMissionsForFloor } from '@/lib/survival/missions'
 import { canRerollMissions } from '@/lib/survival/mission-reroll'
 
@@ -64,7 +66,7 @@ const RUN_PERSIST_KEYS = [
   'floorTimeRemainingMs',
   'floorTimerPaused',
   'floorTimerSyncedAt',
-  'streakShieldUsed',
+  'streakShieldsUsedThisFloor',
   'firstBetInsuranceUsed',
   'shopRerollCount',
   'missionRerollCount',
@@ -75,7 +77,7 @@ const RUN_PERSIST_KEYS = [
 export const useSurvivalStore = create<SurvivalStore>()(
   persist(
     (set, get) => ({
-      version: 3,
+      version: 4,
       bankroll: 1000,
       setBankroll: (n) => set({ bankroll: n }),
 
@@ -112,7 +114,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
       runDefeated: false,
       defeatReason: null,
       pendingDefeatReason: null,
-      streakShieldUsed: false,
+      streakShieldsUsedThisFloor: 0,
       firstBetInsuranceUsed: false,
       shopRerollCount: 0,
       missionRerollCount: 0,
@@ -129,8 +131,8 @@ export const useSurvivalStore = create<SurvivalStore>()(
           survivalGamePool: SURVIVAL_GAME_POOL,
         })
         set({
-          version: 3,
-          bankroll: 1000,
+          version: 4,
+          bankroll: 1_000_000,
           sparks: 0,
           runActive: true,
           runSeed,
@@ -144,10 +146,10 @@ export const useSurvivalStore = create<SurvivalStore>()(
           difficulty,
           modifiers: [],
           history: [],
-          peakBankroll: 1000,
+          peakBankroll: 1_000_000,
           lastRun: null,
           quotaTarget: floor1.quotaTarget,
-          floorStartBankroll: 1000,
+          floorStartBankroll: 1_000_000,
           floorGames: floor1.floorGames,
           missions: floor1.missions,
           completedMissionIds: [],
@@ -158,7 +160,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           runDefeated: false,
           defeatReason: null,
           pendingDefeatReason: null,
-          streakShieldUsed: false,
+          streakShieldsUsedThisFloor: 0,
           firstBetInsuranceUsed: false,
           shopRerollCount: 0,
           missionRerollCount: 0,
@@ -197,7 +199,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           runDefeated: false,
           defeatReason: null,
           pendingDefeatReason: null,
-          streakShieldUsed: false,
+          streakShieldsUsedThisFloor: 0,
           firstBetInsuranceUsed: false,
           shopRerollCount: 0,
           missionRerollCount: 0,
@@ -252,12 +254,13 @@ export const useSurvivalStore = create<SurvivalStore>()(
             floorGames: nextFloorData.floorGames,
             missions: nextFloorData.missions,
             floorComplete: false,
-            streakShieldUsed: false,
+            streakShieldsUsedThisFloor: 0,
             firstBetInsuranceUsed: false,
             shopRerollCount: 0,
             missionRerollCount: 0,
             lobbyRerollCount: 0,
             ...initialFloorTimerState(),
+            quotaMet: s.bankroll >= nextFloorData.quotaTarget,
           }
         }),
 
@@ -286,12 +289,13 @@ export const useSurvivalStore = create<SurvivalStore>()(
             floorGames: nextFloorData.floorGames,
             missions: nextFloorData.missions,
             floorComplete: false,
-            streakShieldUsed: false,
+            streakShieldsUsedThisFloor: 0,
             firstBetInsuranceUsed: false,
             shopRerollCount: 0,
             missionRerollCount: 0,
             lobbyRerollCount: 0,
             ...initialFloorTimerState(),
+            quotaMet: s.bankroll >= nextFloorData.quotaTarget,
           }
         }),
 
@@ -408,12 +412,22 @@ export const useSurvivalStore = create<SurvivalStore>()(
         if (s.sparks < price) return false
         const item = getCatalogItem(id)
         if (!item || item.scope === 'consumable') return false
+        if (!canPurchaseUpgrade(id, s.purchasedUpgrades)) return false
 
-        if (s.purchasedUpgrades.some((u) => u.id === id)) return false
+        const withoutFamily =
+          item.familyId != null
+            ? s.purchasedUpgrades.filter((u) => {
+                const existing = getCatalogItem(normalizeUpgradeId(u.id))
+                return existing?.familyId !== item.familyId
+              })
+            : s.purchasedUpgrades.filter((u) => normalizeUpgradeId(u.id) !== id)
 
         set({
           sparks: s.sparks - price,
-          purchasedUpgrades: [...s.purchasedUpgrades, { id, purchasedAt: new Date().toISOString() }],
+          purchasedUpgrades: [
+            ...withoutFamily,
+            { id, purchasedAt: new Date().toISOString() },
+          ],
         })
         return true
       },
@@ -520,12 +534,13 @@ export const useSurvivalStore = create<SurvivalStore>()(
           const quotaMet = s.quotaMet || newBankroll >= s.quotaTarget
 
           let streak = s.streak
-          let streakShieldUsed = s.streakShieldUsed
+          let streakShieldsUsedThisFloor = s.streakShieldsUsedThisFloor
           if (result.outcome === 'win') {
             streak = s.streak + 1
           } else if (result.outcome === 'loss') {
-            if (hasStreakShield(s.purchasedUpgrades) && !s.streakShieldUsed) {
-              streakShieldUsed = true
+            const maxShields = getStreakShieldCharges(s.purchasedUpgrades)
+            if (maxShields > streakShieldsUsedThisFloor) {
+              streakShieldsUsedThisFloor += 1
             } else {
               streak = 0
             }
@@ -534,7 +549,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           return {
             gamesPlayed: s.gamesPlayed + 1,
             streak,
-            streakShieldUsed,
+            streakShieldsUsedThisFloor,
             jackpotMeter: Math.min(100, s.jackpotMeter + (result.game === 'slots' ? 5 : 1)),
             history: [...s.history, result],
             bankroll: newBankroll,
@@ -550,7 +565,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
     }),
     {
       name: 'floored-survival',
-      version: 3,
+      version: 4,
       migrate: (persistedState: unknown, fromVersion: number): unknown =>
         migratePersistedState(persistedState, fromVersion),
       partialize: (state) => {

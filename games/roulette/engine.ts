@@ -80,8 +80,7 @@ export function spinRoulette(target: string, amount: number): RouletteState {
   return spinRouletteMulti({ [target]: amount })
 }
 
-export function spinRouletteMulti(bets: BetMap): RouletteState {
-  const result = Math.floor(Math.random() * 37)
+function settleRouletteSpin(bets: BetMap, result: number): RouletteState {
   const resultColor = getNumberColor(result)
 
   let totalBetAmount = 0
@@ -112,4 +111,14 @@ export function spinRouletteMulti(bets: BetMap): RouletteState {
     totalPayout,
     message,
   }
+}
+
+export function spinRouletteMulti(bets: BetMap): RouletteState {
+  return settleRouletteSpin(bets, Math.floor(Math.random() * 37))
+}
+
+/** Same as spinRoulette but uses a pre-rolled pocket (survival Ball Tracker during betting). */
+export function spinRouletteWithResult(target: string, amount: number, result: number): RouletteState {
+  if (!target || amount <= 0) return settleRouletteSpin({}, result)
+  return settleRouletteSpin({ [target]: amount }, result)
 }

@@ -1,34 +1,54 @@
 import type { CoinSide } from '@/games/coin-flip/types'
 import type { GameName, PurchasedUpgrade } from '@/store/types'
-import { getCatalogItem } from './upgrades-catalog'
+import { getCatalogItem, normalizeUpgradeId } from './upgrades-catalog'
+import {
+  COIN_BIAS_CHANCE_BY_LEVEL,
+  OPENING_TICKET_CAP_BY_LEVEL,
+  STREAK_SHIELD_CHARGES_BY_LEVEL,
+  getMaxOwnedLevelForEffect,
+} from './upgrade-levels'
 
 export function hasEffect(purchasedUpgrades: PurchasedUpgrade[], effectKey: string, game?: GameName): boolean {
-  return purchasedUpgrades.some((pu) => {
-    const item = getCatalogItem(pu.id)
-    if (!item || item.effectKey !== effectKey) return false
-    if (item.scope === 'run') return true
-    return game != null && item.game === game
-  })
+  if (game) {
+    return (
+      getMaxOwnedLevelForEffect(purchasedUpgrades, effectKey, { game, scope: 'game' }) > 0 ||
+      getMaxOwnedLevelForEffect(purchasedUpgrades, effectKey, { scope: 'run' }) > 0
+    )
+  }
+  return getMaxOwnedLevelForEffect(purchasedUpgrades, effectKey, { scope: 'run' }) > 0
 }
 
 export function hasGamePerk(purchasedUpgrades: PurchasedUpgrade[], game: GameName, effectKey: string): boolean {
-  return hasEffect(purchasedUpgrades, effectKey, game)
+  return getPerkLevel(purchasedUpgrades, game, effectKey) > 0
 }
 
-function parsePayoutMult(effectKey: string): number | null {
+export function getPerkLevel(
+  purchasedUpgrades: PurchasedUpgrade[],
+  game: GameName,
+  effectKey: string,
+): number {
+  return getMaxOwnedLevelForEffect(purchasedUpgrades, effectKey, { game, scope: 'game' })
+}
+
+function parsePayoutMultFromEffectKey(effectKey: string): number | null {
   const m = effectKey.match(/^payout_mult_([\d.]+)$/)
   if (!m) return null
   const v = parseFloat(m[1]!)
   return Number.isFinite(v) && v > 0 ? v : null
 }
 
+function payoutMultForItem(item: NonNullable<ReturnType<typeof getCatalogItem>>): number | null {
+  if (item.payoutMult != null) return item.payoutMult
+  return parsePayoutMultFromEffectKey(item.effectKey)
+}
+
 /** Combined payout multiplier from run-wide and game-specific boosts. */
 export function computePayoutMultiplier(purchasedUpgrades: PurchasedUpgrade[], game: GameName): number {
   let mult = 1
   for (const pu of purchasedUpgrades) {
-    const item = getCatalogItem(pu.id)
+    const item = getCatalogItem(normalizeUpgradeId(pu.id))
     if (!item) continue
-    const parsed = parsePayoutMult(item.effectKey)
+    const parsed = payoutMultForItem(item)
     if (parsed == null) continue
     if (item.scope === 'run' || (item.scope === 'game' && item.game === game)) {
       mult *= parsed
@@ -44,12 +64,17 @@ export function applyPayoutBoost(amount: number, purchasedUpgrades: PurchasedUpg
 
 export function hasFreeFirstBet(purchasedUpgrades: PurchasedUpgrade[]): boolean {
   return (
-    hasEffect(purchasedUpgrades, 'first_bet_free') ||
+    getMaxOwnedLevelForEffect(purchasedUpgrades, 'first_bet_free', { scope: 'run' }) > 0 ||
     hasEffect(purchasedUpgrades, 'first_bet_refund')
   )
 }
 
-/** True when the Opening Ticket free first bet is still available this floor. */
+export function getOpeningTicketCapMultiplier(purchasedUpgrades: PurchasedUpgrade[]): number {
+  const level = getMaxOwnedLevelForEffect(purchasedUpgrades, 'first_bet_free', { scope: 'run' })
+  if (level <= 0) return 10
+  return OPENING_TICKET_CAP_BY_LEVEL[level - 1] ?? 10
+}
+
 export function isOpeningBetFreeAvailable(state: {
   currentFloor: number
   history: { floor: number }[]
@@ -66,7 +91,6 @@ export function isOpeningBetFreeAvailable(state: {
   )
 }
 
-/** Max stake the player can place (covers free opening bet when bankroll is short). */
 export function survivalWagerCap(
   bankroll: number,
   openingBetFree: boolean,
@@ -77,17 +101,27 @@ export function survivalWagerCap(
 }
 
 export function hasStreakShield(purchasedUpgrades: PurchasedUpgrade[]): boolean {
-  return hasEffect(purchasedUpgrades, 'streak_shield')
+  return getStreakShieldCharges(purchasedUpgrades) > 0
 }
 
-/** Hi-Lo: min/max card value still in deck. */
+export function getStreakShieldCharges(purchasedUpgrades: PurchasedUpgrade[]): number {
+  const level = getMaxOwnedLevelForEffect(purchasedUpgrades, 'streak_shield', { scope: 'run' })
+  if (level <= 0) return 0
+  return STREAK_SHIELD_CHARGES_BY_LEVEL[level - 1] ?? 1
+}
+
+export function getCoinBiasChance(purchasedUpgrades: PurchasedUpgrade[], game: GameName): number {
+  const level = getPerkLevel(purchasedUpgrades, game, 'perk_coin_bias')
+  if (level <= 0) return 0.5
+  return COIN_BIAS_CHANCE_BY_LEVEL[level - 1] ?? 0.55
+}
+
 export function hiloNextCardRange(deck: { value: number }[]): { min: number; max: number } | null {
   if (deck.length === 0) return null
   const values = deck.map((c) => c.value)
   return { min: Math.min(...values), max: Math.max(...values) }
 }
 
-/** Pick one chicken guaranteed not to win (for scout perk UI). */
 export function pickChickenScoutEliminate(winnerId: number, chickenCount = 4): number {
   const others: number[] = []
   for (let i = 0; i < chickenCount; i++) {
@@ -96,7 +130,6 @@ export function pickChickenScoutEliminate(winnerId: number, chickenCount = 4): n
   return others[Math.floor(Math.random() * others.length)]!
 }
 
-/** Crash zone band around hidden crash point (±8%). */
 export function crashZoneBand(crashAt: number): { low: number; high: number } {
   const pad = crashAt * 0.08
   return {
@@ -105,13 +138,11 @@ export function crashZoneBand(crashAt: number): { low: number; high: number } {
   }
 }
 
-/** Mines: first safe unrevealed tile id. */
 export function findFirstSafeMineTile(tiles: { id: number; hasMine: boolean; revealed: boolean }[]): number | null {
   const safe = tiles.find((t) => !t.hasMine && !t.revealed)
   return safe?.id ?? null
 }
 
-/** Roulette: three random numbers (0–36) excluding the winning number. */
 export function rouletteEliminatedNumbers(winningNumber: number, count = 3): number[] {
   const pool: number[] = []
   for (let n = 0; n <= 36; n++) {
@@ -125,18 +156,15 @@ export function rouletteEliminatedNumbers(winningNumber: number, count = 3): num
   return out
 }
 
-/** Street cups: one wrong cup to eliminate at pick stage. */
 export function streetCupsEliminatedCup(winningSlot: number): number {
   const wrong = [0, 1, 2].filter((s) => s !== winningSlot)
   return wrong[Math.floor(Math.random() * wrong.length)]!
 }
 
-/** Keno: pick `count` numbers from 1–80 that will be in the draw (requires draw first). */
 export function kenoHeatNumbers(draw: number[], count = 2): number[] {
   return draw.slice(0, count)
 }
 
-/** Coin flip with optional 55% player bias. */
-export function biasedCoinResult(playerPick: CoinSide): CoinSide {
-  return Math.random() < 0.55 ? playerPick : playerPick === 'heads' ? 'tails' : 'heads'
+export function biasedCoinResult(playerPick: CoinSide, winChance = 0.55): CoinSide {
+  return Math.random() < winChance ? playerPick : playerPick === 'heads' ? 'tails' : 'heads'
 }

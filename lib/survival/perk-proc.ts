@@ -1,5 +1,5 @@
-/** Per-bet activation chance for perks that reveal guaranteed safe outcomes. */
-export const PROC_PERK_CHANCES: Record<string, number> = {
+/** Base per-bet activation chance at level 1 for proc perks. */
+export const PROC_PERK_BASE_CHANCES: Record<string, number> = {
   perk_mines_safe: 0.35,
   perk_dragon_blindspot: 0.35,
   perk_chicken_road_lane: 0.32,
@@ -14,17 +14,30 @@ export const PROC_PERK_CHANCES: Record<string, number> = {
   perk_slots_shield: 0.35,
 }
 
+const PROC_LEVEL_BONUS = 0.04
+const PROC_MAX_CHANCE = 0.85
+
 export function perkRequiresProcRoll(effectKey: string): boolean {
-  return effectKey in PROC_PERK_CHANCES
+  return effectKey in PROC_PERK_BASE_CHANCES
 }
 
-export function rollPerkProc(effectKey: string): boolean {
-  const chance = PROC_PERK_CHANCES[effectKey]
-  if (chance == null) return true
+export function getPerkProcChance(effectKey: string, level = 1): number {
+  const base = PROC_PERK_BASE_CHANCES[effectKey]
+  if (base == null) return 1
+  const lv = Math.max(1, Math.min(5, level))
+  return Math.min(PROC_MAX_CHANCE, base + (lv - 1) * PROC_LEVEL_BONUS)
+}
+
+export function rollPerkProc(effectKey: string, level = 1): boolean {
+  const chance = getPerkProcChance(effectKey, level)
+  if (!perkRequiresProcRoll(effectKey)) return true
   return Math.random() < chance
 }
 
-export function perkProcChancePercent(effectKey: string): number | null {
-  const chance = PROC_PERK_CHANCES[effectKey]
-  return chance != null ? Math.round(chance * 100) : null
+export function perkProcChancePercent(effectKey: string, level = 1): number | null {
+  if (!perkRequiresProcRoll(effectKey)) return null
+  return Math.round(getPerkProcChance(effectKey, level) * 100)
 }
+
+/** @deprecated Use PROC_PERK_BASE_CHANCES */
+export const PROC_PERK_CHANCES = PROC_PERK_BASE_CHANCES

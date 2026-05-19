@@ -7,7 +7,11 @@ import type { GameName } from '@/store/types'
 import { applyResolveModifiers } from '@/lib/survival/apply-modifiers'
 import { evaluateMissionsOnGame } from '@/lib/survival/mission-evaluator'
 import { useOpeningTicketActive } from '@/hooks/use-opening-ticket'
-import { hasFreeFirstBet, survivalWagerCap } from '@/lib/survival/survival-perks'
+import {
+  getOpeningTicketCapMultiplier,
+  hasFreeFirstBet,
+  survivalWagerCap,
+} from '@/lib/survival/survival-perks'
 
 export interface GameResolvePayload {
   outcome: 'win' | 'loss' | 'push'
@@ -86,7 +90,7 @@ export function useSurvivalGameBankroll(game: GameName) {
 
       if (isFree) {
         useSurvivalStore.setState({ firstBetInsuranceUsed: true })
-        const freeCap = floorMinBet * 10
+        const freeCap = floorMinBet * getOpeningTicketCapMultiplier(before.purchasedUpgrades)
         const excess = Math.max(0, amount - freeCap)
         if (excess > 0) deductBet(excess)
         return
