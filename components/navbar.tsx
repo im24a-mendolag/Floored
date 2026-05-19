@@ -139,7 +139,7 @@ export function Navbar() {
 
             {/* Right: timer + account */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 z-10">
-              {runActive && (
+              {inSurvival && runActive && (
                 <div className="flex items-center gap-1.5">
                   {!floorComplete && !runDefeated && (
                     <>

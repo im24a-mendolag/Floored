@@ -255,6 +255,8 @@ export function Lobby({ mode }: Props) {
   useEffect(() => {
     if (mode === 'survival') {
       floorGames.forEach((name) => router.prefetch(`/survival/${name}`))
+    } else {
+      GAMES.filter((g) => g.availableFreeplay).forEach((g) => router.prefetch(`/freeplay/${g.name}`))
     }
   }, [mode, floorGames, router])
 
