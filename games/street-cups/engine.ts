@@ -59,3 +59,17 @@ export function pickCupStreetCups(state: StreetCupsState, pickedSlot: number): S
 
 /** Win pays 2× the bet. */
 export const STREET_CUPS_WIN_MULTIPLIER = 2
+
+/** Cursed pick: winning slot is always a different cup from the one the player chose. */
+export function loseGame(state: StreetCupsState, pickedSlot: number): StreetCupsState {
+  const others = [0, 1, 2].filter((s) => s !== pickedSlot)
+  const winningSlot = others[Math.floor(Math.random() * others.length)] ?? (pickedSlot === 0 ? 1 : 0)
+  return {
+    ...state,
+    playerPick: pickedSlot,
+    winningSlot,
+    outcome: 'loss',
+    stage: 'settled',
+    message: 'Wrong cup!',
+  }
+}

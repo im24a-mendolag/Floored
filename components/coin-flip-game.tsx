@@ -23,7 +23,8 @@ import { getCoinBiasChance } from '@/lib/survival/survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
-import { cashOut, flipAgain, initCoinFlip, startFlip } from '@/games/coin-flip/engine'
+import { useCurse } from '@/hooks/use-curse'
+import { cashOut, flipAgain, initCoinFlip, loseFlipAgain, loseGame, startFlip } from '@/games/coin-flip/engine'
 import type { CoinFlipState, CoinSide } from '@/games/coin-flip/types'
 
 const COIN_SPIN_MS = 1500
@@ -66,6 +67,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
   const { coinBias, purchasedUpgrades } = useSurvivalPerks('coin-flip')
   const minBet = mode === 'survival' ? floorMinBet : 1
   const biasChance =
@@ -166,7 +168,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     if (!canFlip || !state.pick || isFlipping || !lock()) return
     const bet = currentBet
     onBet?.(bet)
-    const next = startFlip(bet, state.pick, biasChance != null ? { biasChance } : undefined)
+    const next = cursed ? loseGame(bet, state.pick) : startFlip(bet, state.pick, biasChance != null ? { biasChance } : undefined)
     setLastBet(bet)
     setCurrentBet(0)
     setPendingResult(null)
@@ -177,7 +179,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   function handleFlipAgain() {
     if (!state.nextPick || isFlipping) return
     setQuoteIdx((prev) => pickQuote(prev))
-    triggerFlip(flipAgain(state, biasChance != null ? { biasChance } : undefined))
+    triggerFlip(cursed ? loseFlipAgain(state) : flipAgain(state, biasChance != null ? { biasChance } : undefined))
   }
 
   function handleCashOut() {

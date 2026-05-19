@@ -122,3 +122,13 @@ export function spinRouletteWithResult(target: string, amount: number, result: n
   if (!target || amount <= 0) return settleRouletteSpin({}, result)
   return settleRouletteSpin({ [target]: amount }, result)
 }
+
+/** Cursed spin: always lands on a pocket not covered by the player's bet. */
+export function loseGame(target: string, amount: number): RouletteState {
+  const losers: number[] = []
+  for (let n = 0; n <= 36; n++) {
+    if (!isNumberCoveredByTarget(n, target)) losers.push(n)
+  }
+  const result = losers[Math.floor(Math.random() * losers.length)] ?? 1
+  return settleRouletteSpin({ [target]: amount }, result)
+}

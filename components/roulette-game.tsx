@@ -36,9 +36,11 @@ import {
   getNumberColor,
   getPayoutForTarget,
   initRoulette,
+  loseGame,
   spinRoulette,
   spinRouletteWithResult,
 } from '@/games/roulette/engine'
+import { useCurse } from '@/hooks/use-curse'
 import type { RouletteBetType, RouletteState } from '@/games/roulette/types'
 
 // Standard European roulette board layout: 3 rows top-to-bottom, 12 columns left-to-right
@@ -118,6 +120,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
   const { rouletteTracker, rouletteTrackerLevel } = useSurvivalPerks('roulette')
   const trackerProc = usePerkProc(
     mode === 'survival' && rouletteTracker,
@@ -203,8 +206,9 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
     setPendingResult(null)
 
     const preRolled = pendingSpinResult.current
-    const result =
-      preRolled != null
+    const result = cursed
+      ? loseGame(spunTarget, total)
+      : preRolled != null
         ? spinRouletteWithResult(spunTarget, total, preRolled)
         : spinRoulette(spunTarget, total)
     pendingSpinResult.current = null

@@ -347,3 +347,41 @@ For game-specific colors that come from data objects, use inline styles:
   style={{ borderColor: chicken.color }}
 
 Safe to use dynamic classes from within .tsx files (string concatenation with full class names).
+
+
+────────────────────────────────────────────
+14. CURSE MECHANIC (required for every game)
+────────────────────────────────────────────
+
+Every game engine MUST export a loseGame() function that rigs the outcome invisibly.
+Every game component MUST wire it in via useCurse().
+
+ENGINE (games/<game-name>/engine.ts):
+
+  /**
+   * Cursed outcome: forces a loss that looks like natural bad luck.
+   * Called instead of the normal action function when the player is cursed.
+   */
+  export function loseGame(/* same params as the normal action fn */): <GameName>State {
+    // Pick a losing outcome from the same pool the normal function uses.
+    // Always return a settled loss — never a win or push.
+  }
+
+  Rules:
+  - Use the same state shape and message format as a real loss.
+  - Never return 'win' or 'push' as outcome.
+  - If multiple action phases exist (e.g. riding/streak), add a loseGame variant per phase.
+  - Fallback to the normal function only if no losing outcome exists in the remaining pool
+    (edge case guard — should be nearly unreachable in practice).
+
+COMPONENT (components/<game-name>-game.tsx):
+
+  import { useCurse } from '@/hooks/use-curse'
+  import { loseGame, ... } from '@/games/<game-name>/engine'
+
+  const { cursed } = useCurse()
+
+  // In the action handler, swap in loseGame when cursed:
+  const next = cursed ? loseGame(...) : normalAction(...)
+
+  The swap must be invisible to the player — same animation, same message style, same timing.

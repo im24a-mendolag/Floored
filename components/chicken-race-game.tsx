@@ -30,11 +30,13 @@ import {
   TICK_MS,
   generateRaceFrames,
   initChickenRace,
+  loseGame,
   previewRaceOutcome,
   settleRace,
   startRace,
   startRaceWithWinner,
 } from '@/games/chicken-race/engine'
+import { useCurse } from '@/hooks/use-curse'
 import type { ChickenRaceState } from '@/games/chicken-race/types'
 
 interface ChickenRaceResult {
@@ -62,6 +64,7 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
   const { chickenScout, chickenScoutLevel  } = useSurvivalPerks('chicken-race')
   const scoutProc = usePerkProc(
     mode === 'survival' && chickenScout,
@@ -108,7 +111,9 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
     const bet = currentBet
     onBet?.(bet)
     let next: ChickenRaceState
-    if (scoutProc.perkActive && scoutPreviewRef.current) {
+    if (cursed) {
+      next = loseGame(bet, state.pickedChicken)
+    } else if (scoutProc.perkActive && scoutPreviewRef.current) {
       next = startRaceWithWinner(bet, state.pickedChicken, scoutPreviewRef.current.winner)
     } else {
       next = startRace(bet, state.pickedChicken)

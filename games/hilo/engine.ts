@@ -48,7 +48,9 @@ export function initHiLo(): HiLoState {
 
 export function startHiLoRound(betAmount: number): HiLoState {
   const deck = shuffleDeck(buildDeck())
-  const currentCard = deck.pop()!
+  // Never deal A or 2 as the opening card — one side is always an impossible guess
+  const startIdx = deck.findIndex((c) => c.value > 2 && c.value < 14)
+  const [currentCard = null] = deck.splice(startIdx, 1)
   return {
     deck,
     currentCard,
@@ -93,6 +95,31 @@ export function guessHiLo(state: HiLoState, guess: 'higher' | 'lower'): HiLoStat
       ? `${nextCard.rank}${nextCard.suit} — Tie. House wins.`
       : `${nextCard.rank}${nextCard.suit} — Wrong call.`
 
+  return {
+    ...state,
+    deck,
+    nextCard,
+    lastGuess: guess,
+    outcome: 'loss',
+    stage: 'settled',
+    message,
+  }
+}
+
+/** Cursed guess: forces a card from the deck that makes the guess wrong. */
+export function loseGame(state: HiLoState, guess: 'higher' | 'lower'): HiLoState {
+  if (state.stage !== 'playing' && state.stage !== 'riding') return state
+  const current = state.currentCard!
+  const losers = state.deck.filter((c) =>
+    guess === 'higher' ? c.value <= current.value : c.value >= current.value
+  )
+  if (losers.length === 0) return guessHiLo(state, guess)
+  const nextCard = losers[Math.floor(Math.random() * losers.length)]!
+  const deck = state.deck.filter((c) => c !== nextCard)
+  const message =
+    nextCard.value === current.value
+      ? `${nextCard.rank}${nextCard.suit} — Tie. House wins.`
+      : `${nextCard.rank}${nextCard.suit} — Wrong call.`
   return {
     ...state,
     deck,

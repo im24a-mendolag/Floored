@@ -29,6 +29,7 @@ import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
+import { useCurse } from '@/hooks/use-curse'
 import {
   BOARD_SIZE,
   DRAW_COUNT,
@@ -37,6 +38,7 @@ import {
   clearKenoPicks,
   getKenoPayout,
   initKeno,
+  loseGame,
   quickPickKeno,
   revealAllKenoDraws,
   revealNextKenoDraw,
@@ -72,6 +74,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
   const { kenoHeat, kenoHeatLevel  } = useSurvivalPerks('keno')
   const heatProc = usePerkProc(
     mode === 'survival' && kenoHeat,
@@ -140,7 +143,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
     setQuoteIdx((prev) => pickQuote(prev))
     onBet?.(currentBet)
     heatProc.rollForBet()
-    setRound(startKenoRound(currentBet, round.picks))
+    setRound(cursed ? loseGame(currentBet, round.picks) : startKenoRound(currentBet, round.picks))
     setCurrentBet(0)
   }
 

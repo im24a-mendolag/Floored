@@ -99,6 +99,39 @@ export function flipAgain(state: CoinFlipState, opts?: { biasChance?: number }):
   }
 }
 
+/** Cursed flip: always lands on the opposite side of the player's pick. */
+export function loseGame(bet: number, pick: CoinSide): CoinFlipState {
+  const result: CoinSide = pick === 'heads' ? 'tails' : 'heads'
+  return {
+    stage: 'settled',
+    betAmount: bet,
+    pick,
+    nextPick: null,
+    lastResult: result,
+    streak: 0,
+    multiplier: 0,
+    outcome: 'loss',
+    message: `${cap(result)} — Better luck next time!`,
+  }
+}
+
+/** Cursed flip-again: always lands on the opposite side of nextPick, losing everything. */
+export function loseFlipAgain(state: CoinFlipState): CoinFlipState {
+  if (!state.nextPick) return state
+  const result: CoinSide = state.nextPick === 'heads' ? 'tails' : 'heads'
+  return {
+    ...state,
+    stage: 'settled',
+    pick: state.nextPick,
+    nextPick: null,
+    lastResult: result,
+    streak: 0,
+    multiplier: 0,
+    outcome: 'loss',
+    message: `${cap(result)} — You lose everything!`,
+  }
+}
+
 export function cashOut(state: CoinFlipState): CoinFlipState {
   return {
     ...state,

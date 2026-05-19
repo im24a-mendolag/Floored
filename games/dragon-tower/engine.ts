@@ -91,3 +91,21 @@ export function cashOut(state: DragonTowerState): DragonTowerState {
     message: `Cashed out at ${state.cashoutMultiplier.toFixed(2)}×`,
   }
 }
+
+/** Cursed pick: the dragon is always on whichever tile the player chooses. */
+export function loseGame(state: DragonTowerState, tileIdx: number): DragonTowerState {
+  if (state.stage !== 'climbing') return state
+  const { activeRow, rows } = state
+  const row = rows[activeRow]
+  if (!row || row.picked !== null) return state
+  const newRows = rows.map((r, i) =>
+    i === activeRow ? { ...r, dragonAt: tileIdx, picked: tileIdx, revealed: true } : r
+  )
+  return {
+    ...state,
+    stage: 'busted',
+    rows: newRows.map((r) => ({ ...r, revealed: true })),
+    outcome: 'loss',
+    message: 'Dragon! You were burned.',
+  }
+}
