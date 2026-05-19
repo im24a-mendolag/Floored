@@ -174,8 +174,12 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet }   = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { streetCupsTruth } = useSurvivalPerks('street-cups')
-  const cupsProc = usePerkProc(mode === 'survival' && streetCupsTruth, 'perk_street_cups_truth')
+  const { streetCupsTruth, streetCupsTruthLevel  } = useSurvivalPerks('street-cups')
+  const cupsProc = usePerkProc(
+    mode === 'survival' && streetCupsTruth,
+    'perk_street_cups_truth',
+    streetCupsTruthLevel,
+  )
   const cupsProcActiveRef = useRef(false)
   const minBet = mode === 'survival' ? floorMinBet : 1
 

@@ -62,8 +62,12 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { chickenScout } = useSurvivalPerks('chicken-race')
-  const scoutProc = usePerkProc(mode === 'survival' && chickenScout, 'perk_chicken_scout')
+  const { chickenScout, chickenScoutLevel  } = useSurvivalPerks('chicken-race')
+  const scoutProc = usePerkProc(
+    mode === 'survival' && chickenScout,
+    'perk_chicken_scout',
+    chickenScoutLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [state, setState] = useState<ChickenRaceState>(initChickenRace)

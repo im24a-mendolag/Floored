@@ -68,8 +68,12 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
-  const { chickenRoadLane } = useSurvivalPerks('chicken-road')
-  const laneProc = usePerkProc(mode === 'survival' && chickenRoadLane, 'perk_chicken_road_lane')
+  const { chickenRoadLane, chickenRoadLaneLevel } = useSurvivalPerks('chicken-road')
+  const laneProc = usePerkProc(
+    mode === 'survival' && chickenRoadLane,
+    'perk_chicken_road_lane',
+    chickenRoadLaneLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<ChickenState>(initChicken())

@@ -185,7 +185,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
-  const { crashZone } = useSurvivalPerks('crash')
+  const { crashZone, crashZoneLevel } = useSurvivalPerks('crash')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound]         = useState<CrashState>(initCrash())
@@ -201,7 +201,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
   const isSettled    = round.stage === 'settled'
   const canStart     = currentBet >= minBet && currentBet <= bankroll
   const showCrashZone = mode === 'survival' && crashZone && isInProgress
-  const crashBand = showCrashZone ? crashZoneBand(round.crashAt) : null
+  const crashBand = showCrashZone ? crashZoneBand(round.crashAt, crashZoneLevel) : null
 
   const handleNewRound = useCallback(() => {
     unlock()

@@ -95,8 +95,12 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { dragonBlindspot } = useSurvivalPerks('dragon-tower')
-  const blindspotProc = usePerkProc(mode === 'survival' && dragonBlindspot, 'perk_dragon_blindspot')
+  const { dragonBlindspot, dragonBlindspotLevel } = useSurvivalPerks('dragon-tower')
+  const blindspotProc = usePerkProc(
+    mode === 'survival' && dragonBlindspot,
+    'perk_dragon_blindspot',
+    dragonBlindspotLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [state, setState] = useState<DragonTowerState>(initDragonTower)
@@ -191,7 +195,7 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
         {blindspotProc.perkActive && isClimbing && (
-          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">Safe tile marked on active row</PerkHint>
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">Safe tile marked (floors 1–2)</PerkHint>
         )}
         <GameActiveBetBadge
           betAmount={state.betAmount}
@@ -247,6 +251,7 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
                       const blindspotSafe =
                         blindspotProc.perkActive &&
                         isActive &&
+                        state.activeRow < 2 &&
                         row.picked === null &&
                         ti === safeHintTile
                       return (

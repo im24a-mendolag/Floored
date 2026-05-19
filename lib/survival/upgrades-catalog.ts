@@ -1,6 +1,18 @@
 import { SURVIVAL_GAME_POOL } from './balance'
 import { LOBBY_REROLL_TICKET, LOBBY_REROLL_TICKET_ID } from './lobby-ticket'
 import { perkProcChancePercent } from './perk-proc'
+import {
+  COIN_BIAS_CHANCE_BY_LEVEL,
+  CRASH_ZONE_PAD_BY_LEVEL,
+  GAME_PAYOUT_MULT_BY_LEVEL,
+  MAX_UPGRADE_LEVEL,
+  OPENING_TICKET_CAP_BY_LEVEL,
+  RUN_PAYOUT_MULT_BY_LEVEL,
+  levelCost,
+  levelRoman,
+  normalizeUpgradeId,
+  payoutPercentLabel,
+} from './upgrade-levels'
 import type { GameName, PurchasedUpgrade } from '@/store/types'
 
 export type UpgradeScope = 'run' | 'game' | 'consumable'
@@ -14,32 +26,37 @@ export interface CatalogItem {
   game?: GameName
   effectKey: string
   rarity?: 'common' | 'rare' | 'epic'
+  /** Upgrade track id (e.g. blackjack_perk). */
+  familyId?: string
+  level?: number
+  /** Payout multiplier for boost items (e.g. 1.08 = +8%). */
+  payoutMult?: number
 }
 
-const GAME_BOOST_LABELS: Record<GameName, { name: string; description: string }> = {
-  blackjack: { name: 'Card Counter', description: '+8% blackjack win payouts.' },
-  crash: { name: 'Early Cashout', description: '+8% crash win payouts.' },
-  plinko: { name: 'Gravity Bias', description: '+8% plinko win payouts.' },
-  'over-under': { name: 'Loaded Dice', description: '+8% over/under win payouts.' },
-  wheel: { name: 'Wheel Weight', description: '+8% wheel win payouts.' },
-  'run-dice': { name: 'Hot Hand', description: '+8% run dice win payouts.' },
-  mines: { name: 'Safe Step', description: '+8% mines cashout payouts.' },
-  'chicken-road': { name: 'Feathered Path', description: '+8% chicken road win payouts.' },
-  slots: { name: 'Jackpot Juice', description: '+8% slots win payouts.' },
-  roulette: { name: 'Ball Magnet', description: '+8% roulette win payouts.' },
-  'dragon-tower': { name: 'Dragon Sight', description: '+8% dragon tower cashout payouts.' },
-  'chicken-race': { name: 'Race Analyst', description: '+8% chicken race win payouts.' },
-  'street-cups': { name: 'Sharp Eyes', description: '+8% street cups win payouts.' },
-  'case-battles': { name: 'Case Hunter', description: '+8% case battles win payouts.' },
-  'poker-1p': { name: 'Poker Face', description: '+8% poker win payouts.' },
-  hilo: { name: 'Ace Spotter', description: '+8% Hi-Lo win payouts.' },
-  keno: { name: 'Lucky Grid', description: '+8% keno win payouts.' },
-  'coin-flip': { name: 'Weighted Coin', description: '+8% coin flip win payouts.' },
+const GAME_BOOST_LABELS: Record<GameName, { name: string }> = {
+  blackjack: { name: 'Card Counter' },
+  crash: { name: 'Early Cashout' },
+  plinko: { name: 'Gravity Bias' },
+  'over-under': { name: 'Loaded Dice' },
+  wheel: { name: 'Wheel Weight' },
+  'run-dice': { name: 'Hot Hand' },
+  mines: { name: 'Safe Step' },
+  'chicken-road': { name: 'Feathered Path' },
+  slots: { name: 'Jackpot Juice' },
+  roulette: { name: 'Ball Magnet' },
+  'dragon-tower': { name: 'Dragon Sight' },
+  'chicken-race': { name: 'Race Analyst' },
+  'street-cups': { name: 'Sharp Eyes' },
+  'case-battles': { name: 'Case Hunter' },
+  'poker-1p': { name: 'Poker Face' },
+  hilo: { name: 'Ace Spotter' },
+  keno: { name: 'Lucky Grid' },
+  'coin-flip': { name: 'Weighted Coin' },
 }
 
 const GAME_PERK_DEFS: Record<
   GameName,
-  { name: string; description: string; effectKey: string; baseCost: number; rarity: 'rare' | 'epic' }
+  { name: string; description: string; effectKey: string; baseCost: number; rarity: 'rare' | 'epic'; descriptionForLevel?: (level: number) => string }
 > = {
   blackjack: {
     name: 'Hole Card Reader',
@@ -68,6 +85,10 @@ const GAME_PERK_DEFS: Record<
     effectKey: 'perk_crash_zone',
     baseCost: 22,
     rarity: 'rare',
+    descriptionForLevel: (level) => {
+      const pct = Math.round((CRASH_ZONE_PAD_BY_LEVEL[level - 1] ?? 0.07) * 100)
+      return `Shows a ±${pct}% band around the hidden crash point.`
+    },
   },
   mines: {
     name: 'Mine Sweeper',
@@ -98,8 +119,8 @@ const GAME_PERK_DEFS: Record<
     rarity: 'rare',
   },
   'run-dice': {
-    name: 'Loaded Insight',
-    description: 'Highlights your best winning face on the die.',
+    name: 'Loss Shield',
+    description: 'When active, a loss roll returns your bet (push) instead of losing.',
     effectKey: 'perk_run_dice_insight',
     baseCost: 16,
     rarity: 'rare',
@@ -120,14 +141,14 @@ const GAME_PERK_DEFS: Record<
   },
   roulette: {
     name: 'Ball Tracker',
-    description: 'Three numbers that will not hit are crossed off the board.',
+    description: 'Three numbers that will not hit are shown while you place bets.',
     effectKey: 'perk_roulette_tracker',
     baseCost: 22,
     rarity: 'epic',
   },
   'dragon-tower': {
     name: 'Dragon’s Blind Spot',
-    description: 'One safe tile per row is marked before you pick.',
+    description: 'One safe tile is marked on each of the first two floors.',
     effectKey: 'perk_dragon_blindspot',
     baseCost: 22,
     rarity: 'rare',
@@ -162,94 +183,153 @@ const GAME_PERK_DEFS: Record<
   },
   'coin-flip': {
     name: 'Weighted Edge',
-    description: 'Your chosen side has a 55% chance to win each flip.',
+    description: 'Your chosen side is more likely to win each flip.',
     effectKey: 'perk_coin_bias',
     baseCost: 20,
     rarity: 'rare',
+    descriptionForLevel: (level) => {
+      const pct = Math.round((COIN_BIAS_CHANCE_BY_LEVEL[level - 1] ?? 0.60) * 100)
+      return `Your chosen side wins ${pct}% of the time.`
+    },
   },
 }
 
-function gameBoostItems(): CatalogItem[] {
-  return SURVIVAL_GAME_POOL.map((game) => {
-    const label = GAME_BOOST_LABELS[game]
-    return {
-      id: `${game.replace(/-/g, '_')}_boost`,
-      name: label.name,
-      description: label.description,
-      baseCost: 14,
-      scope: 'game' as const,
-      game,
-      effectKey: 'payout_mult_1.08',
-      rarity: 'common' as const,
-    }
-  })
-}
-
-function withProcNote(description: string, effectKey: string): string {
-  const pct = perkProcChancePercent(effectKey)
+function withProcNote(description: string, effectKey: string, level: number): string {
+  const pct = perkProcChancePercent(effectKey, level)
   if (pct == null) return description
   return `${description} (~${pct}% chance to activate each bet.)`
 }
 
-function gamePerkItems(): CatalogItem[] {
-  return SURVIVAL_GAME_POOL.map((game) => {
-    const perk = GAME_PERK_DEFS[game]
-    return {
-      id: `${game.replace(/-/g, '_')}_perk`,
-      name: perk.name,
-      description: withProcNote(perk.description, perk.effectKey),
-      baseCost: perk.baseCost,
-      scope: 'game' as const,
-      game,
-      effectKey: perk.effectKey,
-      rarity: perk.rarity,
-    }
+function leveledItems(
+  familyId: string,
+  base: Omit<CatalogItem, 'id' | 'familyId' | 'level' | 'baseCost'> & { baseCost: number },
+  levels: number,
+  build: (level: number) => Pick<CatalogItem, 'description' | 'payoutMult' | 'name'>,
+): CatalogItem[] {
+  const items: CatalogItem[] = []
+  for (let level = 1; level <= levels; level++) {
+    const extra = build(level)
+    items.push({
+      ...base,
+      ...extra,
+      id: `${familyId}_l${level}`,
+      familyId,
+      level,
+      baseCost: levelCost(base.baseCost, level),
+    })
+  }
+  return items
+}
+
+function gameBoostItems(): CatalogItem[] {
+  return SURVIVAL_GAME_POOL.flatMap((game) => {
+    const label = GAME_BOOST_LABELS[game]
+    const familyId = `${game.replace(/-/g, '_')}_boost`
+    return leveledItems(
+      familyId,
+      {
+        name: label.name,
+        description: '',
+        baseCost: 14,
+        scope: 'game',
+        game,
+        effectKey: 'payout_boost',
+        rarity: 'common',
+      },
+      MAX_UPGRADE_LEVEL,
+      (level) => {
+        const mult = GAME_PAYOUT_MULT_BY_LEVEL[level - 1]!
+        return {
+          name: `${label.name} ${levelRoman(level)}`,
+          description: `${payoutPercentLabel(mult)} ${formatGameLabel(game)} win payouts.`,
+          payoutMult: mult,
+        }
+      },
+    )
   })
 }
 
+function gamePerkItems(): CatalogItem[] {
+  return SURVIVAL_GAME_POOL.flatMap((game) => {
+    const perk = GAME_PERK_DEFS[game]
+    const familyId = `${game.replace(/-/g, '_')}_perk`
+    return leveledItems(
+      familyId,
+      {
+        name: perk.name,
+        description: perk.description,
+        baseCost: perk.baseCost,
+        scope: 'game',
+        game,
+        effectKey: perk.effectKey,
+        rarity: perk.rarity,
+      },
+      MAX_UPGRADE_LEVEL,
+      (level) => ({
+        name: `${perk.name} ${levelRoman(level)}`,
+        description: perk.descriptionForLevel
+          ? perk.descriptionForLevel(level)
+          : withProcNote(perk.description, perk.effectKey, level),
+      }),
+    )
+  })
+}
+
+function runPayoutBoostItems(): CatalogItem[] {
+  return leveledItems(
+    'run_payout_boost',
+    {
+      name: 'Lucky Charm',
+      description: '',
+      baseCost: 12,
+      scope: 'run',
+      effectKey: 'payout_boost',
+      rarity: 'common',
+    },
+    MAX_UPGRADE_LEVEL,
+    (level) => {
+      const mult = RUN_PAYOUT_MULT_BY_LEVEL[level - 1]!
+      return {
+        name: `Lucky Charm ${levelRoman(level)}`,
+        description: `${payoutPercentLabel(mult)} payout on all wins for the rest of the run.`,
+        payoutMult: mult,
+      }
+    },
+  )
+}
+
+function openingTicketItems(): CatalogItem[] {
+  return leveledItems(
+    'first_bet_free',
+    {
+      name: 'Opening Ticket',
+      description: '',
+      baseCost: 20,
+      scope: 'run',
+      effectKey: 'first_bet_free',
+      rarity: 'rare',
+    },
+    MAX_UPGRADE_LEVEL,
+    (level) => {
+      const cap = OPENING_TICKET_CAP_BY_LEVEL[level - 1]!
+      return {
+        name: `Opening Ticket ${levelRoman(level)}`,
+        description: `First bet on each floor is free up to ${cap}× the floor minimum bet. Excess is charged normally.`,
+      }
+    },
+  )
+}
+
 export const UPGRADES_CATALOG: CatalogItem[] = [
-  {
-    id: 'payout_boost_5',
-    name: 'Lucky Charm',
-    description: '+5% payout on all wins for the rest of the run.',
-    baseCost: 12,
-    scope: 'run',
-    effectKey: 'payout_mult_1.05',
-    rarity: 'common',
-  },
-  {
-    id: 'payout_boost_10',
-    name: 'Golden Touch',
-    description: '+10% payout on all wins for the rest of the run.',
-    baseCost: 22,
-    scope: 'run',
-    effectKey: 'payout_mult_1.10',
-    rarity: 'rare',
-  },
-  {
-    id: 'streak_insurance',
-    name: 'Streak Shield',
-    description: 'First loss each floor does not reset your win streak.',
-    baseCost: 18,
-    scope: 'run',
-    effectKey: 'streak_shield',
-    rarity: 'rare',
-  },
-  {
-    id: 'first_bet_insurance',
-    name: 'Opening Ticket',
-    description: 'First bet on each floor is free up to 10× the floor minimum bet. Excess is charged normally.',
-    baseCost: 20,
-    scope: 'run',
-    effectKey: 'first_bet_free',
-    rarity: 'rare',
-  },
+  ...runPayoutBoostItems(),
+  ...openingTicketItems(),
   ...gameBoostItems(),
   ...gamePerkItems(),
 ]
 
 export function getCatalogItem(id: string): CatalogItem | undefined {
-  if (id === LOBBY_REROLL_TICKET_ID) {
+  const normalized = normalizeUpgradeId(id)
+  if (normalized === LOBBY_REROLL_TICKET_ID) {
     return {
       id: LOBBY_REROLL_TICKET_ID,
       name: LOBBY_REROLL_TICKET.name,
@@ -260,7 +340,7 @@ export function getCatalogItem(id: string): CatalogItem | undefined {
       rarity: 'common',
     }
   }
-  return UPGRADES_CATALOG.find((i) => i.id === id)
+  return UPGRADES_CATALOG.find((i) => i.id === normalized)
 }
 
 export function getCatalogItemByEffect(effectKey: string, game?: GameName): CatalogItem | undefined {
@@ -283,16 +363,20 @@ export function catalogScopeLabel(item: CatalogItem): string | null {
   return null
 }
 
-/** Boost + perk for one game (for reference / UI). */
 export function getItemsForGame(game: GameName): CatalogItem[] {
   return UPGRADES_CATALOG.filter((i) => i.game === game)
 }
 
-/** All non-consumable catalog items as owned upgrades (dev/testing). */
+/** Dev helper: one max-level item per upgrade family. */
 export function allPurchasedUpgradesForDev(): PurchasedUpgrade[] {
   const purchasedAt = new Date().toISOString()
-  return UPGRADES_CATALOG.filter((item) => item.scope !== 'consumable').map((item) => ({
-    id: item.id,
-    purchasedAt,
-  }))
+  const byFamily = new Map<string, CatalogItem>()
+  for (const item of UPGRADES_CATALOG) {
+    if (item.scope === 'consumable' || !item.familyId) continue
+    const prev = byFamily.get(item.familyId)
+    if (!prev || (item.level ?? 0) > (prev.level ?? 0)) byFamily.set(item.familyId, item)
+  }
+  return Array.from(byFamily.values()).map((item) => ({ id: item.id, purchasedAt }))
 }
+
+export { normalizeUpgradeId } from './upgrade-levels'

@@ -155,8 +155,6 @@ export interface SurvivalStore {
   floorTimerPaused: boolean
   /** Epoch ms when floorTimeRemainingMs was last synced. */
   floorTimerSyncedAt: number
-  /** Streak shield consumable-like run upgrade — first loss per floor ignored. */
-  streakShieldUsed: boolean
   /** Opening Ticket — free first bet per floor consumed. */
   firstBetInsuranceUsed: boolean
   /** Rerolls used on shop offers this floor (escalating spark cost). */

@@ -1,6 +1,7 @@
 import { createRng, seedFromString } from '@/utils/rng'
 import { calcShopPrice } from './balance'
 import { UPGRADES_CATALOG, type CatalogItem } from './upgrades-catalog'
+import { isUpgradeOfferable } from './upgrade-levels'
 import type { Difficulty, GameName } from '@/store/types'
 
 export interface ShopOffer {
@@ -18,21 +19,28 @@ function pickRandom<T>(pool: T[], rng: () => number, n: number): T[] {
   return picked
 }
 
-/** Game-scope items for the current floor lobby (unowned). */
+function filterOfferable(items: CatalogItem[], ownedUpgradeIds: string[]): CatalogItem[] {
+  return items.filter((item) => isUpgradeOfferable(item, ownedUpgradeIds))
+}
+
+/** Game-scope items for the current floor lobby (next level only). */
 export function buildGameItemPool(floorGames: GameName[], ownedUpgradeIds: string[]): CatalogItem[] {
-  const owned = new Set(ownedUpgradeIds)
-  return UPGRADES_CATALOG.filter(
-    (item) => item.scope === 'game' && item.game && floorGames.includes(item.game) && !owned.has(item.id),
+  return filterOfferable(
+    UPGRADES_CATALOG.filter(
+      (item) => item.scope === 'game' && item.game && floorGames.includes(item.game),
+    ),
+    ownedUpgradeIds,
   )
 }
 
-/** Run-wide items (unowned). */
+/** Run-wide items (next level only). */
 export function buildRunItemPool(ownedUpgradeIds: string[]): CatalogItem[] {
-  const owned = new Set(ownedUpgradeIds)
-  return UPGRADES_CATALOG.filter((item) => item.scope === 'run' && !owned.has(item.id))
+  return filterOfferable(
+    UPGRADES_CATALOG.filter((item) => item.scope === 'run'),
+    ownedUpgradeIds,
+  )
 }
 
-/** Legacy pool helper — used by the shop UI to check if rerolls are available. */
 export function buildShopPool(floorGames: GameName[], ownedUpgradeIds: string[]): CatalogItem[] {
   return [
     ...buildGameItemPool(floorGames, ownedUpgradeIds),
@@ -40,10 +48,6 @@ export function buildShopPool(floorGames: GameName[], ownedUpgradeIds: string[])
   ]
 }
 
-/**
- * Always returns exactly: 2 game upgrades + 1 run upgrade.
- * A 4th active-item slot is reserved in the UI (not generated here).
- */
 export function generateShopOffers(input: {
   runSeed: string
   floor: number
@@ -58,7 +62,7 @@ export function generateShopOffers(input: {
   const owned = input.ownedUpgradeIds ?? []
 
   const gameItems = pickRandom(buildGameItemPool(input.floorGames, owned), rng, 2)
-  const runItems  = pickRandom(buildRunItemPool(owned), rng, 1)
+  const runItems = pickRandom(buildRunItemPool(owned), rng, 1)
 
   return [...gameItems, ...runItems].map((item) => ({
     item,

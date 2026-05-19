@@ -7,7 +7,11 @@ import type { GameName } from '@/store/types'
 import { applyResolveModifiers } from '@/lib/survival/apply-modifiers'
 import { evaluateMissionsOnGame } from '@/lib/survival/mission-evaluator'
 import { useOpeningTicketActive } from '@/hooks/use-opening-ticket'
-import { hasFreeFirstBet, survivalWagerCap } from '@/lib/survival/survival-perks'
+import {
+  getOpeningTicketCapMultiplier,
+  hasFreeFirstBet,
+  survivalWagerCap,
+} from '@/lib/survival/survival-perks'
 
 export interface GameResolvePayload {
   outcome: 'win' | 'loss' | 'push'
@@ -65,14 +69,20 @@ export function useSurvivalGameBankroll(game: GameName) {
   const bankroll = useSurvivalStore((s) => s.bankroll)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
   const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
+  const purchasedUpgrades = useSurvivalStore((s) => s.purchasedUpgrades)
   const openingBetFree = useOpeningTicketActive()
   const deductBet = useSurvivalStore((s) => s.deductBet)
   const recordResultPayout = useSurvivalStore((s) => s.recordResultPayout)
   const applyMissionResults = useSurvivalStore((s) => s.applyMissionResults)
 
+  const openingTicketFreeCap = useMemo(
+    () => floorMinBet * getOpeningTicketCapMultiplier(purchasedUpgrades),
+    [floorMinBet, purchasedUpgrades],
+  )
+
   const wagerCap = useMemo(
-    () => survivalWagerCap(bankroll, openingBetFree, floorMinBet),
-    [bankroll, openingBetFree, floorMinBet],
+    () => survivalWagerCap(bankroll, openingBetFree, openingTicketFreeCap),
+    [bankroll, openingBetFree, openingTicketFreeCap],
   )
 
   const handleBet = useCallback(
@@ -86,7 +96,7 @@ export function useSurvivalGameBankroll(game: GameName) {
 
       if (isFree) {
         useSurvivalStore.setState({ firstBetInsuranceUsed: true })
-        const freeCap = floorMinBet * 10
+        const freeCap = before.floorMinBet * getOpeningTicketCapMultiplier(before.purchasedUpgrades)
         const excess = Math.max(0, amount - freeCap)
         if (excess > 0) deductBet(excess)
         return

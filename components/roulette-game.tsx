@@ -37,6 +37,7 @@ import {
   getPayoutForTarget,
   initRoulette,
   spinRoulette,
+  spinRouletteWithResult,
 } from '@/games/roulette/engine'
 import type { RouletteBetType, RouletteState } from '@/games/roulette/types'
 
@@ -117,8 +118,12 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { rouletteTracker } = useSurvivalPerks('roulette')
-  const trackerProc = usePerkProc(mode === 'survival' && rouletteTracker, 'perk_roulette_tracker')
+  const { rouletteTracker, rouletteTrackerLevel } = useSurvivalPerks('roulette')
+  const trackerProc = usePerkProc(
+    mode === 'survival' && rouletteTracker,
+    'perk_roulette_tracker',
+    rouletteTrackerLevel,
+  )
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<RouletteState>(initRoulette())
@@ -135,9 +140,29 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
 
   const spinTickRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const settleRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSpinResult = useRef<number | null>(null)
 
   const isBetting = round.stage === 'betting' && !spinning
   const isSettled = round.stage === 'settled' && !spinning
+
+  // Ball Tracker: proc + eliminated numbers during betting (before spin).
+  useEffect(() => {
+    if (mode !== 'survival' || !rouletteTracker || !isBetting) {
+      pendingSpinResult.current = null
+      if (!isBetting) setTrackerEliminated([])
+      return
+    }
+    const proc = trackerProc.rollForBet()
+    if (proc) {
+      const winning = Math.floor(Math.random() * 37)
+      pendingSpinResult.current = winning
+      setTrackerEliminated(rouletteEliminatedNumbers(winning))
+    } else {
+      pendingSpinResult.current = null
+      setTrackerEliminated([])
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- roll once per betting phase
+  }, [isBetting, mode, rouletteTracker, round.stage])
   const canSpin =
     currentTarget !== null && currentBet >= minBet && currentBet <= bankroll
   const activeBet = spinning || isSettled ? lastBet : 0
@@ -177,12 +202,12 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
     setCurrentTarget(null)
     setPendingResult(null)
 
-    const result = spinRoulette(spunTarget, total)
-    if (trackerProc.rollForBet() && result.result != null) {
-      setTrackerEliminated(rouletteEliminatedNumbers(result.result))
-    } else {
-      setTrackerEliminated([])
-    }
+    const preRolled = pendingSpinResult.current
+    const result =
+      preRolled != null
+        ? spinRouletteWithResult(spunTarget, total, preRolled)
+        : spinRoulette(spunTarget, total)
+    pendingSpinResult.current = null
     setQuoteIdx((prev) => pickQuote(prev))
     setSpinning(true)
     setSpinningPosition(WHEEL_POSITIONS[0] ?? '0')
@@ -281,7 +306,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
         gameLabel="Roulette"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
-        {trackerProc.perkActive && trackerEliminated.length > 0 && spinning && (
+        {trackerProc.perkActive && trackerEliminated.length > 0 && isBetting && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             Not winning: {trackerEliminated.join(', ')}
           </PerkHint>

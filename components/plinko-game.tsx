@@ -58,8 +58,12 @@ interface PlinkoGameProps {
 export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
   const { floorMinBet, pendingDefeatReason } = useSurvivalStore()
   const { cursed } = useCurse()
-  const { plinkoFirstBall } = useSurvivalPerks('plinko')
-  const shieldProc = usePerkProc(mode === 'survival' && plinkoFirstBall, 'perk_plinko_first_ball')
+  const { plinkoFirstBall, plinkoFirstBallLevel } = useSurvivalPerks('plinko')
+  const shieldProc = usePerkProc(
+    mode === 'survival' && plinkoFirstBall,
+    'perk_plinko_first_ball',
+    plinkoFirstBallLevel,
+  )
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
