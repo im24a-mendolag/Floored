@@ -37,21 +37,22 @@ Tech: Next.js 14 App Router · TypeScript · Tailwind CSS (JIT) · Zustand store
 |---|---|---|---|---|
 | Blackjack | ✓ | ✓ | `games/blackjack/` | `components/blackjack-game.tsx` |
 | Crash | ✓ | ✓ | `games/crash/` | `components/crash-game.tsx` |
-| Plinko | ✓ | — | `games/plinko/` | `components/plinko-game.tsx` |
-| Over-Under | ✓ | — | `games/over-under/` | `components/over-under-game.tsx` |
-| Fortune Wheel | ✓ | — | `games/wheel/` | `components/wheel-game.tsx` |
-| Run Dice | ✓ | — | `games/run-dice/` | `components/run-dice-game.tsx` |
-| Mines | ✓ | — | `games/mines/` | `components/mines-game.tsx` |
-| Chicken Road | ✓ | — | `games/chicken-road/` | `components/chicken-road-game.tsx` |
-| Slots | ✓ | — | `games/slots/` | `components/slots-game.tsx` |
+| Plinko | ✓ | ✓ | `games/plinko/` | `components/plinko-game.tsx` |
+| Over-Under | ✓ | ✓ | `games/over-under/` | `components/over-under-game.tsx` |
+| Fortune Wheel | ✓ | ✓ | `games/wheel/` | `components/wheel-game.tsx` |
+| Run Dice | ✓ | ✓ | `games/run-dice/` | `components/run-dice-game.tsx` |
+| Mines | ✓ | ✓ | `games/mines/` | `components/mines-game.tsx` |
+| Chicken Road | ✓ | ✓ | `games/chicken-road/` | `components/chicken-road-game.tsx` |
+| Slots | ✓ | ✓ | `games/slots/` | `components/slots-game.tsx` |
 | Roulette | ✓ | ✓ | `games/roulette/` | `components/roulette-game.tsx` |
-| Dragon Tower | ✓ | — | `games/dragon-tower/` | `components/dragon-tower-game.tsx` |
-| Chicken Race | ✓ | — | `games/chicken-race/` | `components/chicken-race-game.tsx` |
-| Coin Flip | ✓ | — | `games/coin-flip/` | `components/coin-flip-game.tsx` |
-| Case Battles | ✓ | — | `games/case-battles/` | `components/case-battles-game.tsx` |
-| 1P Poker | ✓ | — | `games/poker-1p/` | `components/poker-1p-game.tsx` |
-| HiLo | — | — | (stub) | (stub) |
-| Street Cups | — | — | (stub) | — |
+| Dragon Tower | ✓ | ✓ | `games/dragon-tower/` | `components/dragon-tower-game.tsx` |
+| Chicken Race | ✓ | ✓ | `games/chicken-race/` | `components/chicken-race-game.tsx` |
+| Coin Flip | ✓ | ✓ | `games/coin-flip/` | `components/coin-flip-game.tsx` |
+| Case Battles | ✓ | ✓ | `games/case-battles/` | `components/case-battles-game.tsx` |
+| 1P Poker | ✓ | ✓ | `games/poker-1p/` | `components/poker-1p-game.tsx` |
+| HiLo | ✓ | ✓ | `games/hilo/` | `components/hilo-game.tsx` |
+| Street Cups | ✓ | ✓ | `games/street-cups/` | `components/street-cups-game.tsx` |
+| Keno | ✓ | ✓ | `games/keno/` | `components/keno-game.tsx` |
 
 Games marked `—` in Survival are lobby-locked (`availableSurvival: false`). Games with both
 columns `—` are listed in lobby as "Coming soon" (`availableFreeplay: false, availableSurvival: false`).
@@ -97,6 +98,21 @@ const minBet = mode === 'survival' ? floorMinBet : 1
 const canAct = currentBet >= minBet && currentBet <= bankroll
 ```
 Always gate the start action on `canAct`, not just `currentBet > 0`.
+
+### Survival difficulty (run-wide)
+Picked in `components/difficulty-dialog.tsx` at run start; stored as `difficulty` on the survival store.
+
+**Affects two systems** (source of truth: `lib/survival/balance.ts`):
+
+| | Normal | Hard | Nightmare |
+|---|--------|------|-----------|
+| Floor quota (`DIFFICULTY_QUOTA_MULT`) | 1× | 1.5× | 2.5× |
+| Shop prices (`DIFFICULTY_SHOP_PRICE_MULT`) | 1× | 1.5× | 2× |
+
+- Quota: `calcQuotaTarget(floor, difficulty)` — live in floor generator.
+- Shop: `calcShopPrice(baseCost, difficulty)` — used in `lib/survival/shop-offers.ts` and `SurvivalShop`.
+- Sparks: `calcFloorSparksEarned` in `lib/survival/sparks-economy.ts`; missions add bonus sparks via `applyMissionResults`.
+- Player loop: quota met → `FloorCompleteModal` (summary → shop) → `advanceFloor` or victory `endRun`.
 
 ### onResolve contract
 The page (`app/freeplay/<game>/page.tsx`) owns bankroll math. The component never reads or

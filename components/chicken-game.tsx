@@ -19,11 +19,18 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   cashOutChicken,
   advanceChickenRound,
+  advanceChickenRoundSafe,
   getChickenPayout,
   initChicken,
   startChickenRound,
@@ -43,7 +50,7 @@ interface ChickenGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: ChickenResult) => void
+  onResolve: GameResolveFn<ChickenResult>
 }
 
 interface PendingResult {
@@ -56,6 +63,8 @@ interface PendingResult {
 export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { chickenRoadLane } = useSurvivalPerks('chicken-road')
+  const laneProc = usePerkProc(mode === 'survival' && chickenRoadLane, 'perk_chicken_road_lane')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<ChickenState>(initChicken())
@@ -64,6 +73,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
   const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
+  const [safeAdvancePending, setSafeAdvancePending] = useState(false)
 
   const isBetting = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
@@ -79,14 +89,14 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
   function settleRound(next: ChickenState) {
     const po = getChickenPayout(next)
     const outcome = next.outcome ?? 'loss'
-    onResolve({
+    const resolved = resolveGame(onResolve, {
       outcome,
       betAmount: next.betAmount,
       payout: po,
       multiplier: next.multiplier,
     })
     const built = buildPendingResult(
-      { outcome, betAmount: next.betAmount, payout: po },
+      { outcome, betAmount: next.betAmount, payout: resolved.payout },
       outcome === 'loss'
         ? `${formatChips(next.betAmount)} bet · Bust step ${next.step}`
         : `${formatChips(next.betAmount)} bet · Step ${next.step} · ${formatMultiplier(next.multiplier)}`,
@@ -109,12 +119,15 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
     setLastBet(bet)
     setPendingResult(null)
     setQuoteIdx((prev) => pickQuote(prev))
+    setSafeAdvancePending(laneProc.rollForBet())
     setRound(startChickenRound(bet))
     setCurrentBet(0)
   }
 
   function handleAdvance() {
-    const next = advanceChickenRound(round)
+    const useSafe = safeAdvancePending
+    if (useSafe) setSafeAdvancePending(false)
+    const next = useSafe ? advanceChickenRoundSafe(round) : advanceChickenRound(round)
     setRound(next)
     if (next.stage === 'settled') settleRound(next)
   }
@@ -126,14 +139,17 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
   }
 
   const handleNewRound = useCallback(() => {
+    laneProc.resetPerk()
+    setSafeAdvancePending(false)
     setRound(initChicken())
     setPendingResult(null)
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
-  }, [autoReBet, lastBet, bankroll])
+  }, [autoReBet, lastBet, bankroll, laneProc])
 
   function handleNext() {
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     handleNewRound()
+    survivalAfterNext(mode)
   }
 
   const currentStep = round.step
@@ -155,6 +171,11 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
         gameLabel="Chicken"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {safeAdvancePending && isInProgress && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Safe crossing — your next advance cannot fail
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={round.betAmount}
           betType={stepLabel}

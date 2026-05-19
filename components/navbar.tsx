@@ -7,14 +7,32 @@ import { useFreeplayStore } from '@/store/freeplay-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips } from '@/utils/format'
+import {
+  useFloorTimer,
+  useFloorTimeRemainingMs,
+  formatFloorTime,
+} from '@/hooks/use-floor-timer'
+import { FloorPauseModal } from '@/components/survival/floor-pause-modal'
+
+const HUD_PILL =
+  'px-2.5 py-1.5 rounded-lg bg-zinc-900/80 border border-zinc-700/60 tabular-nums text-sm font-bold text-zinc-200'
 
 export function Navbar() {
   const pathname = usePathname()
   const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
   const { autoReBet, setAutoReBet } = useSettingsStore()
   const runActive = useSurvivalStore((s) => s.runActive)
+  const floorTimerPaused = useSurvivalStore((s) => s.floorTimerPaused)
+  const floorComplete = useSurvivalStore((s) => s.floorComplete)
+  const runDefeated = useSurvivalStore((s) => s.runDefeated)
+  const quotaMet = useSurvivalStore((s) => s.quotaMet)
+  const toggleFloorTimerPause = useSurvivalStore((s) => s.toggleFloorTimerPause)
+  const finishQuotaEarly = useSurvivalStore((s) => s.finishQuotaEarly)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  useFloorTimer()
+  const floorTimeRemainingMs = useFloorTimeRemainingMs()
 
   const inFreeplay = pathname?.startsWith('/freeplay')
   const inSurvival = pathname?.startsWith('/survival')
@@ -68,14 +86,18 @@ export function Navbar() {
     </Link>
   )
 
+  const showFinishQuota =
+    runActive && quotaMet && !floorComplete && !runDefeated
+
   return (
     <>
+      <FloorPauseModal />
       <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur-md">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
+          <div className="relative flex items-center justify-between h-16">
 
             {/* Left: brand + nav links */}
-            <div className="flex items-center gap-4 min-w-0">
+            <div className="flex items-center gap-4 min-w-0 z-10">
               <Link
                 href="/"
                 className="text-lg font-black tracking-[0.2em] uppercase text-white hover:text-white/80 transition-colors shrink-0"
@@ -99,8 +121,45 @@ export function Navbar() {
               </div>
             </div>
 
-            {/* Right: bankroll + account */}
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Center: finish quota (early floor clear) */}
+            {showFinishQuota && (
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                <button
+                  type="button"
+                  onClick={() => finishQuotaEarly()}
+                  className="px-4 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide bg-amber-500 text-zinc-950 hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/25 whitespace-nowrap"
+                >
+                  Finish Quota
+                </button>
+              </div>
+            )}
+
+            {/* Right: timer + account */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 z-10">
+              {runActive && (
+                <div className="flex items-center gap-1.5">
+                  {!floorComplete && !runDefeated && (
+                    <>
+                      <div className={`${HUD_PILL} min-w-[3.25rem] text-center`}>
+                        {formatFloorTime(floorTimeRemainingMs)}
+                      </div>
+                      {!floorTimerPaused && (
+                        <button
+                          type="button"
+                          onClick={() => toggleFloorTimerPause()}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700/60 bg-zinc-900/80 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
+                          aria-label="Pause floor timer"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden>
+                            <path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z" />
+                          </svg>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
               {inFreeplay && (
                 <div className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-white/5 border border-white/10">
                   <div className="text-right">

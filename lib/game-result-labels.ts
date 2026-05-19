@@ -1,5 +1,5 @@
 import type { MatchHistoryEntry, MatchHistoryTone } from '@/components/game-match-history'
-import { formatChips } from '@/utils/format'
+import { formatChips, formatMultiplier } from '@/utils/format'
 
 export interface GameRoundAmounts {
   betAmount: number
@@ -23,10 +23,29 @@ export function formatHistoryNetTitle(payout: number, betAmount: number, outcome
   return '$0'
 }
 
+export function formatSettledMultiplierHint(
+  gameMultiplier?: number,
+  payoutBoostMult?: number,
+): string | undefined {
+  const parts: string[] = []
+  if (gameMultiplier != null && gameMultiplier > 0) {
+    parts.push(formatMultiplier(gameMultiplier))
+  }
+  if (payoutBoostMult != null && payoutBoostMult > 1) {
+    parts.push(`${formatMultiplier(payoutBoostMult)} boost`)
+  }
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
 export function buildPendingResult(
   amounts: GameRoundAmounts,
   subtitle: string,
-  options?: { winLabel?: string; lossLabel?: string },
+  options?: {
+    winLabel?: string
+    lossLabel?: string
+    gameMultiplier?: number
+    payoutBoostMult?: number
+  },
 ) {
   const tone: MatchHistoryTone =
     amounts.outcome === 'win' || amounts.outcome === 'push'
@@ -45,10 +64,13 @@ export function buildPendingResult(
         ? 'Push'
         : (options?.lossLabel ?? 'No winnings')
 
+  const multiplierHint = formatSettledMultiplierHint(options?.gameMultiplier, options?.payoutBoostMult)
+
   return {
     tone,
     label,
     outcomeLabel,
+    multiplierHint,
     entry: {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       at: new Date(),

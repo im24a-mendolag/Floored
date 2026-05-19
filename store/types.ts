@@ -33,12 +33,17 @@ export interface Modifier {
 
 export interface FloorMission {
   id: string
-  /** e.g. 'win_streak' | 'profit_target' — extensible in Step 8 */
   type: string
   target: number
   progress: number
   rewardSparks: number
   completed: boolean
+  /** Required for play_game missions */
+  game?: GameName
+  /** Minimum bet for play_game missions (floor min bet at generation) */
+  minBet?: number
+  /** Set when a mission can no longer be completed (e.g. flawless after a loss) */
+  failed?: boolean
 }
 
 export interface PurchasedUpgrade {
@@ -79,6 +84,8 @@ export interface DiceConfig {
   neutral: number[]
 }
 
+export type DefeatReason = 'bust' | 'quota'
+
 export interface RunSummary {
   endedAt: string
   endBankroll: number
@@ -87,6 +94,9 @@ export interface RunSummary {
   peakBankroll: number
   sparksEarned: number
   difficulty: Difficulty | null
+  victory?: boolean
+  /** True if the player continued past floor 10 into endless mode. */
+  endlessMode?: boolean
 }
 
 export interface SurvivalStore {
@@ -131,15 +141,57 @@ export interface SurvivalStore {
   /** Historical record of completed floors. */
   floorHistory: FloorRecord[]
 
-  /** True after quota is met, cleared when modal is dismissed and floor advances. */
+  /** True after the floor timer expires with quota met — advance / victory flow. */
   floorComplete: boolean
+  /** Pending defeat — shown after the player clicks Next in the current game. */
+  pendingDefeatReason: DefeatReason | null
+  /** True once defeat overlay is active. */
+  runDefeated: boolean
+  defeatReason: DefeatReason | null
+  /** True once bankroll reaches quotaTarget (does not end the floor). */
+  quotaMet: boolean
+  /** Milliseconds left on the current floor timer. */
+  floorTimeRemainingMs: number
+  floorTimerPaused: boolean
+  /** Epoch ms when floorTimeRemainingMs was last synced. */
+  floorTimerSyncedAt: number
+  /** Streak shield consumable-like run upgrade — first loss per floor ignored. */
+  streakShieldUsed: boolean
+  /** Opening Ticket — free first bet per floor consumed. */
+  firstBetInsuranceUsed: boolean
+  /** Rerolls used on shop offers this floor (escalating spark cost). */
+  shopRerollCount: number
+  /** Rerolls used on floor missions this floor (escalating spark cost). */
+  missionRerollCount: number
+  /** Lobby slot rerolls used this floor (seed variance). */
+  lobbyRerollCount: number
+  /** Player chose to continue past floor 10. */
+  endlessMode: boolean
 
   // ── Actions ──────────────────────────────────────────────────────────────
   startRun: (difficulty: Difficulty) => void
-  endRun: () => void
+  endRun: (opts?: { victory?: boolean }) => void
   abandonRun: () => void
   advanceFloor: () => void
+  continueToEndless: () => void
   dismissFloorComplete: () => void
+  syncFloorTimer: () => number
+  toggleFloorTimerPause: () => void
+  completeFloorFromTimer: () => void
+  finishQuotaEarly: () => void
+  queueDefeat: (reason: DefeatReason) => void
+  confirmPendingDefeat: () => void
+  setRunDefeated: (reason: DefeatReason) => void
+  confirmDefeat: () => void
+  clearLastRun: () => void
+  setMissions: (missions: FloorMission[]) => void
+  applyMissionResults: (updatedMissions: FloorMission[]) => void
+  purchaseUpgrade: (id: string, price: number) => boolean
+  purchaseLobbyRerollTicket: () => boolean
+  rerollLobbyGame: (slotIndex: number) => boolean
+  rerollShop: () => boolean
+  rerollMissions: () => boolean
+  appendFloorHistory: (record: FloorRecord) => void
   recordResult: (result: GameResult) => void
   recordResultPayout: (result: GameResult) => void
   deductBet: (amount: number) => void

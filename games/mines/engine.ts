@@ -52,6 +52,16 @@ export function startMinesRound(amount: number, difficulty: MinesState['difficul
   }
 }
 
+export function revealSafeMineTile(state: MinesState, tileId: number): MinesState {
+  const tile = state.tiles.find((t) => t.id === tileId)
+  if (!tile || tile.revealed || tile.hasMine) return state
+  return {
+    ...state,
+    tiles: state.tiles.map((t) => (t.id === tileId ? { ...t, revealed: true } : t)),
+    message: state.message,
+  }
+}
+
 export function revealMineTile(state: MinesState, tileId: number): MinesState {
   if (state.stage !== 'inProgress') return state
   const tile = state.tiles.find((tile) => tile.id === tileId)

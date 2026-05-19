@@ -73,6 +73,18 @@ export function advanceChickenRound(state: ChickenState): ChickenState {
     }
   }
 
+  return advanceChickenStepSuccess(state, roll)
+}
+
+/** Perk proc: force a successful step advance (one safe crossing). */
+export function advanceChickenRoundSafe(state: ChickenState): ChickenState {
+  if (state.stage !== 'inProgress') return state
+  const stepIndex = state.step - 1
+  if (!STEP_DATA[stepIndex]) return advanceChickenRound(state)
+  return advanceChickenStepSuccess(state, 0)
+}
+
+function advanceChickenStepSuccess(state: ChickenState, roll: number): ChickenState {
   const nextStep = Math.min(state.step + 1, STEP_DATA.length)
   const nextIndex = nextStep - 1
   const nextInfo = STEP_DATA[nextIndex]
@@ -86,7 +98,7 @@ export function advanceChickenRound(state: ChickenState): ChickenState {
     message: nextInfo
       ? `Step ${nextStep}: ${nextMultiplier.toFixed(1)}× with ${nextInfo.deathChance * 100}% danger.`
       : state.message,
-    cashoutValue: Math.round(state.betAmount * state.multiplier),
+    cashoutValue: Math.round(state.betAmount * nextMultiplier),
   }
 }
 

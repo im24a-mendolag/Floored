@@ -19,7 +19,13 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getOverUnderPayout,
@@ -33,7 +39,7 @@ import type { OverUnderState } from '@/games/over-under/types'
 const ROLL_ANIM_MS = 620
 
 interface OverUnderResult {
-  outcome: 'win' | 'loss'
+  outcome: 'win' | 'loss' | 'push'
   betAmount: number
   payout: number
   multiplier: number
@@ -43,19 +49,22 @@ interface OverUnderGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: OverUnderResult) => void
+  onResolve: GameResolveFn<OverUnderResult>
 }
 
 interface PendingResult {
   tone: 'win' | 'loss'
   label: string
   outcomeLabel: string
+  multiplierHint?: string
   entry: MatchHistoryEntry
 }
 
 export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { overUnderShield } = useSurvivalPerks('over-under')
+  const shieldProc = usePerkProc(mode === 'survival' && overUnderShield, 'perk_over_under_shield')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [safeZone, setSafeZone] = useState(40)
@@ -112,25 +121,45 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
 
     const t1 = setTimeout(() => setMarkerAt(rollPos), 50)
 
+    const shieldActive = shieldProc.rollForBet()
+
     const t2 = setTimeout(() => {
       setMarkerOutcome(outcome)
       setRound(settled)
 
-      const po = getOverUnderPayout(settled)
-      onResolve({ outcome, betAmount: bet, payout: po, multiplier: settled.payoutMultiplier })
+      let finalOutcome: 'win' | 'loss' | 'push' = outcome
+      let po = getOverUnderPayout(settled)
+      if (shieldActive && outcome === 'loss') {
+        po = bet
+        finalOutcome = 'push'
+      }
+
+      const resolved = resolveGame(onResolve, {
+        outcome: finalOutcome,
+        betAmount: bet,
+        payout: po,
+        multiplier: settled.payoutMultiplier,
+      })
 
       const subtitle = `${formatChips(bet)} · Roll ${rollPos} · ${safeZone}% safe · ${formatMultiplier(settled.payoutMultiplier)}`
       const built = buildPendingResult(
-        { outcome, betAmount: bet, payout: po },
+        { outcome: finalOutcome, betAmount: bet, payout: resolved.payout },
         subtitle,
-        { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+        {
+          winLabel: 'Total winnings',
+          lossLabel: finalOutcome === 'push' ? 'Push (shield)' : 'No winnings',
+          gameMultiplier: finalOutcome === 'win' ? settled.payoutMultiplier : undefined,
+          payoutBoostMult: resolved.payoutBoostMult,
+        },
       )
       setPendingResult({
         tone: built.tone === 'win' ? 'win' : 'loss',
         label: built.label,
         outcomeLabel: built.outcomeLabel,
+        multiplierHint: built.multiplierHint,
         entry: built.entry,
       })
+      shieldProc.resetPerk()
     }, ROLL_ANIM_MS + 80)
 
     animTimers.current = [t1, t2]
@@ -151,6 +180,7 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
       setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     }
     handleNewRound()
+    survivalAfterNext(mode)
   }
 
   useEffect(() => () => { animTimers.current.forEach(clearTimeout) }, [])
@@ -169,6 +199,11 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
         gameLabel="Over-Under"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {mode === 'survival' && shieldProc.perkActive && (isBetting || isInProgress) && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Safe Opening Roll — loss refunded to a push
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={round.betAmount}
           betType={!isBetting ? `${displaySafeZone}% safe zone` : undefined}
@@ -280,6 +315,7 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
                 outcomeLabel={pendingResult.outcomeLabel}
                 label={pendingResult.label}
                 tone={pendingResult.tone}
+                multiplierHint={pendingResult.multiplierHint}
               />
             )}
             {!isBetting && !isInProgress && !(isSettled && pendingResult) && (

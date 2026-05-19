@@ -14,7 +14,14 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { streetCupsEliminatedCup } from '@/lib/survival/survival-perks'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import type { StreetCupsState } from '@/games/street-cups/types'
 import {
@@ -52,13 +59,14 @@ interface CupProps {
   lifted: boolean
   hasCrown: boolean
   pickable: boolean
+  eliminated: boolean
   selected: boolean
   wrong: boolean
   onPick: (id: number) => void
 }
 
-function Cup({ cupId, slot, lifted, hasCrown, pickable, selected, wrong, onPick }: CupProps) {
-  const borderColor = selected ? '#fbbf24' : wrong ? '#f87171' : CUP_BORDER
+function Cup({ cupId, slot, lifted, hasCrown, pickable, eliminated, selected, wrong, onPick }: CupProps) {
+  const borderColor = eliminated ? '#52525b' : selected ? '#fbbf24' : wrong ? '#f87171' : CUP_BORDER
 
   return (
     /* Outer anchor: absolute within the stage, slots horizontally, 170px tall */
@@ -71,10 +79,11 @@ function Cup({ cupId, slot, lifted, hasCrown, pickable, selected, wrong, onPick 
         width: 84,
         height: 170,
         transition: 'left 280ms ease-in-out',
-        cursor: pickable ? 'pointer' : 'default',
+        cursor: pickable && !eliminated ? 'pointer' : 'default',
         userSelect: 'none',
+        opacity: eliminated ? 0.35 : 1,
       }}
-      onClick={() => pickable && onPick(cupId)}
+      onClick={() => pickable && !eliminated && onPick(cupId)}
     >
       {/* Crown — absolutely pinned at the bottom (table level).
           The cup body sits on top and lifts away to reveal it. */}
@@ -150,7 +159,7 @@ interface StreetCupsGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: StreetCupsResult) => void
+  onResolve: GameResolveFn<StreetCupsResult>
 }
 
 interface PendingResult {
@@ -163,6 +172,9 @@ interface PendingResult {
 export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet }   = useSettingsStore()
+  const { streetCupsTruth } = useSurvivalPerks('street-cups')
+  const cupsProc = usePerkProc(mode === 'survival' && streetCupsTruth, 'perk_street_cups_truth')
+  const cupsProcActiveRef = useRef(false)
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound]         = useState<StreetCupsState>(initStreetCups)
@@ -178,6 +190,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
   const [liftedSlots, setLiftedSlots] = useState<Set<number>>(new Set())
   /* can the Next button be shown */
   const [showNext, setShowNext]   = useState(false)
+  const [eliminatedCupId, setEliminatedCupId] = useState<number | null>(null)
 
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const swapIdxRef = useRef(0)
@@ -227,6 +240,8 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
     cupSlotsRef.current = [0, 1, 2]
     swapIdxRef.current = 0
     setLiftedSlots(new Set())
+    setEliminatedCupId(null)
+    cupsProcActiveRef.current = cupsProc.rollForBet()
 
     const next = startStreetCups(bet)
     setRound(next)
@@ -252,7 +267,17 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
     if (idx >= swaps.length) {
       /* Shuffle done — determine winner & go to picking */
       addTimer(() => {
-        setRound(prev => endShuffleStreetCups(prev))
+        setRound(prev => {
+          const picking = endShuffleStreetCups(prev)
+          if (cupsProcActiveRef.current && picking.winningSlot != null) {
+            const wrongSlot = streetCupsEliminatedCup(picking.winningSlot)
+            const cupId = cupSlotsRef.current.findIndex((s) => s === wrongSlot)
+            setEliminatedCupId(cupId >= 0 ? cupId : null)
+          } else {
+            setEliminatedCupId(null)
+          }
+          return picking
+        })
       }, 150)
       return
     }
@@ -274,19 +299,20 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
 
   /* ── Pick a cup ── */
   const handlePick = useCallback((cupId: number) => {
-    if (!isPicking) return
+    if (!isPicking || (eliminatedCupId != null && cupId === eliminatedCupId)) return
     const pickedSlot = cupSlotsRef.current[cupId] ?? 0
     const settled = pickCupStreetCups(round, pickedSlot)
     setRound(settled)
 
     /* Resolve immediately so bankroll updates */
     const payout = settled.outcome === 'win' ? Math.round(settled.betAmount * STREET_CUPS_WIN_MULTIPLIER) : 0
-    onResolve({
+    const resolved = resolveGame(onResolve, {
       outcome: settled.outcome!,
       betAmount: settled.betAmount,
       payout,
       multiplier: settled.outcome === 'win' ? STREET_CUPS_WIN_MULTIPLIER : 0,
     })
+    const displayPayout = resolved.payout
 
     /* Stage 1: lift chosen cup */
     addTimer(() => {
@@ -305,7 +331,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
     addTimer(() => {
       const outcome = settled.outcome!
       const built = buildPendingResult(
-        { outcome, betAmount: settled.betAmount, payout },
+        { outcome, betAmount: settled.betAmount, payout: displayPayout },
         `${formatChips(settled.betAmount)} bet · ${outcome === 'win' ? `Win · ${formatMultiplier(STREET_CUPS_WIN_MULTIPLIER)}` : 'Loss'}`,
         { winLabel: 'Total winnings', lossLabel: 'No winnings' },
       )
@@ -320,7 +346,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
       })
       setShowNext(true)
     }, 1600)
-  }, [isPicking, round, onResolve])
+  }, [isPicking, round, onResolve, eliminatedCupId])
 
   /* ── Next round ── */
   function handleNext() {
@@ -333,7 +359,9 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
     cupSlotsRef.current = [0, 1, 2]
     swapIdxRef.current = 0
     setRound(initStreetCups())
+    setEliminatedCupId(null)
     if (autoReBet && lastBet >= minBet && lastBet <= bankroll) setCurrentBet(lastBet)
+    survivalAfterNext(mode)
   }
 
   /* Button label / state logic */
@@ -372,6 +400,11 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
         gameLabel="Street Cups"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {isPicking && eliminatedCupId !== null && cupsProc.perkActive && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            One wrong cup eliminated
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={!isBetting ? round.betAmount : 0}
           visible={!isBetting && round.betAmount > 0}
@@ -387,7 +420,8 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
             const slot      = cupSlots[cupId]
             const isLifted  = liftedSlots.has(slot)
             const hasCrown  = crownAtSlot !== null && crownAtSlot === slot
-            const pickable  = isPicking
+            const eliminated = eliminatedCupId === cupId
+            const pickable  = isPicking && !eliminated
             const selected  = isSettled && round.playerPick === slot
             const wrong     = isSettled && round.playerPick === slot && round.outcome === 'loss'
 
@@ -399,6 +433,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
                 lifted={isLifted}
                 hasCrown={hasCrown}
                 pickable={pickable}
+                eliminated={eliminated}
                 selected={selected}
                 wrong={wrong}
                 onPick={handlePick}

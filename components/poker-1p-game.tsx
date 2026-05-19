@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
@@ -14,7 +14,13 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   HAND_LABELS,
@@ -49,7 +55,7 @@ interface Poker1pGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: PokerResult) => void
+  onResolve: GameResolveFn<PokerResult>
 }
 
 interface PendingResult {
@@ -116,6 +122,9 @@ const HAND_RANK_COLOR: Record<PokerHandRank, string> = {
 export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { pokerHoldBias } = useSurvivalPerks('poker-1p')
+  const holdProc = usePerkProc(mode === 'survival' && pokerHoldBias, 'perk_poker_hold_bias')
+  const holdBiasRef = useRef(false)
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [state, setState] = useState<PokerState>(initPoker)
@@ -145,6 +154,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
     onBet?.(bet)
     setLastBet(bet)
     setQuoteIdx((prev) => pickQuote(prev))
+    holdBiasRef.current = holdProc.rollForBet()
     setState(dealHand(bet))
     setCurrentBet(0)
     setPendingResult(null)
@@ -156,23 +166,24 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
 
   function handleDraw() {
     setState((prev) => {
-      const settled = drawCards(prev)
-      resolveGame(settled)
+      const settled = drawCards(prev, { holdBias: holdBiasRef.current })
+      recordOutcome(settled)
+      holdProc.resetPerk()
       return settled
     })
   }
 
-  function resolveGame(s: PokerState) {
+  function recordOutcome(s: PokerState) {
     const payout = s.outcome === 'win' ? Math.round(s.betAmount * s.multiplier) : 0
     const outcome = s.outcome ?? 'loss'
-    onResolve({
+    const resolved = resolveGame(onResolve, {
       outcome,
       betAmount: s.betAmount,
       payout,
       multiplier: s.multiplier,
     })
     const built = buildPendingResult(
-      { outcome, betAmount: s.betAmount, payout },
+      { outcome, betAmount: s.betAmount, payout: resolved.payout },
       `${formatChips(s.betAmount)} · ${HAND_LABELS[s.handRank]}${s.multiplier > 0 ? ` · ${s.multiplier}×` : ''}`,
       { winLabel: 'Total winnings', lossLabel: 'No winnings' },
     )
@@ -190,7 +201,8 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
     setPendingResult(null)
     setState(initPoker())
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
-  }, [pendingResult, autoReBet, lastBet, bankroll])
+    survivalAfterNext(mode)
+  }, [pendingResult, autoReBet, lastBet, bankroll, mode])
 
   const heldCount = state.held.filter(Boolean).length
 
@@ -208,6 +220,11 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
         gameLabel="1 Player Poker"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {mode === 'survival' && holdProc.perkActive && isSelecting && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Hold Harmony — draw favors held ranks
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={!isBetting ? state.betAmount : 0}
           visible={!isBetting && state.betAmount > 0}

@@ -15,7 +15,12 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { PerkHint } from '@/components/survival/perk-hint'
 import type { BlackjackCard, BlackjackOutcome, BlackjackState } from '@/games/blackjack/types'
 import {
   calculateHandValue,
@@ -46,7 +51,7 @@ interface BlackjackGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: BlackjackResult) => void
+  onResolve: GameResolveFn<BlackjackResult>
 }
 
 interface PendingResult {
@@ -146,6 +151,8 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
+  const { peekDealer } = useSurvivalPerks('blackjack')
+  const showDealerHole = mode === 'survival' && peekDealer
 
   const [round, setRound] = useState<BlackjackState>(initBlackjack())
   const [currentBet, setCurrentBet] = useState(0)
@@ -188,7 +195,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
     setRound(state)
     if (state.stage === 'settled' && state.outcome) {
       const payout = Math.round(state.betAmount * state.payoutMultiplier)
-      onResolve({
+      const resolved = resolveGame(onResolve, {
         outcome: state.outcome,
         betAmount: state.betAmount,
         payout,
@@ -199,7 +206,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
         o === 'push' ? 'Push' : o === 'loss' ? 'Loss' : state.payoutMultiplier >= 2.5 ? 'Blackjack' : 'Win'
       const subtitle = `${formatChips(state.betAmount)} · ${resultKind} · ${formatMultiplier(state.payoutMultiplier)}`
       const built = buildPendingResult(
-        { outcome: o, betAmount: state.betAmount, payout },
+        { outcome: o, betAmount: state.betAmount, payout: resolved.payout },
         subtitle,
         { winLabel: 'Total winnings', lossLabel: 'No winnings' },
       )
@@ -322,6 +329,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
       setPendingResult(null)
     }
     handleNewHand()
+    survivalAfterNext(mode)
   }
 
   return (
@@ -340,6 +348,9 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
       >
 
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {showDealerHole && isInProgress && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">Hole card visible</PerkHint>
+        )}
         <GameActiveBetBadge betAmount={round.betAmount} visible={!isBetting && round.betAmount > 0} />
 
         <div className="flex w-full max-w-lg flex-1 min-h-0 flex-col items-center justify-center gap-2">
@@ -361,7 +372,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
                 <CardFace
                   key={`d-${i}`}
                   card={card}
-                  hidden={i === 1 && isInProgress}
+                  hidden={i === 1 && isInProgress && !showDealerHole}
                   animDelay={i * 100}
                 />
               ))

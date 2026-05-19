@@ -19,9 +19,23 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { findFirstSafeMineTile } from '@/lib/survival/survival-perks'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
-import { cashOutMines, getMinesPayout, initMines, revealMineTile, startMinesRound } from '@/games/mines/engine'
+import { useSurvivalPerks, boostedPotential } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
+import {
+  cashOutMines,
+  getMinesPayout,
+  initMines,
+  revealMineTile,
+  revealSafeMineTile,
+  startMinesRound,
+} from '@/games/mines/engine'
 import type { MinesState } from '@/games/mines/types'
 
 const DIFFICULTIES: MinesState['difficulty'][] = ['easy', 'medium', 'hard', 'insane']
@@ -44,7 +58,7 @@ interface MinesGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: MinesResult) => void
+  onResolve: GameResolveFn<MinesResult>
 }
 
 interface PendingResult {
@@ -57,6 +71,8 @@ interface PendingResult {
 export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { minesSafe, payoutBoostMult } = useSurvivalPerks('mines')
+  const minesProc = usePerkProc(mode === 'survival' && minesSafe, 'perk_mines_safe')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [difficulty, setDifficulty] = useState<MinesState['difficulty']>('easy')
@@ -68,13 +84,13 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
   const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
 
-  const potentialWinnings = useMemo(
-    () =>
+  const potentialWinnings = useMemo(() => {
+    const raw =
       round.stage === 'inProgress'
         ? Math.round(round.betAmount * round.multiplier)
-        : getMinesPayout(round),
-    [round],
-  )
+        : getMinesPayout(round)
+    return mode === 'survival' ? boostedPotential(raw, payoutBoostMult) : raw
+  }, [round, mode, payoutBoostMult])
 
   const isBetting = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
@@ -87,14 +103,14 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
 
   function recordOutcome(next: MinesState, outcome: 'win' | 'loss', subtitle: string) {
     const payoutAmount = getMinesPayout(next)
-    onResolve({
+    const resolved = resolveGame(onResolve, {
       outcome,
       betAmount: next.betAmount,
       payout: payoutAmount,
       multiplier: next.multiplier,
     })
     const built = buildPendingResult(
-      { outcome, betAmount: next.betAmount, payout: payoutAmount },
+      { outcome, betAmount: next.betAmount, payout: resolved.payout },
       subtitle,
       { winLabel: 'Total winnings', lossLabel: 'No winnings' },
     )
@@ -113,7 +129,13 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
     setPendingResult(null)
     setQuoteIdx((prev) => pickQuote(prev))
     onBet?.(currentBet)
-    setRound(startMinesRound(currentBet, difficulty))
+    let next = startMinesRound(currentBet, difficulty)
+    const procActive = minesProc.rollForBet()
+    if (procActive) {
+      const safeId = findFirstSafeMineTile(next.tiles)
+      if (safeId != null) next = revealSafeMineTile(next, safeId)
+    }
+    setRound(next)
     setCurrentBet(0)
   }
 
@@ -143,6 +165,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   }
 
   const handleNewRound = useCallback(() => {
+    minesProc.resetPerk()
     setRound(initMines())
     setPendingResult(null)
     if (autoReBet && lastBet >= minBet && lastBet <= bankroll) {
@@ -151,11 +174,12 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
     } else {
       setCurrentBet(0)
     }
-  }, [autoReBet, lastBet, lastDifficulty, bankroll, minBet])
+  }, [autoReBet, lastBet, lastDifficulty, bankroll, minBet, minesProc])
 
   function handleNext() {
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     handleNewRound()
+    survivalAfterNext(mode)
   }
 
   return (
@@ -171,6 +195,9 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
         gameLabel="Mines"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {minesProc.perkActive && isInProgress && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">One safe tile revealed</PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={round.betAmount}
           betType={!isBetting ? DIFFICULTY_LABELS[round.difficulty] : undefined}

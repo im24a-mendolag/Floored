@@ -14,7 +14,13 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   FLOOR_MULTIPLIERS,
@@ -38,7 +44,7 @@ interface DragonTowerGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: DragonTowerResult) => void
+  onResolve: GameResolveFn<DragonTowerResult>
 }
 
 interface PendingResult {
@@ -48,7 +54,12 @@ interface PendingResult {
   entry: MatchHistoryEntry
 }
 
-function tileStyle(row: TileRow, tileIdx: number, isActive: boolean): string {
+function tileStyle(
+  row: TileRow,
+  tileIdx: number,
+  isActive: boolean,
+  blindspotSafe: boolean,
+): string {
   const base =
     'w-14 h-11 sm:w-16 sm:h-12 rounded-xl border-2 flex items-center justify-center text-lg font-bold transition-all duration-150 select-none'
   if (row.picked === tileIdx) {
@@ -61,6 +72,9 @@ function tileStyle(row: TileRow, tileIdx: number, isActive: boolean): string {
   }
   if (row.picked !== null) {
     return `${base} bg-zinc-800/30 border-zinc-800/30 text-transparent`
+  }
+  if (blindspotSafe) {
+    return `${base} bg-emerald-950/50 border-emerald-600/70 text-emerald-300/80 ring-1 ring-emerald-500/40 cursor-pointer active:scale-95`
   }
   if (isActive) {
     return `${base} bg-zinc-700 border-zinc-500 text-zinc-400 hover:bg-fuchsia-900/60 hover:border-fuchsia-600 cursor-pointer active:scale-95`
@@ -79,6 +93,8 @@ function tileContent(row: TileRow, tileIdx: number): string {
 export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowerGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { dragonBlindspot } = useSurvivalPerks('dragon-tower')
+  const blindspotProc = usePerkProc(mode === 'survival' && dragonBlindspot, 'perk_dragon_blindspot')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [state, setState] = useState<DragonTowerState>(initDragonTower)
@@ -100,17 +116,17 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
   }
 
-  function resolveGame(next: DragonTowerState) {
+  function recordOutcome(next: DragonTowerState) {
     const payout =
       next.outcome === 'win' ? Math.round(next.betAmount * next.cashoutMultiplier) : 0
-    onResolve({
+    const resolved = resolveGame(onResolve, {
       outcome: next.outcome!,
       betAmount: next.betAmount,
       payout,
       multiplier: next.outcome === 'win' ? next.cashoutMultiplier : 0,
     })
     const built = buildPendingResult(
-      { outcome: next.outcome!, betAmount: next.betAmount, payout },
+      { outcome: next.outcome!, betAmount: next.betAmount, payout: resolved.payout },
       `${formatChips(next.betAmount)} · Floor ${next.activeRow} · ${next.outcome === 'win' ? formatMultiplier(next.cashoutMultiplier) : 'Burned'}`,
       { winLabel: 'Total winnings', lossLabel: 'No winnings' },
     )
@@ -128,6 +144,7 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
     setPendingResult(null)
     setQuoteIdx((prev) => pickQuote(prev))
     onBet?.(currentBet)
+    blindspotProc.rollForBet()
     setState(startDragonTower(currentBet))
     setCurrentBet(0)
   }
@@ -135,21 +152,23 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
   function handlePickTile(tileIdx: number) {
     const next = pickTile(state, tileIdx)
     setState(next)
-    if (next.stage === 'busted' || next.stage === 'cashed-out') resolveGame(next)
+    if (next.stage === 'busted' || next.stage === 'cashed-out') recordOutcome(next)
   }
 
   function handleCashOut() {
     const next = cashOut(state)
     setState(next)
-    resolveGame(next)
+    recordOutcome(next)
   }
 
   const handleNext = useCallback(() => {
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    blindspotProc.resetPerk()
     setState(initDragonTower())
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
-  }, [pendingResult, autoReBet, lastBet, bankroll])
+    survivalAfterNext(mode)
+  }, [pendingResult, autoReBet, lastBet, bankroll, mode])
 
   const climbFloorLabel =
     isClimbing || isSettled ? `Floor ${state.activeRow} · ${formatMultiplier(state.cashoutMultiplier)}` : undefined
@@ -168,6 +187,9 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
         gameLabel="Dragon Tower"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {blindspotProc.perkActive && isClimbing && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">Safe tile marked on active row</PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={state.betAmount}
           betType={climbFloorLabel}
@@ -217,17 +239,24 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
                     </p>
                   </div>
                   <div className="flex gap-1.5 flex-1 justify-center">
-                    {Array.from({ length: TILES_PER_ROW }, (_, ti) => (
+                    {Array.from({ length: TILES_PER_ROW }, (_, ti) => {
+                      const safeHintTile = [0, 1, 2].find((t) => t !== row.dragonAt) ?? 0
+                      const blindspotSafe =
+                        blindspotProc.perkActive &&
+                        isActive &&
+                        row.picked === null &&
+                        ti === safeHintTile
+                      return (
                       <button
                         key={ti}
                         type="button"
                         disabled={!isActive}
                         onClick={() => isActive && handlePickTile(ti)}
-                        className={tileStyle(row, ti, isActive)}
+                        className={tileStyle(row, ti, isActive, blindspotSafe)}
                       >
-                        {tileContent(row, ti)}
+                        {blindspotSafe ? '·' : tileContent(row, ti)}
                       </button>
-                    ))}
+                    )})}
                   </div>
                 </div>
               )

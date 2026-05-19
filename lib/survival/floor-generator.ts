@@ -1,5 +1,7 @@
 import { createRng, seedFromString } from '@/utils/rng'
+import { getFloorMinBet } from '@/utils/math'
 import { calcQuotaTarget, sparkFloorMult, MAX_FLOORS } from './balance'
+import { generateMissionsForFloor } from './missions'
 import type { GenerateFloorInput, GeneratedFloor } from './types'
 import type { GameName } from '@/store/types'
 
@@ -43,13 +45,20 @@ function generateRunSchedule(runSeed: string, pool: GameName[]): GameName[][] {
  */
 export function generateFloor(input: GenerateFloorInput): GeneratedFloor {
   const { runSeed, floor, difficulty, survivalGamePool } = input
-  const schedule = generateRunSchedule(runSeed, survivalGamePool)
-  const floorGames = schedule[floor - 1] ?? schedule[0] as GameName[]
+
+  let floorGames: GameName[]
+  if (floor <= MAX_FLOORS) {
+    const schedule = generateRunSchedule(runSeed, survivalGamePool)
+    floorGames = schedule[floor - 1] ?? (schedule[0] as GameName[])
+  } else {
+    const rng = createRng(seedFromString(`${runSeed}:endless:${floor}`))
+    floorGames = fisherYates(survivalGamePool, rng).slice(0, GAMES_PER_FLOOR) as GameName[]
+  }
 
   return {
     quotaTarget: calcQuotaTarget(floor, difficulty),
     floorGames,
-    missions: [],
+    missions: generateMissionsForFloor(runSeed, floor, difficulty, floorGames, getFloorMinBet(floor)),
     rewardScaling: { sparkFloorMult: sparkFloorMult(floor) },
   }
 }

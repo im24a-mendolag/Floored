@@ -14,7 +14,13 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { hiloNextCardRange } from '@/lib/survival/survival-perks'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import type { HiLoCard, HiLoState } from '@/games/hilo/types'
 import {
@@ -102,7 +108,7 @@ interface HiLoGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: HiLoResult) => void
+  onResolve: GameResolveFn<HiLoResult>
 }
 
 interface PendingResult {
@@ -115,6 +121,7 @@ interface PendingResult {
 export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { hiloRange } = useSurvivalPerks('hilo')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<HiLoState>(initHiLo)
@@ -132,6 +139,10 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   const canDeal = currentBet >= minBet && currentBet <= bankroll
   const showQuoteUntilNext = !isBetting
   const cashoutAmount = isRiding ? Math.round(round.betAmount * round.multiplier) : 0
+  const nextRange =
+    mode === 'survival' && hiloRange && (isPlaying || isRiding)
+      ? hiloNextCardRange(round.deck)
+      : null
 
   function addChip(value: number) {
     setCurrentBet(prev => Math.min(prev + value, bankroll))
@@ -157,9 +168,14 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
 
     if (next.stage === 'settled') {
       const payout = 0
-      onResolve({ outcome: 'loss', betAmount: next.betAmount, payout, multiplier: 0 })
+      const resolved = resolveGame(onResolve, {
+        outcome: 'loss',
+        betAmount: next.betAmount,
+        payout,
+        multiplier: 0,
+      })
       const built = buildPendingResult(
-        { outcome: 'loss', betAmount: next.betAmount, payout },
+        { outcome: 'loss', betAmount: next.betAmount, payout: resolved.payout },
         `${formatChips(next.betAmount)} bet · ${next.streak} hit${next.streak !== 1 ? 's' : ''} · Loss`,
         { winLabel: 'Total winnings', lossLabel: 'No winnings' },
       )
@@ -178,9 +194,14 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
     const settled = cashOutHiLo(round)
     setRound(settled)
     const payout = Math.round(settled.betAmount * settled.multiplier)
-    onResolve({ outcome: 'win', betAmount: settled.betAmount, payout, multiplier: settled.multiplier })
+    const resolved = resolveGame(onResolve, {
+      outcome: 'win',
+      betAmount: settled.betAmount,
+      payout,
+      multiplier: settled.multiplier,
+    })
     const built = buildPendingResult(
-      { outcome: 'win', betAmount: settled.betAmount, payout },
+      { outcome: 'win', betAmount: settled.betAmount, payout: resolved.payout },
       `${formatChips(settled.betAmount)} bet · ${settled.streak} streak · ${formatMultiplier(settled.multiplier)}`,
       { winLabel: 'Total winnings', lossLabel: 'No winnings' },
     )
@@ -203,6 +224,7 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
     setCurrentCardAnim('')
     setRound(initHiLo())
     if (autoReBet && lastBet >= minBet && lastBet <= bankroll) setCurrentBet(lastBet)
+    survivalAfterNext(mode)
   }
 
   /* Arrow indicator color */
@@ -233,6 +255,11 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
         gameLabel="HiLo"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {nextRange && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Next card value {nextRange.min}–{nextRange.max}
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={!isBetting ? round.betAmount : 0}
           extra={isRiding ? `${round.streak}× streak` : undefined}

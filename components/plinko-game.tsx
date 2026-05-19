@@ -18,7 +18,13 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { computePayout, generatePath } from '@/games/plinko/engine'
 import type { PlinkoPayoutResult, PlinkoRisk } from '@/games/plinko/types'
@@ -42,13 +48,15 @@ interface PlinkoGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: PlinkoResult) => void
+  onResolve: GameResolveFn<PlinkoResult>
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
-  const { floorMinBet } = useSurvivalStore()
+  const { floorMinBet, pendingDefeatReason } = useSurvivalStore()
+  const { plinkoFirstBall } = useSurvivalPerks('plinko')
+  const shieldProc = usePerkProc(mode === 'survival' && plinkoFirstBall, 'perk_plinko_first_ball')
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
@@ -75,6 +83,8 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const isDropping = sessions.length > 0
   const commitBet = currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
   const canDrop = commitBet >= minBet && commitBet <= bankroll && bankroll > 0
+  const showSurvivalContinue =
+    mode === 'survival' && bankroll <= 0 && !isDropping && pendingDefeatReason != null
 
   const statusMsg = isDropping
     ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'} in flight`
@@ -105,7 +115,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
     setSessions((prev) => prev.filter((s) => s.id !== id))
 
-    onResolveRef.current({
+    resolveGame(onResolveRef.current, {
       outcome: session.result.outcome,
       betAmount: session.bet,
       payout: session.result.payout,
@@ -143,6 +153,11 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         emptyHint="No drops yet — results appear after each ball lands."
       >
         <GameDockBackButton mode={mode} visible={!isDropping} />
+        {mode === 'survival' && shieldProc.perkActive && isDropping && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            First Ball Shield — loss refunded to a push
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={sessions.reduce((s, x) => s + x.bet, 0)}
           betType={isDropping ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'}` : undefined}
@@ -193,14 +208,24 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
           </div>
 
           <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={handleDrop}
-              disabled={!canDrop}
-              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-            >
-              Drop →
-            </button>
+            {showSurvivalContinue ? (
+              <button
+                type="button"
+                onClick={() => survivalAfterNext(mode)}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Continue →
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDrop}
+                disabled={!canDrop}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Drop →
+              </button>
+            )}
           </div>
 
           {minBet > 1 && (

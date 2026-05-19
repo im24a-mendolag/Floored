@@ -143,15 +143,26 @@ export function toggleHold(state: PokerState, index: number): PokerState {
   return { ...state, held }
 }
 
-export function drawCards(state: PokerState): PokerState {
+export function drawCards(state: PokerState, opts?: { holdBias?: boolean }): PokerState {
   const usedKeys = new Set(
     state.hand.filter((_, i) => state.held[i]).map(c => `${c.rank}${c.suit}`)
   )
   const pool = shuffle(createDeck()).filter(c => !usedKeys.has(`${c.rank}${c.suit}`))
-  let poolIdx = 0
-  const newHand: Card[] = state.hand.map((card, i) =>
-    state.held[i] ? card : pool[poolIdx++]!
-  )
+  const heldRanks = Array.from(new Set(state.hand.filter((_, i) => state.held[i]).map(c => c.rank)))
+  const HOLD_BIAS_CHANCE = 0.58
+
+  const newHand: Card[] = state.hand.map((card, i) => {
+    if (state.held[i]) return card
+    if (opts?.holdBias && heldRanks.length > 0 && Math.random() < HOLD_BIAS_CHANCE) {
+      const matchIdx = pool.findIndex((c) => heldRanks.includes(c.rank))
+      if (matchIdx >= 0) {
+        const [matched] = pool.splice(matchIdx, 1)
+        return matched!
+      }
+    }
+    const [next] = pool.splice(0, 1)
+    return next ?? card
+  })
 
   const handRank      = evaluateHand(newHand)
   const multiplier    = HAND_PAYOUTS[handRank]

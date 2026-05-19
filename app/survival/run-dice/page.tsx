@@ -6,15 +6,14 @@ import { SurvivalGameWrapper } from '@/components/survival/survival-game-wrapper
 import { RunDiceGame } from '@/components/run-dice-game'
 
 export default function SurvivalRunDicePage() {
-  const bankroll = useSurvivalStore((s) => s.bankroll)
   const diceConfig = useSurvivalStore((s) => s.diceConfig)
-  const { handleBet, handleResolve } = useSurvivalGameBankroll('run-dice')
+  const { wagerCap, handleBet, handleResolve } = useSurvivalGameBankroll('run-dice')
 
   return (
     <SurvivalGameWrapper currentGame="run-dice">
       <RunDiceGame
         mode="survival"
-        bankroll={bankroll}
+        bankroll={wagerCap}
         config={diceConfig}
         onBet={handleBet}
         onResolve={handleResolve}

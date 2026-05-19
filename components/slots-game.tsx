@@ -19,7 +19,13 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { getSlotsResultPayout, initSlots, PAYTABLE, spinSlots } from '@/games/slots/engine'
 import type { SlotsState, SlotsSymbol } from '@/games/slots/types'
@@ -42,7 +48,7 @@ const STAGGER       = 250   // delay between each reel landing
 const LAND_FLASH    = 350   // landing animation duration per reel
 
 interface SlotsResult {
-  outcome: 'win' | 'loss'
+  outcome: 'win' | 'loss' | 'push'
   betAmount: number
   payout: number
   multiplier: number
@@ -52,13 +58,14 @@ interface SlotsGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: SlotsResult) => void
+  onResolve: GameResolveFn<SlotsResult>
 }
 
 interface PendingResult {
   tone: 'win' | 'loss'
   label: string
   outcomeLabel: string
+  multiplierHint?: string
   entry: MatchHistoryEntry
 }
 
@@ -103,6 +110,8 @@ function Reel({ symbol, spinning, landed }: { symbol: SlotsSymbol | null; spinni
 export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) {
   const { floorMinBet, jackpotMeter, runActive, resetJackpotMeter } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { slotsShield } = useSurvivalPerks('slots')
+  const shieldProc = usePerkProc(mode === 'survival' && slotsShield, 'perk_slots_shield')
   const minBet = mode === 'survival' ? floorMinBet : 1
   const jackpotReady = mode === 'survival' && runActive && jackpotMeter >= 100
 
@@ -150,6 +159,8 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
     setLandedReels([false, false, false])
     setDisplayedReels([null, null, null])
 
+    const shieldActive = shieldProc.rollForBet()
+
     const result = spinSlots(bet, jackpotReady)
 
     // Reel 0 lands
@@ -185,19 +196,36 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
 
       if (jackpotReady) resetJackpotMeter()
 
-      const payout = getSlotsResultPayout(result)
-      onResolve({ outcome: result.outcome ?? 'loss', betAmount: result.betAmount, payout, multiplier: result.payoutMultiplier })
+      let payout = getSlotsResultPayout(result)
+      let finalOutcome: 'win' | 'loss' | 'push' =
+        result.outcome === 'win' ? 'win' : 'loss'
+      if (shieldActive && finalOutcome === 'loss') {
+        payout = bet
+        finalOutcome = 'push'
+      }
+
+      const resolved = resolveGame(onResolve, {
+        outcome: finalOutcome,
+        betAmount: result.betAmount,
+        payout,
+        multiplier: result.payoutMultiplier,
+      })
 
       const r = result.reels!
       const line = `${PAYTABLE_GLYPH[r[0]]} ${PAYTABLE_GLYPH[r[1]]} ${PAYTABLE_GLYPH[r[2]]}`
-      const isWin = result.outcome === 'win'
+      const isWin = finalOutcome === 'win'
       const titlePrefix = result.isJackpotSpin ? 'Jackpot' : line
       const built = buildPendingResult(
-        { outcome: isWin ? 'win' : 'loss', betAmount: result.betAmount, payout },
-        isWin
+        { outcome: finalOutcome, betAmount: result.betAmount, payout: resolved.payout },
+        isWin || finalOutcome === 'push'
           ? `${formatChips(result.betAmount)} bet · ${titlePrefix} · ${result.payoutMultiplier}×`
           : `${formatChips(result.betAmount)} bet · No match`,
-        { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+        {
+          winLabel: 'Total winnings',
+          lossLabel: finalOutcome === 'push' ? 'Push (shield)' : 'No winnings',
+          gameMultiplier: isWin && result.payoutMultiplier > 0 ? result.payoutMultiplier : undefined,
+          payoutBoostMult: resolved.payoutBoostMult,
+        },
       )
       const partial = isWin && payout > 0 && payout < result.betAmount
       setPendingResult({
@@ -208,8 +236,10 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
           : partial
             ? 'Partial return'
             : built.outcomeLabel,
+        multiplierHint: built.multiplierHint,
         entry: built.entry,
       })
+      shieldProc.resetPerk()
     }, SPIN_DURATION + STAGGER * 2 + LAND_FLASH)
 
     animTimers.current = [t1, t2, t3, t4, t5, t6]
@@ -227,6 +257,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
   function handleNext() {
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     handleNewRound()
+    survivalAfterNext(mode)
   }
 
   return (
@@ -242,6 +273,11 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
         gameLabel="Slots"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {mode === 'survival' && shieldProc.perkActive && isSpinning && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            First Spin Shield — loss refunded to a push
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={round.betAmount || lastBet}
           visible={!isBetting && (round.betAmount > 0 || lastBet > 0)}
@@ -343,6 +379,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
                 outcomeLabel={pendingResult.outcomeLabel}
                 label={pendingResult.label}
                 tone={pendingResult.tone}
+                multiplierHint={pendingResult.multiplierHint}
               />
             )}
             {!isBetting && !isSpinning && !(isSettled && pendingResult) && (
