@@ -4,6 +4,8 @@ import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { useOpeningTicketActive } from '@/hooks/use-opening-ticket'
+import { getOpeningTicketCapMultiplier } from '@/lib/survival/survival-perks'
+import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips } from '@/utils/format'
 
 /** Standard chip denominations — copy across games via import. */
@@ -82,12 +84,9 @@ export function GameDockBetRow({
   currentBet: number
   onClear: () => void
 }) {
-  const openingTicketActive = useOpeningTicketActive()
-
   return (
     <div className="flex items-center gap-2.5 flex-wrap justify-center">
       <span className="text-zinc-500 text-base">Bet</span>
-      {openingTicketActive && <OpeningTicketBetMarker />}
       <span className="font-bold text-xl text-white tabular-nums">
         {currentBet > 0 ? formatChips(currentBet) : '—'}
       </span>
@@ -150,6 +149,8 @@ export function GameDockChipRow({
   minBet?: number
 }) {
   const openingTicketActive = useOpeningTicketActive()
+  const purchasedUpgrades = useSurvivalStore((s) => s.purchasedUpgrades)
+  const openingTicketCap = minBet ? minBet * getOpeningTicketCapMultiplier(purchasedUpgrades) : 0
   const useSurvivalChips = (minBet ?? 1) > 1
   const survivalChips = useSurvivalChips
     ? [
@@ -171,8 +172,8 @@ export function GameDockChipRow({
           {openingTicketActive && useSurvivalChips && minBet && (
             <button
               type="button"
-              onClick={() => onAddChip(minBet * 10 - currentBet)}
-              disabled={currentBet >= minBet * 10}
+              onClick={() => onAddChip(openingTicketCap - currentBet)}
+              disabled={currentBet >= openingTicketCap}
               className={`${FRAC_BTN} bg-emerald-950 hover:bg-emerald-900 border-emerald-600 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.25)]`}
             >
               Opening Ticket

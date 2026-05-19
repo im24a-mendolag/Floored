@@ -105,17 +105,9 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
     }
   }
 
-  const streakShieldsUsedThisFloor =
-    typeof base.streakShieldsUsedThisFloor === 'number'
-      ? base.streakShieldsUsedThisFloor
-      : base.streakShieldUsed === true
-        ? 1
-        : 0
-
   return {
     ...base,
     version: 4,
     purchasedUpgrades: migratePurchasedUpgradeIds(base.purchasedUpgrades),
-    streakShieldsUsedThisFloor,
   }
 }

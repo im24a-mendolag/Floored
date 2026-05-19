@@ -8,7 +8,6 @@ import {
   MAX_UPGRADE_LEVEL,
   OPENING_TICKET_CAP_BY_LEVEL,
   RUN_PAYOUT_MULT_BY_LEVEL,
-  STREAK_SHIELD_CHARGES_BY_LEVEL,
   levelCost,
   levelRoman,
   normalizeUpgradeId,
@@ -299,31 +298,6 @@ function runPayoutBoostItems(): CatalogItem[] {
   )
 }
 
-function streakShieldItems(): CatalogItem[] {
-  return leveledItems(
-    'streak_shield',
-    {
-      name: 'Streak Shield',
-      description: '',
-      baseCost: 18,
-      scope: 'run',
-      effectKey: 'streak_shield',
-      rarity: 'rare',
-    },
-    MAX_UPGRADE_LEVEL,
-    (level) => {
-      const charges = STREAK_SHIELD_CHARGES_BY_LEVEL[level - 1]!
-      return {
-        name: `Streak Shield ${levelRoman(level)}`,
-        description:
-          charges === 1
-            ? 'First loss each floor does not reset your win streak.'
-            : `First ${charges} losses each floor do not reset your win streak.`,
-      }
-    },
-  )
-}
-
 function openingTicketItems(): CatalogItem[] {
   return leveledItems(
     'first_bet_free',
@@ -348,7 +322,6 @@ function openingTicketItems(): CatalogItem[] {
 
 export const UPGRADES_CATALOG: CatalogItem[] = [
   ...runPayoutBoostItems(),
-  ...streakShieldItems(),
   ...openingTicketItems(),
   ...gameBoostItems(),
   ...gamePerkItems(),

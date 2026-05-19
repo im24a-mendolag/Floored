@@ -15,7 +15,6 @@ import {
   rerollLobbySlot,
 } from '@/lib/survival/lobby-ticket'
 import { canPurchaseUpgrade } from '@/lib/survival/upgrade-levels'
-import { getStreakShieldCharges } from '@/lib/survival/survival-perks'
 import { normalizeUpgradeId } from '@/lib/survival/upgrades-catalog'
 import { generateMissionsForFloor } from '@/lib/survival/missions'
 import { canRerollMissions } from '@/lib/survival/mission-reroll'
@@ -66,7 +65,6 @@ const RUN_PERSIST_KEYS = [
   'floorTimeRemainingMs',
   'floorTimerPaused',
   'floorTimerSyncedAt',
-  'streakShieldsUsedThisFloor',
   'firstBetInsuranceUsed',
   'shopRerollCount',
   'missionRerollCount',
@@ -114,7 +112,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
       runDefeated: false,
       defeatReason: null,
       pendingDefeatReason: null,
-      streakShieldsUsedThisFloor: 0,
       firstBetInsuranceUsed: false,
       shopRerollCount: 0,
       missionRerollCount: 0,
@@ -160,7 +157,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
           runDefeated: false,
           defeatReason: null,
           pendingDefeatReason: null,
-          streakShieldsUsedThisFloor: 0,
           firstBetInsuranceUsed: false,
           shopRerollCount: 0,
           missionRerollCount: 0,
@@ -199,7 +195,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
           runDefeated: false,
           defeatReason: null,
           pendingDefeatReason: null,
-          streakShieldsUsedThisFloor: 0,
           firstBetInsuranceUsed: false,
           shopRerollCount: 0,
           missionRerollCount: 0,
@@ -254,7 +249,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
             floorGames: nextFloorData.floorGames,
             missions: nextFloorData.missions,
             floorComplete: false,
-            streakShieldsUsedThisFloor: 0,
             firstBetInsuranceUsed: false,
             shopRerollCount: 0,
             missionRerollCount: 0,
@@ -289,7 +283,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
             floorGames: nextFloorData.floorGames,
             missions: nextFloorData.missions,
             floorComplete: false,
-            streakShieldsUsedThisFloor: 0,
             firstBetInsuranceUsed: false,
             shopRerollCount: 0,
             missionRerollCount: 0,
@@ -533,23 +526,12 @@ export const useSurvivalStore = create<SurvivalStore>()(
           const newBankroll = s.bankroll + result.payout
           const quotaMet = s.quotaMet || newBankroll >= s.quotaTarget
 
-          let streak = s.streak
-          let streakShieldsUsedThisFloor = s.streakShieldsUsedThisFloor
-          if (result.outcome === 'win') {
-            streak = s.streak + 1
-          } else if (result.outcome === 'loss') {
-            const maxShields = getStreakShieldCharges(s.purchasedUpgrades)
-            if (maxShields > streakShieldsUsedThisFloor) {
-              streakShieldsUsedThisFloor += 1
-            } else {
-              streak = 0
-            }
-          }
+          const streak =
+            result.outcome === 'win' ? s.streak + 1 : result.outcome === 'loss' ? 0 : s.streak
 
           return {
             gamesPlayed: s.gamesPlayed + 1,
             streak,
-            streakShieldsUsedThisFloor,
             jackpotMeter: Math.min(100, s.jackpotMeter + (result.game === 'slots' ? 5 : 1)),
             history: [...s.history, result],
             bankroll: newBankroll,

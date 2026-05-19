@@ -5,7 +5,6 @@ import {
   COIN_BIAS_CHANCE_BY_LEVEL,
   CRASH_ZONE_PAD_BY_LEVEL,
   OPENING_TICKET_CAP_BY_LEVEL,
-  STREAK_SHIELD_CHARGES_BY_LEVEL,
   getMaxOwnedLevelForEffect,
 } from './upgrade-levels'
 
@@ -95,20 +94,10 @@ export function isOpeningBetFreeAvailable(state: {
 export function survivalWagerCap(
   bankroll: number,
   openingBetFree: boolean,
-  floorMinBet: number,
+  openingTicketFreeCap: number,
 ): number {
   if (!openingBetFree) return bankroll
-  return Math.max(bankroll, floorMinBet)
-}
-
-export function hasStreakShield(purchasedUpgrades: PurchasedUpgrade[]): boolean {
-  return getStreakShieldCharges(purchasedUpgrades) > 0
-}
-
-export function getStreakShieldCharges(purchasedUpgrades: PurchasedUpgrade[]): number {
-  const level = getMaxOwnedLevelForEffect(purchasedUpgrades, 'streak_shield', { scope: 'run' })
-  if (level <= 0) return 0
-  return STREAK_SHIELD_CHARGES_BY_LEVEL[level - 1] ?? 1
+  return Math.max(bankroll, openingTicketFreeCap)
 }
 
 export function getCoinBiasChance(purchasedUpgrades: PurchasedUpgrade[], game: GameName): number {
