@@ -35,8 +35,10 @@ import {
   settleRace,
   startRace,
   startRaceWithWinner,
+  winGame,
 } from '@/games/chicken-race/engine'
 import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { ChickenRaceState } from '@/games/chicken-race/types'
 
 interface ChickenRaceResult {
@@ -65,6 +67,7 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { chickenScout, chickenScoutLevel  } = useSurvivalPerks('chicken-race')
   const scoutProc = usePerkProc(
     mode === 'survival' && chickenScout,
@@ -111,7 +114,9 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
     const bet = currentBet
     onBet?.(bet)
     let next: ChickenRaceState
-    if (cursed) {
+    if (blessed) {
+      next = winGame(bet, state.pickedChicken)
+    } else if (cursed) {
       next = loseGame(bet, state.pickedChicken)
     } else if (scoutProc.perkActive && scoutPreviewRef.current) {
       next = startRaceWithWinner(bet, state.pickedChicken, scoutPreviewRef.current.winner)

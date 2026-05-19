@@ -176,6 +176,40 @@ export function loseGame(state: PokerState): PokerState {
   }
 }
 
+/**
+ * Blessed draw: keeps held cards and always tries to fill non-held slots with
+ * a card matching a held rank (100% bias vs the normal 58%). Outcome is
+ * evaluated honestly — the player can still lose if they held nothing useful.
+ */
+export function winGame(state: PokerState): PokerState {
+  const usedKeys = new Set(state.hand.filter((_, i) => state.held[i]).map(c => `${c.rank}${c.suit}`))
+  const pool = shuffle(createDeck()).filter(c => !usedKeys.has(`${c.rank}${c.suit}`))
+  const heldRanks = Array.from(new Set(state.hand.filter((_, i) => state.held[i]).map(c => c.rank)))
+
+  const newHand: Card[] = state.hand.map((card, i) => {
+    if (state.held[i]) return card
+    if (heldRanks.length > 0) {
+      const matchIdx = pool.findIndex(c => heldRanks.includes(c.rank))
+      if (matchIdx >= 0) return pool.splice(matchIdx, 1)[0]!
+    }
+    return pool.splice(0, 1)[0] ?? card
+  })
+
+  const handRank = evaluateHand(newHand)
+  const multiplier = HAND_PAYOUTS[handRank]
+  return {
+    ...state,
+    stage: 'settled',
+    hand: newHand,
+    held: [false, false, false, false, false],
+    handRank,
+    multiplier,
+    winningIndices: getWinningIndices(newHand, handRank),
+    outcome: multiplier > 0 ? 'win' : 'loss',
+    message: multiplier > 0 ? `${HAND_LABELS[handRank]}!` : 'No winning hand.',
+  }
+}
+
 export function drawCards(state: PokerState, opts?: { holdBias?: boolean }): PokerState {
   const usedKeys = new Set(
     state.hand.filter((_, i) => state.held[i]).map(c => `${c.rank}${c.suit}`)

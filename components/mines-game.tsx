@@ -37,8 +37,10 @@ import {
   revealMineTile,
   revealSafeMineTile,
   startMinesRound,
+  winGame,
 } from '@/games/mines/engine'
 import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { MinesState } from '@/games/mines/types'
 
 const DIFFICULTIES: MinesState['difficulty'][] = ['easy', 'medium', 'hard', 'insane']
@@ -76,6 +78,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { minesSafe, minesSafeLevel, payoutBoostMult } = useSurvivalPerks('mines')
   const minesProc = usePerkProc(
     mode === 'survival' && minesSafe,
@@ -150,7 +153,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
 
   function handleTileClick(tileId: number) {
     if (round.stage !== 'inProgress') return
-    const next = cursed ? loseGame(round, tileId) : revealMineTile(round, tileId)
+    const next = blessed ? winGame(round, tileId) : cursed ? loseGame(round, tileId) : revealMineTile(round, tileId)
     setRound(next)
     if (next.stage === 'settled' && next.outcome) {
       recordOutcome(

@@ -167,6 +167,8 @@ export interface SurvivalStore {
   endlessMode: boolean
   /** Player is cursed — all games are rigged to lose. */
   cursed: boolean
+  /** Player is blessed — all games are rigged to win. */
+  blessed: boolean
 
   // ── Actions ──────────────────────────────────────────────────────────────
   startRun: (difficulty: Difficulty) => void
@@ -197,6 +199,7 @@ export interface SurvivalStore {
   deductBet: (amount: number) => void
   resetJackpotMeter: () => void
   setCursed: (val: boolean) => void
+  setBlessed: (val: boolean) => void
 }
 
 export interface FreeplayStore {

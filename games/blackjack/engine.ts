@@ -363,6 +363,96 @@ export function loseDouble(state: BlackjackState): BlackjackState {
   return loseStand(doubledState)
 }
 
+// ─── Blessed variants (used when the player is blessed) ────────────────────
+
+function buildBlessedDeck(): BlackjackCard[] {
+  const pool = shuffle(newDeck())
+  // First card from A/7/8/9/10 (equal 20% each) + 10-value second card
+  // gives BJ(21) / 17 / 18 / 19 / 20 with equal probability.
+  const goodFirstRanks: BlackjackCard['rank'][] = ['A', '7', '8', '9', '10']
+  const playerFirst  = pool.find(c => goodFirstRanks.includes(c.rank))
+  const playerSecond = pool.find(c => c !== playerFirst && ['10','J','Q','K'].includes(c.rank))
+  const dealerWeak   = pool.find(c => ![playerFirst, playerSecond].includes(c) && ['5','6','7'].includes(c.rank))
+  const dealerLow    = pool.find(c => ![playerFirst, playerSecond, dealerWeak].includes(c) && ['2','3','4'].includes(c.rank))
+
+  if (!playerFirst || !playerSecond || !dealerWeak || !dealerLow) return pool
+
+  const [dealerFaceUp, dealerHole] = Math.random() < 0.5
+    ? [dealerWeak, dealerLow]
+    : [dealerLow, dealerWeak]
+
+  const reserved = new Set([playerFirst, playerSecond, dealerFaceUp, dealerHole])
+  const remaining = shuffle(pool.filter(c => !reserved.has(c)))
+  return [playerFirst, dealerFaceUp, playerSecond, dealerHole, ...remaining]
+}
+
+/** Start a blessed round: player gets a strong hand (17–BJ), dealer has a bust-prone hand. */
+export function winGame(betAmount: number): BlackjackState {
+  const deck = buildBlessedDeck()
+  const [p1, d1, p2, d2, ...rest] = deck
+  const playerHand = [p1!, p2!]
+  const dealerHand = [d1!, d2!]
+  const playerBlackjack = isBlackjack(playerHand)
+  const initialState: BlackjackState = {
+    deck: rest,
+    playerHand,
+    dealerHand,
+    betAmount,
+    stage: playerBlackjack ? 'settled' : 'inProgress',
+    outcome: null,
+    payoutMultiplier: 1,
+    message: 'Your move.',
+    canDouble: !playerBlackjack,
+    playerBlackjack,
+    dealerBlackjack: false,
+  }
+  if (playerBlackjack) return settle(initialState, 'win')
+  return initialState
+}
+
+/** Blessed hit: force a low card so the player cannot bust. */
+export function winHit(state: BlackjackState): BlackjackState {
+  if (state.stage !== 'inProgress') return state
+  const playerValue = calculateHandValue(state.playerHand)
+  if (playerValue <= 11) return hitBlackjack(state)
+
+  let deck = [...state.deck]
+  const safeIdx = deck.findIndex(c => ['A','2','3','4','5','6','7'].includes(c.rank))
+  if (safeIdx > 0) {
+    ;[deck[0], deck[safeIdx]] = [deck[safeIdx]!, deck[0]!]
+  }
+  const [next, ...rest] = deck
+  if (!next) return hitBlackjack(state)
+  return {
+    ...state,
+    deck: rest,
+    playerHand: [...state.playerHand, next],
+    canDouble: false,
+    message: 'You hit.',
+  }
+}
+
+/** Blessed stand: dealer draws into busting cards; always settles as a win. */
+export function winStand(state: BlackjackState): BlackjackState {
+  if (state.stage !== 'inProgress') return state
+  const tens = state.deck.filter(c => ['10','J','Q','K'].includes(c.rank))
+  const rest  = state.deck.filter(c => !['10','J','Q','K'].includes(c.rank))
+  const deck  = [...tens, ...shuffle(rest)]
+  const { dealerHand, deck: finalDeck } = playDealer(deck, state.dealerHand)
+  return settle(
+    { ...state, deck: finalDeck, dealerHand, message: 'Dealer plays.', canDouble: false },
+    'win',
+  )
+}
+
+/** Blessed double-down: blessed hit then blessed stand on doubled bet. */
+export function winDouble(state: BlackjackState): BlackjackState {
+  if (state.stage !== 'inProgress' || state.playerHand.length !== 2) return state
+  const hit = winHit(state)
+  if (hit.stage === 'settled') return settle({ ...hit, betAmount: state.betAmount * 2 }, 'win')
+  return winStand({ ...hit, betAmount: state.betAmount * 2 })
+}
+
 export const blackjackEngine: GameEngine<BlackjackState, void> = {
   init: () => initBlackjack(),
   start: (betAmount) => startBlackjackRound(betAmount),

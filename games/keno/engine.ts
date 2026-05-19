@@ -155,6 +155,26 @@ export function revealAllKenoDraws(state: KenoState): KenoState {
   return settleDrawing({ ...state, revealedDrawn: state.drawn })
 }
 
+/** Blessed draw: all player picks are drawn — maximum hits guaranteed. */
+export function winGame(amount: number, picks: number[]): KenoState {
+  const nonPicks = Array.from({ length: BOARD_SIZE }, (_, i) => i + 1).filter(
+    (n) => !picks.includes(n),
+  )
+  const extra = shuffle(nonPicks).slice(0, DRAW_COUNT - picks.length)
+  const drawn = shuffle([...picks, ...extra])
+  return {
+    stage: 'drawing',
+    betAmount: amount,
+    picks,
+    drawn,
+    revealedDrawn: [],
+    hits: 0,
+    multiplier: 0,
+    outcome: null,
+    message: 'Drawing numbers…',
+  }
+}
+
 /** Cursed draw: all 5 balls land outside the player's picks — guaranteed 0 hits. */
 export function loseGame(amount: number, picks: number[]): KenoState {
   const pickSet = new Set(picks)

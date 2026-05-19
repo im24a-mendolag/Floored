@@ -35,8 +35,10 @@ import {
   loseGameResolve,
   resolveOverUnderRound,
   startOverUnderRound,
+  winGameResolve,
 } from '@/games/over-under/engine'
 import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { OverUnderState } from '@/games/over-under/types'
 
 const ROLL_ANIM_MS = 620
@@ -68,6 +70,7 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { overUnderShield, overUnderShieldLevel } = useSurvivalPerks('over-under')
   const shieldProc = usePerkProc(
     mode === 'survival' && overUnderShield,
@@ -120,7 +123,7 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
     setQuoteIdx((prev) => pickQuote(prev))
 
     const started = startOverUnderRound(bet, safeZone)
-    const settled = cursed ? loseGameResolve(started) : resolveOverUnderRound(started)
+    const settled = blessed ? winGameResolve(started) : cursed ? loseGameResolve(started) : resolveOverUnderRound(started)
     const rollPos  = settled.rollResult!
     const outcome  = settled.outcome!
 

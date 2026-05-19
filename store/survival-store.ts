@@ -71,6 +71,7 @@ const RUN_PERSIST_KEYS = [
   'lobbyRerollCount',
   'endlessMode',
   'cursed',
+  'blessed',
 ] as const
 
 export const useSurvivalStore = create<SurvivalStore>()(
@@ -119,6 +120,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
       lobbyRerollCount: 0,
       endlessMode: false,
       cursed: false,
+      blessed: false,
       ...initialFloorTimerState(),
 
       startRun: (difficulty: Difficulty) => {
@@ -165,6 +167,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           lobbyRerollCount: 0,
           endlessMode: false,
           cursed: false,
+          blessed: false,
           ...initialFloorTimerState(),
         })
       },
@@ -204,6 +207,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           lobbyRerollCount: 0,
           endlessMode: false,
           cursed: false,
+          blessed: false,
           ...initialFloorTimerState(),
         }),
 
@@ -550,6 +554,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
       resetJackpotMeter: () => set({ jackpotMeter: 0 }),
 
       setCursed: (val: boolean) => set({ cursed: val }),
+      setBlessed: (val: boolean) => set({ blessed: val }),
     }),
     {
       name: 'floored-survival',

@@ -121,6 +121,11 @@ export function getChickenPayout(state: ChickenState) {
   return state.cashoutValue
 }
 
+/** Blessed advance: delegates to the perk-safe crossing (guaranteed survival). */
+export function winGame(state: ChickenState): ChickenState {
+  return advanceChickenRoundSafe(state)
+}
+
 /** Cursed advance: the chicken always dies on this step. */
 export function loseGame(state: ChickenState): ChickenState {
   if (state.stage !== 'inProgress') return state

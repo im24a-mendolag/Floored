@@ -110,6 +110,28 @@ export function getSlotsResultPayout(state: SlotsState): number {
 }
 
 /**
+ * Blessed spin: picks one symbol using the normal reel weights (so rarer symbols
+ * are still rarer) and uses it for all three reels — guaranteeing a three-of-a-kind
+ * win while keeping the full paytable reachable.
+ */
+export function winGame(betAmount: number): SlotsState {
+  let symbol = spinReel()
+  if (symbol === 'wild') symbol = 'cherry'
+  const reels: [SlotsSymbol, SlotsSymbol, SlotsSymbol] = [symbol, symbol, symbol]
+  const { multiplier, winType } = resolveReels(reels)
+  return {
+    stage: 'settled',
+    betAmount,
+    reels,
+    outcome: 'win',
+    payoutMultiplier: multiplier,
+    winType,
+    isJackpotSpin: false,
+    message: `${winType}! You win ${multiplier}×.`,
+  }
+}
+
+/**
  * Cursed spin: forces a guaranteed non-matching reel combination so the
  * payout is always 0. Uses symbols with no cherry/bar to avoid partial wins.
  */

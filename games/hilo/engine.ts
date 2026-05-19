@@ -106,6 +106,30 @@ export function guessHiLo(state: HiLoState, guess: 'higher' | 'lower'): HiLoStat
   }
 }
 
+/** Blessed guess: forces a card from the deck that makes the guess correct; returns 'riding'. */
+export function winGame(state: HiLoState, guess: 'higher' | 'lower'): HiLoState {
+  if (state.stage !== 'playing' && state.stage !== 'riding') return state
+  const current = state.currentCard!
+  const winners = state.deck.filter((c) =>
+    guess === 'higher' ? c.value > current.value : c.value < current.value
+  )
+  if (winners.length === 0) return guessHiLo(state, guess)
+  const nextCard = winners[Math.floor(Math.random() * winners.length)]!
+  const deck = state.deck.filter((c) => c !== nextCard)
+  const newStreak = state.streak + 1
+  const newMult = streakMultiplier(newStreak)
+  return {
+    ...state,
+    deck,
+    nextCard,
+    lastGuess: guess,
+    streak: newStreak,
+    multiplier: newMult,
+    stage: 'riding',
+    message: `${nextCard.rank}${nextCard.suit} — ${newMult}× · Cash out or go again?`,
+  }
+}
+
 /** Cursed guess: forces a card from the deck that makes the guess wrong. */
 export function loseGame(state: HiLoState, guess: 'higher' | 'lower'): HiLoState {
   if (state.stage !== 'playing' && state.stage !== 'riding') return state

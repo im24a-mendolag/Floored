@@ -24,7 +24,8 @@ import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
 import { useCurse } from '@/hooks/use-curse'
-import { cashOut, flipAgain, initCoinFlip, loseFlipAgain, loseGame, startFlip } from '@/games/coin-flip/engine'
+import { useBless } from '@/hooks/use-bless'
+import { cashOut, flipAgain, initCoinFlip, loseFlipAgain, loseGame, startFlip, winFlipAgain, winGame } from '@/games/coin-flip/engine'
 import type { CoinFlipState, CoinSide } from '@/games/coin-flip/types'
 
 const COIN_SPIN_MS = 1500
@@ -68,6 +69,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { coinBias, purchasedUpgrades } = useSurvivalPerks('coin-flip')
   const minBet = mode === 'survival' ? floorMinBet : 1
   const biasChance =
@@ -168,7 +170,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     if (!canFlip || !state.pick || isFlipping || !lock()) return
     const bet = currentBet
     onBet?.(bet)
-    const next = cursed ? loseGame(bet, state.pick) : startFlip(bet, state.pick, biasChance != null ? { biasChance } : undefined)
+    const next = blessed ? winGame(bet, state.pick!) : cursed ? loseGame(bet, state.pick) : startFlip(bet, state.pick, biasChance != null ? { biasChance } : undefined)
     setLastBet(bet)
     setCurrentBet(0)
     setPendingResult(null)
@@ -179,7 +181,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   function handleFlipAgain() {
     if (!state.nextPick || isFlipping) return
     setQuoteIdx((prev) => pickQuote(prev))
-    triggerFlip(cursed ? loseFlipAgain(state) : flipAgain(state, biasChance != null ? { biasChance } : undefined))
+    triggerFlip(blessed ? winFlipAgain(state) : cursed ? loseFlipAgain(state) : flipAgain(state, biasChance != null ? { biasChance } : undefined))
   }
 
   function handleCashOut() {

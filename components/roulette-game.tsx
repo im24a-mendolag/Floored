@@ -39,8 +39,10 @@ import {
   loseGame,
   spinRoulette,
   spinRouletteWithResult,
+  winGame,
 } from '@/games/roulette/engine'
 import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { RouletteBetType, RouletteState } from '@/games/roulette/types'
 
 // Standard European roulette board layout: 3 rows top-to-bottom, 12 columns left-to-right
@@ -121,6 +123,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { rouletteTracker, rouletteTrackerLevel } = useSurvivalPerks('roulette')
   const trackerProc = usePerkProc(
     mode === 'survival' && rouletteTracker,
@@ -206,11 +209,13 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
     setPendingResult(null)
 
     const preRolled = pendingSpinResult.current
-    const result = cursed
-      ? loseGame(spunTarget, total)
-      : preRolled != null
-        ? spinRouletteWithResult(spunTarget, total, preRolled)
-        : spinRoulette(spunTarget, total)
+    const result = blessed
+      ? winGame(spunTarget, total)
+      : cursed
+        ? loseGame(spunTarget, total)
+        : preRolled != null
+          ? spinRouletteWithResult(spunTarget, total, preRolled)
+          : spinRoulette(spunTarget, total)
     pendingSpinResult.current = null
     setQuoteIdx((prev) => pickQuote(prev))
     setSpinning(true)

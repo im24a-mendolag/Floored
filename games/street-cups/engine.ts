@@ -60,6 +60,18 @@ export function pickCupStreetCups(state: StreetCupsState, pickedSlot: number): S
 /** Win pays 2× the bet. */
 export const STREET_CUPS_WIN_MULTIPLIER = 2
 
+/** Blessed pick: the crown is always under the player's chosen cup. */
+export function winGame(state: StreetCupsState, pickedSlot: number): StreetCupsState {
+  return {
+    ...state,
+    playerPick: pickedSlot,
+    winningSlot: pickedSlot,
+    outcome: 'win',
+    stage: 'settled',
+    message: 'You found the crown!',
+  }
+}
+
 /** Cursed pick: winning slot is always a different cup from the one the player chose. */
 export function loseGame(state: StreetCupsState, pickedSlot: number): StreetCupsState {
   const others = [0, 1, 2].filter((s) => s !== pickedSlot)

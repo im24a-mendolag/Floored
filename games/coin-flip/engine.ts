@@ -99,6 +99,39 @@ export function flipAgain(state: CoinFlipState, opts?: { biasChance?: number }):
   }
 }
 
+/** Blessed flip: always lands on the player's pick; returns 'riding' with streak 1. */
+export function winGame(bet: number, pick: CoinSide): CoinFlipState {
+  return {
+    stage: 'riding',
+    betAmount: bet,
+    pick,
+    nextPick: null,
+    lastResult: pick,
+    streak: 1,
+    multiplier: 2,
+    outcome: null,
+    message: 'Correct! Cash out or push your luck.',
+  }
+}
+
+/** Blessed flip-again: always lands on nextPick; advances the streak. */
+export function winFlipAgain(state: CoinFlipState): CoinFlipState {
+  if (!state.nextPick) return state
+  const newStreak = state.streak + 1
+  const newMult = Math.pow(2, newStreak)
+  return {
+    ...state,
+    stage: 'riding',
+    pick: state.nextPick,
+    nextPick: null,
+    lastResult: state.nextPick,
+    streak: newStreak,
+    multiplier: newMult,
+    outcome: null,
+    message: `${newStreak} in a row! Cash out or push your luck.`,
+  }
+}
+
 /** Cursed flip: always lands on the opposite side of the player's pick. */
 export function loseGame(bet: number, pick: CoinSide): CoinFlipState {
   const result: CoinSide = pick === 'heads' ? 'tails' : 'heads'

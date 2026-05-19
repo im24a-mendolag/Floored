@@ -32,8 +32,10 @@ import {
   loseGame,
   pickCupStreetCups,
   startStreetCups,
+  winGame,
 } from '@/games/street-cups/engine'
 import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 
 /* Slot left-percent anchors (center of each slot in a 100%-wide container). */
 const SLOT_X = ['16%', '50%', '84%'] as const
@@ -177,6 +179,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
   const { autoReBet }   = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { streetCupsTruth, streetCupsTruthLevel  } = useSurvivalPerks('street-cups')
   const cupsProc = usePerkProc(
     mode === 'survival' && streetCupsTruth,
@@ -310,7 +313,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
   const handlePick = useCallback((cupId: number) => {
     if (!isPicking || (eliminatedCupId != null && cupId === eliminatedCupId)) return
     const pickedSlot = cupSlotsRef.current[cupId] ?? 0
-    const settled = cursed ? loseGame(round, pickedSlot) : pickCupStreetCups(round, pickedSlot)
+    const settled = blessed ? winGame(round, pickedSlot) : cursed ? loseGame(round, pickedSlot) : pickCupStreetCups(round, pickedSlot)
     setRound(settled)
 
     /* Resolve immediately so bankroll updates */

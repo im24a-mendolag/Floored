@@ -28,8 +28,9 @@ import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
-import { getSlotsResultPayout, initSlots, loseGame, PAYTABLE, spinSlots } from '@/games/slots/engine'
+import { getSlotsResultPayout, initSlots, loseGame, PAYTABLE, spinSlots, winGame } from '@/games/slots/engine'
 import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { SlotsState, SlotsSymbol } from '@/games/slots/types'
 
 const SYMBOL_DISPLAY: Record<SlotsSymbol, { glyph: string; color: string; bg: string }> = {
@@ -114,6 +115,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { slotsShield, slotsShieldLevel } = useSurvivalPerks('slots')
   const shieldProc = usePerkProc(
     mode === 'survival' && slotsShield,
@@ -169,7 +171,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
 
     const shieldActive = shieldProc.rollForBet()
 
-    const result = cursed ? loseGame(bet) : spinSlots(bet, jackpotReady)
+    const result = blessed ? winGame(bet) : cursed ? loseGame(bet) : spinSlots(bet, jackpotReady)
 
     // Reel 0 lands
     const t1 = setTimeout(() => {

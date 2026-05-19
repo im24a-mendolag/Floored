@@ -97,6 +97,14 @@ export function getWheelPayout(state: WheelState): number {
 }
 
 /**
+ * Blessed spin: the wheel always lands on the player's bet color.
+ * Uses spinWheelWithResult so the animation is identical.
+ */
+export function winGame(betColor: WheelColor, betAmount: number): WheelState {
+  return spinWheelWithResult(betColor, betAmount, betColor)
+}
+
+/**
  * Cursed spin: picks a random color that is NOT the player's bet so the
  * wheel always misses. Uses spinWheelWithResult so the animation is identical.
  */

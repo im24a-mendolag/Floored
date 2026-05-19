@@ -31,8 +31,10 @@ import {
   initPoker,
   loseGame,
   toggleHold,
+  winGame,
 } from '@/games/poker-1p/engine'
 import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { Card, PokerHandRank, PokerState } from '@/games/poker-1p/types'
 
 const HAND_ORDER: PokerHandRank[] = [
@@ -127,6 +129,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { pokerHoldBias, pokerHoldBiasLevel  } = useSurvivalPerks('poker-1p')
   const holdProc = usePerkProc(
     mode === 'survival' && pokerHoldBias,
@@ -175,7 +178,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
 
   function handleDraw() {
     setState((prev) => {
-      const settled = cursed ? loseGame(prev) : drawCards(prev, { holdBias: holdBiasRef.current })
+      const settled = blessed ? winGame(prev) : cursed ? loseGame(prev) : drawCards(prev, { holdBias: holdBiasRef.current })
       recordOutcome(settled)
       holdProc.resetPerk()
       return settled

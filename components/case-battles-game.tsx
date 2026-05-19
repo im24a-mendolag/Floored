@@ -30,8 +30,10 @@ import {
   removeCase,
   settleBattle,
   startBattle,
+  winGame,
 } from '@/games/case-battles/engine'
 import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { CaseBattleState, CaseRarity } from '@/games/case-battles/types'
 
 interface CaseBattlesResult {
@@ -118,6 +120,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
+  const { blessed } = useBless()
   const caseXray = useSurvivalPerks('case-battles').caseXray
   const openingTicketActive = useOpeningTicketActive()
   const minBet = mode === 'survival' ? floorMinBet : FREEPLAY_BASE
@@ -225,7 +228,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     setLastSelectedCases(state.selectedCases)
     setQuoteIdx((prev) => pickQuote(prev))
     clearTimeouts()
-    setState((prev) => cursed ? loseGame(prev, cases) : startBattle(prev, cases))
+    setState((prev) => blessed ? winGame(prev, cases) : cursed ? loseGame(prev, cases) : startBattle(prev, cases))
     setPendingResult(null)
   }
 

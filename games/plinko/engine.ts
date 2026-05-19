@@ -36,6 +36,26 @@ export function generatePath(): PlinkoPath {
 }
 
 /**
+ * Blessed path: forces the ball into a winning slot (multiplier >= 1).
+ * Picks randomly from all winning slots; decisions are shuffled so the
+ * trajectory looks organic.
+ */
+export function winGamePath(risk: PlinkoRisk = 'medium'): PlinkoPath {
+  const mults = MULTIPLIERS[risk]
+  const winningSlots = mults.map((m, i) => (m >= 1 ? i : -1)).filter((i) => i >= 0)
+  const slotIndex = winningSlots.length > 0
+    ? winningSlots[Math.floor(Math.random() * winningSlots.length)]!
+    : Math.floor(ROWS / 2)
+
+  const decisions = Array.from({ length: ROWS }, (_, i) => i < slotIndex)
+  for (let i = decisions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[decisions[i], decisions[j]] = [decisions[j]!, decisions[i]!]
+  }
+  return { decisions, slotIndex }
+}
+
+/**
  * Cursed path: forces the ball into a losing slot (multiplier < 1).
  * Picks randomly from all losing slots so the trajectory looks natural —
  * the decisions are shuffled so the ball bounces realistically to the target.

@@ -59,6 +59,22 @@ export function getOverUnderPayout(state: OverUnderState) {
 }
 
 /**
+ * Blessed resolve: forces the roll within the safe zone so the player always
+ * wins. The value is random within the winning range so it looks natural.
+ */
+export function winGameResolve(state: OverUnderState): OverUnderState {
+  if (state.stage !== 'inProgress') return state
+  const rollResult = Math.floor(Math.random() * state.safeZone) + 1
+  return {
+    ...state,
+    stage: 'settled',
+    rollResult,
+    outcome: 'win',
+    message: `You win with ${rollResult}!`,
+  }
+}
+
+/**
  * Cursed resolve: forces the roll above the safe zone so the player always
  * loses. The value is still random within the losing range so it looks natural.
  */
