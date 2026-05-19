@@ -138,7 +138,7 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   const isRiding = round.stage === 'riding'
   const isSettled = round.stage === 'settled'
   const canDeal = currentBet >= minBet && currentBet <= bankroll
-  const showQuoteUntilNext = !isBetting
+  const showQuoteUntilNext = !isBetting && !isSettled
   const cashoutAmount = isRiding ? Math.round(round.betAmount * round.multiplier) : 0
   const nextRange =
     mode === 'survival' && hiloRange && (isPlaying || isRiding)

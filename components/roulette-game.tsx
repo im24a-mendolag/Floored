@@ -35,7 +35,6 @@ import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   BET_LABELS,
   EUROPEAN_WHEEL_ORDER,
-  getLabelForTarget,
   getOutcomeLabelForTarget,
   formatRouletteResultLabel,
   getNumberColor,
@@ -487,11 +486,6 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
                   currentBet={currentBet}
                   onClear={clearBet}
                 />
-                {currentBet > 0 && currentTarget && (
-                  <p className="text-zinc-400 text-xs font-medium -mt-0.5">
-                    {getLabelForTarget(currentTarget)} · {getPayoutForTarget(currentTarget)}×
-                  </p>
-                )}
               </>
             )}
             {spinning && potentialWinnings > 0 && (

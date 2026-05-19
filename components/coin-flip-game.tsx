@@ -93,8 +93,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   const cashoutAmount = isRiding ? Math.round(state.betAmount * state.multiplier) : 0
   const activeBet = !isBetting && state.betAmount > 0 ? state.betAmount : 0
   const pickLabel = (side: CoinSide | null) => (side === 'heads' ? 'Heads' : side === 'tails' ? 'Tails' : undefined)
-  /** Quote in chip row from flip start until Next (covers flip anim, riding, and settled). */
-  const showQuoteUntilNext = isFlipping || !isBetting
+  const showQuoteUntilNext = isFlipping || (!isBetting && !isSettled)
 
   function addChip(v: number) {
     setCurrentBet((p) => Math.min(p + v, bankroll))

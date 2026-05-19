@@ -143,7 +143,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
   const isSelecting = state.stage === 'selecting'
   const isSettled = state.stage === 'settled'
   const canDeal = currentBet >= minBet && currentBet <= bankroll
-  const showQuoteUntilNext = !isBetting
+  const showQuoteUntilNext = !isBetting && !isSettled
   const potentialWinnings =
     isSelecting && state.betAmount > 0
       ? Math.round(state.betAmount * HAND_PAYOUTS['royal-flush'])

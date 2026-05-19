@@ -133,7 +133,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   const isSetup = state.stage === 'setup'
   const isOpening = state.stage === 'opening'
   const isSettled = state.stage === 'settled'
-  const showQuoteUntilNext = isOpening || isSettled
+  const showQuoteUntilNext = isOpening
 
   useEffect(() => {
     if (isSetup && mode === 'survival' && caseXray && cases.length > 0) {

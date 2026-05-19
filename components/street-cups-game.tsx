@@ -220,7 +220,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
   const isSettled   = round.stage === 'settled'
 
   const canStart = currentBet >= minBet && currentBet <= bankroll
-  const showQuoteUntilNext = !isBetting
+  const showQuoteUntilNext = !isBetting && !isSettled
   const potentialWinnings =
     isPicking && round.betAmount > 0
       ? Math.round(round.betAmount * STREET_CUPS_WIN_MULTIPLIER)
