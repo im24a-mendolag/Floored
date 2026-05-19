@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -55,6 +56,7 @@ interface PlinkoGameProps {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
+  const router = useRouter()
   const { floorMinBet, pendingDefeatReason } = useSurvivalStore()
   const { plinkoFirstBall, plinkoFirstBallLevel  } = useSurvivalPerks('plinko')
   const shieldProc = usePerkProc(
@@ -69,7 +71,6 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const [sessions, setSessions] = useState<PlinkoSession[]>([])
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
-  const [lastResultMsg, setLastResultMsg] = useState<string | null>(null)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [quoteIdx, setQuoteIdx] = useState(0)
 
@@ -98,7 +99,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
   const statusMsg = isDropping
     ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'} in flight`
-    : lastResultMsg ?? 'Place chips and drop.'
+    : 'Place chips and drop.'
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
@@ -143,10 +144,12 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
     const built = buildPendingResult(
       { outcome: finalOutcome, betAmount: session.bet, payout: finalPayout },
-      `${formatChips(session.bet)} · ${session.result.multiplier}×`,
-      { winLabel: 'Total winnings', lossLabel: shieldActive ? 'Push (shield)' : 'No winnings' },
+      {
+        bet: formatChips(session.bet),
+        result: `${session.result.multiplier}×`,
+      },
+      { gameMultiplier: session.result.multiplier },
     )
-    setLastResultMsg(`Hit ${session.result.multiplier}× · ${built.entry.title}`)
     setMatchHistory((h) => [built.entry, ...h].slice(0, 80))
 
     // autoReBet when the last in-flight ball just landed
@@ -222,19 +225,19 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
-            <GameDockBetRow currentBet={currentBet > 0 ? currentBet : isDropping ? lastBet : 0} onClear={() => setCurrentBet(0)} />
+          <div className="h-10 flex items-center justify-center w-full">
+            <GameDockBetRow
+              currentBet={currentBet > 0 ? currentBet : isDropping ? lastBet : 0}
+              onClear={() => setCurrentBet(0)}
+            />
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-2">
             {showSurvivalContinue ? (
-              <button
-                type="button"
-                onClick={() => survivalAfterNext(mode)}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Continue →
-              </button>
+              <>
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+                <button type="button" onClick={() => survivalAfterNext(mode)} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Continue →</button>
+              </>
             ) : (
               <button
                 type="button"

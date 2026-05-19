@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,7 +11,9 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -20,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -54,14 +57,10 @@ interface ChickenGameProps {
   onResolve: GameResolveFn<ChickenResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -101,21 +100,16 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
       payout: po,
       multiplier: next.multiplier,
     })
+    const partial = outcome === 'win' && po > 0 && po < next.betAmount
     const built = buildPendingResult(
       { outcome, betAmount: next.betAmount, payout: resolved.payout },
-      outcome === 'loss'
-        ? `${formatChips(next.betAmount)} bet · Bust step ${next.step}`
-        : `${formatChips(next.betAmount)} bet · Step ${next.step} · ${formatMultiplier(next.multiplier)}`,
-      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      {
+        bet: formatChips(next.betAmount),
+        result: outcome === 'loss' ? 'Bust' : `Step ${next.step}`,
+      },
+      { gameMultiplier: outcome === 'win' && !partial ? next.multiplier : undefined },
     )
-    const partial = outcome === 'win' && po > 0 && po < next.betAmount
-    setPendingResult({
-      tone: po > 0 ? 'win' : 'loss',
-      label: built.label,
-      outcomeLabel:
-        outcome === 'loss' ? 'Squashed' : partial ? 'Partial cash out' : built.outcomeLabel,
-      entry: built.entry,
-    })
+    setPendingResult(built)
   }
 
   function handleStart() {
@@ -282,7 +276,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isInProgress && potentialWinnings > 0 && (
               <p className="text-sm text-zinc-400">
@@ -292,8 +286,9 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -302,7 +297,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
             )}
           </div>
 
-          <div className="flex min-h-[2.75rem] w-full flex-col items-center justify-center gap-2">
+          <div className={`${GAME_DOCK_ACTIONS} min-h-[2.75rem] justify-center gap-2`}>
             {isBetting && (
               <button
                 type="button"
@@ -332,13 +327,10 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
               </div>
             )}
             {isSettled && pendingResult && (
-              <button
-                type="button"
-                onClick={handleNext}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Next →
-              </button>
+              <div className="flex justify-center gap-2">
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+                <button type="button" onClick={handleNext} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
+              </div>
             )}
             {minBet > 1 && isBetting && (
               <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>

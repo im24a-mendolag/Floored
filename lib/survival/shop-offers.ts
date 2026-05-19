@@ -48,6 +48,10 @@ export function buildShopPool(floorGames: GameName[], ownedUpgradeIds: string[])
   ]
 }
 
+export const SHOP_GAME_OFFER_COUNT = 2
+export const SHOP_RUN_OFFER_COUNT = 1
+export const SHOP_OFFER_COUNT = SHOP_GAME_OFFER_COUNT + SHOP_RUN_OFFER_COUNT
+
 export function generateShopOffers(input: {
   runSeed: string
   floor: number
@@ -61,11 +65,74 @@ export function generateShopOffers(input: {
   const rng = createRng(seedFromString(`${input.runSeed}:shop:${input.floor}:${rerollCount}`))
   const owned = input.ownedUpgradeIds ?? []
 
-  const gameItems = pickRandom(buildGameItemPool(input.floorGames, owned), rng, 2)
-  const runItems = pickRandom(buildRunItemPool(owned), rng, 1)
+  const gameItems = pickRandom(buildGameItemPool(input.floorGames, owned), rng, SHOP_GAME_OFFER_COUNT)
+  const runItems = pickRandom(buildRunItemPool(owned), rng, SHOP_RUN_OFFER_COUNT)
 
   return [...gameItems, ...runItems].map((item) => ({
     item,
     price: calcShopPrice(item.baseCost, input.difficulty),
   }))
+}
+
+/** Reroll a single shop slot using a lobby reroll ticket (seeded per slot). */
+export function rerollShopOfferAtSlot(input: {
+  runSeed: string
+  floor: number
+  slotIndex: number
+  slotRerollCount: number
+  difficulty: Difficulty
+  floorGames: GameName[]
+  ownedUpgradeIds: string[]
+  excludeItemIds: string[]
+}): ShopOffer | null {
+  const isRunSlot = input.slotIndex >= SHOP_GAME_OFFER_COUNT
+  const pool = (
+    isRunSlot
+      ? buildRunItemPool(input.ownedUpgradeIds)
+      : buildGameItemPool(input.floorGames, input.ownedUpgradeIds)
+  ).filter((item) => !input.excludeItemIds.includes(item.id))
+  if (pool.length === 0) return null
+
+  const rng = createRng(
+    seedFromString(
+      `${input.runSeed}:shop-ticket:${input.floor}:${input.slotIndex}:${input.slotRerollCount}`,
+    ),
+  )
+  const item = pool[Math.floor(rng() * pool.length)]!
+  return { item, price: calcShopPrice(item.baseCost, input.difficulty) }
+}
+
+/** Base shop row plus per-slot replacements from lobby reroll tickets. */
+export function generateShopOffersWithTicketRerolls(
+  input: Parameters<typeof generateShopOffers>[0] & { slotTicketRerolls?: number[] },
+): ShopOffer[] {
+  const base = generateShopOffers(input)
+  const slotRerolls = input.slotTicketRerolls ?? []
+  const owned = input.ownedUpgradeIds ?? []
+  const result: ShopOffer[] = []
+
+  for (let i = 0; i < base.length; i++) {
+    const count = slotRerolls[i] ?? 0
+    if (count === 0) {
+      result.push(base[i]!)
+      continue
+    }
+    const excludeItemIds = [
+      ...result.map((o) => o.item.id),
+      ...base.slice(i + 1).map((o) => o.item.id),
+    ]
+    const rerolled = rerollShopOfferAtSlot({
+      runSeed: input.runSeed,
+      floor: input.floor,
+      slotIndex: i,
+      slotRerollCount: count,
+      difficulty: input.difficulty,
+      floorGames: input.floorGames,
+      ownedUpgradeIds: owned,
+      excludeItemIds,
+    })
+    result.push(rerolled ?? base[i]!)
+  }
+
+  return result
 }

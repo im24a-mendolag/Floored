@@ -16,8 +16,15 @@ export const GAME_CHIPS = [
   { value: 500, label: '$500', cls: 'bg-blue-200 hover:bg-blue-100 border-blue-300 text-blue-900' },
 ] as const
 
-/** Inner wrapper for GAME_CONTROL_DOCK_M — evenly spaced rows. */
-export const GAME_DOCK_INNER = 'flex min-h-[188px] flex-col justify-between py-3'
+/** Inner wrapper for GAME_CONTROL_DOCK_M — fills dock; middle row grows above actions. */
+export const GAME_DOCK_INNER = 'flex flex-1 min-h-0 w-full flex-col py-3'
+
+/** Middle dock row — fills space above action buttons; centers bet / outcome content. */
+export const GAME_DOCK_SETTLED_SLOT =
+  'flex-1 min-h-0 w-full flex flex-col items-center justify-center'
+
+/** Bottom dock row — primary / leave buttons (shrink-0 so middle row keeps flex space). */
+export const GAME_DOCK_ACTIONS = 'shrink-0 w-full flex flex-col items-center gap-1'
 
 const CHIP_BTN =
   'w-12 h-12 rounded-full border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100'
@@ -40,7 +47,7 @@ export function GameDockBackButton({
       onClick={() => router.push(`/${mode}`)}
       className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors"
     >
-      ← Back
+      ← Game Selection
     </button>
   )
 }
@@ -104,29 +111,38 @@ export function GameDockBetRow({
 }
 
 export function GameDockSettledRow({
-  outcomeLabel,
-  label,
+  betSummary,
+  resultSummary,
+  profitLabel,
   tone,
-  multiplierHint,
 }: {
-  outcomeLabel: string
-  label: string
+  betSummary: string
+  resultSummary: string
+  profitLabel: string
   tone: 'win' | 'loss'
-  multiplierHint?: string
 }) {
+  const profitColor = tone === 'win' ? 'text-emerald-400' : 'text-red-400'
+
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <div className="flex items-center gap-3">
-        <p className="text-xs uppercase tracking-widest text-zinc-500">{outcomeLabel}</p>
-        <p
-          className={`text-2xl font-black tabular-nums ${tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}
-        >
-          {label}
-        </p>
+    <div className="flex w-full max-w-lg items-center justify-center px-1">
+      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2">
+        <div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1 shrink-0">Your bet</p>
+          <p className="text-sm sm:text-base font-semibold text-zinc-100 leading-tight line-clamp-2">{betSummary}</p>
+        </div>
+        <div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1 shrink-0">Result</p>
+          <p className="text-sm sm:text-base font-semibold text-zinc-100 leading-tight truncate" title={resultSummary}>
+            {resultSummary}
+          </p>
+        </div>
+        <div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1 shrink-0">Profit</p>
+          <p className={`text-xl sm:text-2xl font-black tabular-nums leading-tight ${profitColor}`}>
+            {profitLabel}
+          </p>
+        </div>
       </div>
-      {multiplierHint && (
-        <p className="text-xs font-semibold text-emerald-500/90 tabular-nums">{multiplierHint}</p>
-      )}
     </div>
   )
 }
@@ -163,7 +179,7 @@ export function GameDockChipRow({
 
   return (
     <div
-      className={`flex flex-nowrap justify-center items-center gap-2 min-h-12 ${!visible ? 'invisible pointer-events-none' : ''}`}
+      className={`flex shrink-0 flex-nowrap justify-center items-center gap-2 min-h-12 ${!visible ? 'hidden' : ''}`}
     >
       {showQuote && quoteIdx !== undefined ? (
         <GameDockRandomQuote quoteIdx={quoteIdx} />

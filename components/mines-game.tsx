@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,7 +11,9 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -20,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { findFirstSafeMineTile } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
@@ -62,14 +65,10 @@ interface MinesGameProps {
   onResolve: GameResolveFn<MinesResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -107,7 +106,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
   }
 
-  function recordOutcome(next: MinesState, outcome: 'win' | 'loss', subtitle: string) {
+  function recordOutcome(next: MinesState, outcome: 'win' | 'loss', bet: string, result: string) {
     const payoutAmount = getMinesPayout(next)
     const resolved = resolveGame(onResolve, {
       outcome,
@@ -117,15 +116,10 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
     })
     const built = buildPendingResult(
       { outcome, betAmount: next.betAmount, payout: resolved.payout },
-      subtitle,
-      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      { bet, result },
+      { gameMultiplier: outcome === 'win' ? next.multiplier : undefined },
     )
-    setPendingResult({
-      tone: built.tone === 'win' ? 'win' : 'loss',
-      label: built.label,
-      outcomeLabel: built.outcomeLabel,
-      entry: built.entry,
-    })
+    setPendingResult(built)
   }
 
   function handleStart() {
@@ -153,9 +147,8 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
       recordOutcome(
         next,
         next.outcome,
-        next.outcome === 'win'
-          ? `${formatChips(next.betAmount)} bet · Cash out · ${formatMultiplier(next.multiplier)}`
-          : `${formatChips(next.betAmount)} bet · ${DIFFICULTY_LABELS[next.difficulty]} · Mine hit`,
+        formatChips(next.betAmount),
+        next.outcome === 'win' ? 'Cash out' : 'Mine hit',
       )
     }
   }
@@ -166,7 +159,8 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
     recordOutcome(
       next,
       'win',
-      `${formatChips(next.betAmount)} bet · ${DIFFICULTY_LABELS[next.difficulty]} · Cash out · ${formatMultiplier(next.multiplier)}`,
+      formatChips(next.betAmount),
+      'Cash out',
     )
   }
 
@@ -307,7 +301,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isInProgress && (
               <p className="text-sm text-zinc-400">
@@ -317,27 +311,33 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : isInProgress ? handleCashOut : handleStart}
-              disabled={isBetting && !canStart}
-              className={[
-                'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
-                isInProgress
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
-              ].join(' ')}
-            >
-              {isSettled ? 'Next →' : isInProgress ? 'Cash Out' : 'Start →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNext : isInProgress ? handleCashOut : handleStart}
+                disabled={isBetting && !canStart}
+                className={[
+                  'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                  isInProgress
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
+                ].join(' ')}
+              >
+                {isSettled ? 'Next →' : isInProgress ? 'Cash Out' : 'Start →'}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isBetting && (

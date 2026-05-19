@@ -10,7 +10,7 @@ export type MissionType =
   | 'win_count'
   | 'big_win'
 
-/** All mission templates that can appear on a floor (3–5 picked at random per floor). */
+/** All mission templates that can appear on a floor (3 picked at random per floor). */
 export const MISSION_DEFINITIONS: Array<{
   type: MissionType
   target: number
@@ -134,9 +134,9 @@ function removePickedFromPool(
   return pool.filter((p) => p.type !== picked.type || p.target !== picked.target)
 }
 
-/**
- * Seeded 1–2 missions per floor.
- */
+/** Seeded mission count per floor. */
+export const MISSIONS_PER_FLOOR = 3
+
 export function generateMissionsForFloor(
   runSeed: string,
   floor: number,
@@ -146,7 +146,7 @@ export function generateMissionsForFloor(
   rerollCount = 0,
 ): FloorMission[] {
   const rng = createRng(seedFromString(`${runSeed}:missions:${floor}:${rerollCount}`))
-  const count = Math.floor(rng() * 3) + 3 // 3, 4, or 5
+  const count = MISSIONS_PER_FLOOR
   let pool = [...MISSION_POOL]
   const picked: FloorMission[] = []
 

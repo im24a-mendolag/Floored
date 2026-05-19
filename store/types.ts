@@ -163,6 +163,8 @@ export interface SurvivalStore {
   missionRerollCount: number
   /** Lobby slot rerolls used this floor (seed variance). */
   lobbyRerollCount: number
+  /** Per shop-offer slot rerolls via lobby ticket this floor. */
+  shopOfferTicketRerolls: number[]
   /** Player chose to continue past floor 10. */
   endlessMode: boolean
 
@@ -187,6 +189,7 @@ export interface SurvivalStore {
   purchaseUpgrade: (id: string, price: number) => boolean
   purchaseLobbyRerollTicket: () => boolean
   rerollLobbyGame: (slotIndex: number) => boolean
+  rerollShopOfferWithTicket: (slotIndex: number) => boolean
   rerollShop: () => boolean
   rerollMissions: () => boolean
   appendFloorHistory: (record: FloorRecord) => void

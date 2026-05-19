@@ -282,7 +282,7 @@ export function Lobby({ mode }: Props) {
             <p className="text-sm font-bold text-zinc-200 tabular-nums">
               {ticketCount}
               <span className="text-xs font-normal text-zinc-500 ml-1.5">
-                — use ↻ on a game to swap it
+                — use ↻ on a lobby game or shop offer to swap it
               </span>
             </p>
           </div>
@@ -293,7 +293,8 @@ export function Lobby({ mode }: Props) {
             className="h-8 border-zinc-700 text-xs"
             onClick={() => purchaseLobbyRerollTicket()}
           >
-            Buy ticket ✦ {ticketPrice}
+            Buy ticket{' '}
+            <span className="font-bold text-amber-400 tabular-nums">✦ {ticketPrice}</span>
           </Button>
         </div>
       )}

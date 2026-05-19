@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,7 +11,9 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -20,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -62,13 +65,7 @@ interface SlotsGameProps {
   onResolve: GameResolveFn<SlotsResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  multiplierHint?: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 type ReelTuple = [SlotsSymbol | null, SlotsSymbol | null, SlotsSymbol | null]
 type BoolTuple  = [boolean, boolean, boolean]
@@ -109,6 +106,7 @@ function Reel({ symbol, spinning, landed }: { symbol: SlotsSymbol | null; spinni
 }
 
 export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) {
+  const router = useRouter()
   const { floorMinBet, jackpotMeter, runActive, resetJackpotMeter } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -223,28 +221,16 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
       const titlePrefix = result.isJackpotSpin ? 'Jackpot' : line
       const built = buildPendingResult(
         { outcome: finalOutcome, betAmount: result.betAmount, payout: resolved.payout },
-        isWin || finalOutcome === 'push'
-          ? `${formatChips(result.betAmount)} bet · ${titlePrefix} · ${result.payoutMultiplier}×`
-          : `${formatChips(result.betAmount)} bet · No match`,
         {
-          winLabel: 'Total winnings',
-          lossLabel: finalOutcome === 'push' ? 'Push (shield)' : 'No winnings',
+          bet: formatChips(result.betAmount),
+          result: result.isJackpotSpin ? 'Jackpot' : isWin || finalOutcome === 'push' ? titlePrefix : 'No match',
+        },
+        {
           gameMultiplier: isWin && result.payoutMultiplier > 0 ? result.payoutMultiplier : undefined,
           payoutBoostMult: resolved.payoutBoostMult,
         },
       )
-      const partial = isWin && payout > 0 && payout < result.betAmount
-      setPendingResult({
-        tone: payout > 0 ? 'win' : 'loss',
-        label: built.label,
-        outcomeLabel: result.isJackpotSpin
-          ? 'Jackpot'
-          : partial
-            ? 'Partial return'
-            : built.outcomeLabel,
-        multiplierHint: built.multiplierHint,
-        entry: built.entry,
-      })
+      setPendingResult(built)
       shieldProc.resetPerk()
     }, SPIN_DURATION + STAGGER * 2 + LAND_FLASH)
 
@@ -379,14 +365,14 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
-                multiplierHint={pendingResult.multiplierHint}
               />
             )}
             {!isBetting && !isSpinning && !(isSettled && pendingResult) && (
@@ -394,19 +380,24 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : handleSpin}
-              disabled={!isSettled && (!canSpin || isSpinning)}
-              className={`min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg ${
-                jackpotReady && isBetting
-                  ? 'bg-yellow-400 hover:bg-yellow-300 text-black animate-pulse'
-                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900'
-              }`}
-            >
-              {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : jackpotReady ? '★ Spin ★' : 'Spin →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNext : handleSpin}
+                disabled={!isSettled && (!canSpin || isSpinning)}
+                className={`min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg ${
+                  jackpotReady && isBetting
+                    ? 'bg-yellow-400 hover:bg-yellow-300 text-black animate-pulse'
+                    : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900'
+                }`}
+              >
+                {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : jackpotReady ? '★ Spin ★' : 'Spin →'}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isBetting && (

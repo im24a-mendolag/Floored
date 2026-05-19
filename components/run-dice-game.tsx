@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,7 +11,9 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -20,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -49,12 +52,7 @@ interface RunDiceResult {
   multiplier: number
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 interface RunDiceGameProps {
   mode: 'survival' | 'freeplay'
@@ -65,6 +63,7 @@ interface RunDiceGameProps {
 }
 
 export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDiceGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -199,21 +198,16 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
           payout: po,
           multiplier: next.payoutMultiplier,
         })
-        const subtitle =
-          next.rollResult != null
-            ? `${formatChips(next.betAmount)} bet · Roll ${next.rollResult}${o === 'win' ? ` · ${formatMultiplier(next.payoutMultiplier)}` : o === 'push' ? ' · Push' : ''}`
-            : `${formatChips(next.betAmount)} bet · Settled`
         const built = buildPendingResult(
           { outcome: o, betAmount: next.betAmount, payout: resolved.payout },
-          subtitle,
-          { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+          {
+            bet: formatChips(next.betAmount),
+            result:
+              o === 'push' ? 'Push' : next.rollResult != null ? `Roll ${next.rollResult}` : 'Settled',
+          },
+          { gameMultiplier: o === 'win' ? next.payoutMultiplier : undefined },
         )
-        setPendingResult({
-          tone: built.tone === 'win' ? 'win' : 'loss',
-          label: built.label,
-          outcomeLabel: o === 'push' ? 'Push' : built.outcomeLabel,
-          entry: built.entry,
-        })
+        setPendingResult(built)
       }
     }, 1220)
 
@@ -434,7 +428,7 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isInProgress && potentialWinnings > 0 && (
               <p className="text-sm text-zinc-400">
@@ -444,8 +438,9 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -454,7 +449,7 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
             )}
           </div>
 
-          <div className="flex min-h-[2.75rem] w-full flex-col items-center justify-center gap-1">
+          <div className={`${GAME_DOCK_ACTIONS} min-h-[2.75rem] justify-center`}>
             {isBetting && (
               <button
                 type="button"
@@ -476,13 +471,10 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
               </button>
             )}
             {isSettled && pendingResult && (
-              <button
-                type="button"
-                onClick={handleNextRoll}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Next →
-              </button>
+              <div className="flex justify-center gap-2">
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+                <button type="button" onClick={handleNextRoll} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
+              </div>
             )}
             {minBet > 1 && isBetting && (
               <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,7 +11,9 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -20,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -46,38 +49,41 @@ const COLOR_STYLES: Record<WheelColor, { bg: string; border: string; text: strin
   gold:  { bg: 'bg-yellow-500',  border: 'border-yellow-400',  text: 'text-yellow-300',  ring: 'ring-yellow-400'  },
 }
 
+const COLOR_ICONS: Record<WheelColor, string> = {
+  red:   '🔥',
+  blue:  '💎',
+  green: '🍀',
+  gold:  '⭐',
+}
+
+/** Black outline + subtle highlight — color bet buttons and wheel slice icons. */
+const COLOR_ICON_OUTLINE_STYLE = {
+  filter: 'drop-shadow(0 0 1px #000) drop-shadow(0 0 2px #000) drop-shadow(0 0 1px #fff)',
+} as const
+
 const SPIN_DURATION = 2000
 
+/** Taller than GAME_CONTROL_DOCK_M — room between color picks and chip row. */
+const WHEEL_CONTROL_DOCK = `${GAME_CONTROL_DOCK_M} min-h-[252px]`
+
 // 12 equal slices: 6 red · 3 blue · 2 green · 1 gold
+// No-adjacent layout: R B R G R B R Gold R G R B
 const TOTAL_SLICES = 12
 const SLICE_DEG = 360 / TOTAL_SLICES
 
 const HEX: Record<WheelColor, string> = {
-  red: '#ef4444', blue: '#3b82f6', green: '#22c55e', gold: '#eab308',
+  red: '#dc2626', blue: '#2563eb', green: '#16a34a', gold: '#ca8a04',
 }
 
-// Bresenham-style spread: places each color evenly across all 41 positions
-// instead of grouping them, so the wheel looks visually mixed
-function makeMixedSlices(): WheelColor[] {
-  const quota: Record<WheelColor, number> = { red: 6, blue: 3, green: 2, gold: 1 }
-  const placed: Record<WheelColor, number> = { red: 0, blue: 0, green: 0, gold: 0 }
-  const order: WheelColor[] = ['red', 'blue', 'green', 'gold']
-  const out: WheelColor[] = []
-  for (let i = 0; i < TOTAL_SLICES; i++) {
-    let best: WheelColor = 'red'
-    let bestScore = -Infinity
-    for (const c of order) {
-      if (placed[c] >= quota[c]) continue
-      const score = quota[c] * (i + 1) / TOTAL_SLICES - placed[c]
-      if (score > bestScore) { bestScore = score; best = c }
-    }
-    out.push(best)
-    placed[best]++
-  }
-  return out
-}
+// Separator color between slices — more visible dark divider
+const SEPARATOR_COLOR = '#000000'
+const SEPARATOR_WIDTH = 2
 
-const SLICE_COLORS: WheelColor[] = makeMixedSlices()
+// No adjacent same-color: R B R G R B R Gold R G R B
+const SLICE_COLORS: WheelColor[] = [
+  'red', 'blue', 'red', 'green', 'red', 'blue',
+  'red', 'gold', 'red', 'green', 'red', 'blue',
+]
 
 function slicePath(i: number, cx: number, cy: number, r: number): string {
   const a0 = (i * SLICE_DEG - 90) * (Math.PI / 180)
@@ -87,6 +93,14 @@ function slicePath(i: number, cx: number, cy: number, r: number): string {
   const x1 = (cx + r * Math.cos(a1)).toFixed(3)
   const y1 = (cy + r * Math.sin(a1)).toFixed(3)
   return `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1} Z`
+}
+
+function sliceIconTransform(i: number, cx: number, cy: number, r: number): string {
+  const aMid = ((i + 0.5) * SLICE_DEG - 90) * (Math.PI / 180)
+  const tx = cx + r * 0.62 * Math.cos(aMid)
+  const ty = cy + r * 0.62 * Math.sin(aMid)
+  const rotateDeg = (i + 0.5) * SLICE_DEG - 90
+  return `translate(${tx.toFixed(2)}, ${ty.toFixed(2)}) rotate(${rotateDeg.toFixed(1)})`
 }
 
 interface WheelResult {
@@ -103,18 +117,13 @@ interface WheelGameProps {
   onResolve: GameResolveFn<WheelResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  multiplierHint?: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 function wheelColorLabel(color: WheelColor) {
   const seg = WHEEL_SEGMENTS.find((s) => s.color === color)
   const name = color.charAt(0).toUpperCase() + color.slice(1)
-  return seg ? `${name} ${seg.multiplier}×` : name
+  const icon = COLOR_ICONS[color]
+  return seg ? `${icon} ${name} ${seg.multiplier}×` : `${icon} ${name}`
 }
 
 function wheelColorMultiplier(color: WheelColor) {
@@ -122,6 +131,7 @@ function wheelColorMultiplier(color: WheelColor) {
 }
 
 export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -200,23 +210,23 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
         multiplier: result.payoutMultiplier,
       })
 
+      const betIcon = COLOR_ICONS[result.betColor!]
+      const betName = result.betColor!.charAt(0).toUpperCase() + result.betColor!.slice(1)
+      const resultIcon = COLOR_ICONS[result.resultColor!]
+      const resultName = result.resultColor!.charAt(0).toUpperCase() + result.resultColor!.slice(1)
       const built = buildPendingResult(
         { outcome: result.outcome!, betAmount: result.betAmount, payout: resolved.payout },
-        `${formatChips(result.betAmount)} bet · ${result.resultColor} ${result.resultMultiplier}×`,
         {
-          winLabel: 'Total winnings',
-          lossLabel: 'No winnings',
+          bet: `${betIcon} ${betName}`,
+          result: `${resultIcon} ${resultName}`,
+        },
+        {
+          historySubtitle: `Bet ${betIcon} ${betName} · Landed ${resultIcon} ${resultName} ${result.resultMultiplier}×`,
           gameMultiplier: result.outcome === 'win' ? result.payoutMultiplier : undefined,
           payoutBoostMult: resolved.payoutBoostMult,
         },
       )
-      setPendingResult({
-        tone: built.tone === 'win' ? 'win' : 'loss',
-        label: built.label,
-        outcomeLabel: `${result.resultColor} ${result.resultMultiplier}× — ${result.outcome === 'win' ? 'Win' : 'Miss'}`,
-        multiplierHint: built.multiplierHint,
-        entry: built.entry,
-      })
+      setPendingResult(built)
       scoutProc.resetPerk()
       wheelPreviewRef.current = null
       setCrossedOutColor(null)
@@ -309,7 +319,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
           </div>
 
           {/* SVG wheel — 41 equal slices */}
-          <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-full shadow-2xl border-4 border-white/20 overflow-hidden">
+          <div className="w-[13.5rem] h-[13.5rem] sm:w-60 sm:h-60 rounded-full shadow-2xl border-4 border-white/20 overflow-hidden">
             <svg
               viewBox="0 0 200 200"
               className="w-full h-full"
@@ -326,13 +336,40 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
                   key={i}
                   d={slicePath(i, 100, 100, 96)}
                   fill={HEX[color]}
-                  stroke="#000"
-                  strokeWidth={0.5}
+                  stroke={SEPARATOR_COLOR}
+                  strokeWidth={SEPARATOR_WIDTH}
+                  strokeLinejoin="round"
                 />
               ))}
 
+              {/* Icons per slice — outline on the glyph only (same as color bet buttons) */}
+              {SLICE_COLORS.map((color, i) => (
+                <g key={`icon-${i}`} transform={sliceIconTransform(i, 100, 100, 96)}>
+                  <foreignObject
+                    x={-10}
+                    y={-10}
+                    width={20}
+                    height={20}
+                    overflow="visible"
+                    style={{ background: 'transparent', overflow: 'visible' }}
+                  >
+                    <div
+                      xmlns="http://www.w3.org/1999/xhtml"
+                      className="flex h-full w-full items-center justify-center overflow-visible bg-transparent"
+                    >
+                      <span
+                        className="inline-block text-[13px] leading-none"
+                        style={{ userSelect: 'none', ...COLOR_ICON_OUTLINE_STYLE }}
+                      >
+                        {COLOR_ICONS[color]}
+                      </span>
+                    </div>
+                  </foreignObject>
+                </g>
+              ))}
+
               {/* Center cap */}
-              <circle cx="100" cy="100" r="13" fill="#09090b" stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
+              <circle cx="100" cy="100" r="14" fill="#09090b" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
             </svg>
           </div>
         </div>
@@ -349,9 +386,9 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
         </div>
       </GameFieldWithHistory>
 
-      <div className={GAME_CONTROL_DOCK_M}>
-        <div className={`${GAME_DOCK_INNER} min-h-[248px]`}>
-          <div className={`flex justify-center min-h-10 ${!isBetting ? 'invisible pointer-events-none' : ''}`}>
+      <div className={WHEEL_CONTROL_DOCK}>
+        <div className={GAME_DOCK_INNER}>
+          <div className={`flex shrink-0 justify-center min-h-10 mb-4 ${!isBetting ? 'hidden' : ''}`}>
             <div className="flex gap-2">
               {WHEEL_SEGMENTS.map((seg) => {
                 const cs = COLOR_STYLES[seg.color]
@@ -364,7 +401,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
                     type="button"
                     disabled={isScoutCrossed}
                     onClick={() => setColor(seg.color)}
-                    className={`relative px-5 py-1.5 rounded-xl border-2 font-bold text-sm transition-all duration-100 ${
+                    className={`relative flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl border-2 font-bold text-sm transition-all duration-100 ${
                       isScoutCrossed
                         ? 'border-zinc-700 bg-zinc-900/60 text-zinc-600 opacity-50 cursor-not-allowed'
                         : isSelected
@@ -375,7 +412,10 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
                     {isScoutCrossed && (
                       <span className="absolute -top-2 -right-2 text-[10px] font-bold text-red-400">✕</span>
                     )}
-                    {seg.multiplier}×
+                    <span className="text-base leading-none" style={COLOR_ICON_OUTLINE_STYLE}>
+                      {COLOR_ICONS[seg.color]}
+                    </span>
+                    <span className="text-xs leading-none">{seg.multiplier}×</span>
                   </button>
                 )
               })}
@@ -392,7 +432,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {spinning && potentialWinnings > 0 && (
               <p className="text-sm text-zinc-400">
@@ -402,10 +442,10 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
-                multiplierHint={pendingResult.multiplierHint}
               />
             )}
             {!isBetting && !spinning && !(isSettled && pendingResult) && (
@@ -413,8 +453,17 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
             )}
           </div>
 
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex justify-center">
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/${mode}`)}
+                  className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base"
+                >
+                  ← Leave
+                </button>
+              )}
               <button
                 type="button"
                 onClick={isSettled ? handleNextRound : handleSpin}

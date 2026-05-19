@@ -85,6 +85,10 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
       shopRerollCount: typeof s.shopRerollCount === 'number' ? s.shopRerollCount : 0,
       missionRerollCount: typeof s.missionRerollCount === 'number' ? s.missionRerollCount : 0,
       lobbyRerollCount: typeof s.lobbyRerollCount === 'number' ? s.lobbyRerollCount : 0,
+      shopOfferTicketRerolls:
+        Array.isArray(s.shopOfferTicketRerolls) && s.shopOfferTicketRerolls.length > 0
+          ? s.shopOfferTicketRerolls
+          : [0, 0, 0],
       runDefeated: typeof s.runDefeated === 'boolean' ? s.runDefeated : false,
       defeatReason:
         s.defeatReason === 'bust' || s.defeatReason === 'quota' ? s.defeatReason : null,

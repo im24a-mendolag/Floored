@@ -1,11 +1,14 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -15,7 +18,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -59,12 +62,7 @@ interface Poker1pGameProps {
   onResolve: GameResolveFn<PokerResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 function CardView({
   card,
@@ -121,6 +119,7 @@ const HAND_RANK_COLOR: Record<PokerHandRank, string> = {
 }
 
 export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -190,16 +189,13 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
     })
     const built = buildPendingResult(
       { outcome, betAmount: s.betAmount, payout: resolved.payout },
-      `${formatChips(s.betAmount)} · ${HAND_LABELS[s.handRank]}${s.multiplier > 0 ? ` · ${s.multiplier}×` : ''}`,
-      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      {
+        bet: formatChips(s.betAmount),
+        result: HAND_LABELS[s.handRank],
+      },
+      { gameMultiplier: outcome === 'win' && s.multiplier > 0 ? s.multiplier : undefined },
     )
-    setPendingResult({
-      tone: outcome === 'win' ? 'win' : 'loss',
-      label: built.label,
-      outcomeLabel:
-        outcome === 'win' ? `${HAND_LABELS[s.handRank]} · ${s.multiplier}×` : built.outcomeLabel,
-      entry: built.entry,
-    })
+    setPendingResult(built)
   }
 
   const handleNext = useCallback(() => {
@@ -304,7 +300,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isSelecting && potentialWinnings > 0 && (
               <p className="text-sm text-zinc-400">
@@ -315,8 +311,9 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -325,20 +322,25 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : isSelecting ? handleDraw : handleDeal}
-              disabled={isBetting && !canDeal}
-              className={[
-                'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
-                isSettled && state.outcome === 'win'
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-zinc-800 disabled:text-zinc-600'
-                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
-              ].join(' ')}
-            >
-              {isSettled ? 'Next →' : isSelecting ? 'Draw →' : 'Deal →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNext : isSelecting ? handleDraw : handleDeal}
+                disabled={isBetting && !canDeal}
+                className={[
+                  'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                  isSettled && state.outcome === 'win'
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-zinc-800 disabled:text-zinc-600'
+                    : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
+                ].join(' ')}
+              >
+                {isSettled ? 'Next →' : isSelecting ? 'Draw →' : 'Deal →'}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isBetting && (

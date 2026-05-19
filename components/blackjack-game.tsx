@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -13,8 +16,8 @@ import {
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
-import { formatChips, formatMultiplier } from '@/utils/format'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { formatChips } from '@/utils/format'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
@@ -55,12 +58,7 @@ interface BlackjackGameProps {
   onResolve: GameResolveFn<BlackjackResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 function isRedSuit(suit: string) {
   return suit === '♥' || suit === '♦'
@@ -149,6 +147,7 @@ function CardBack() {
 }
 
 export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -206,22 +205,14 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
       const o = state.outcome!
       const resultKind =
         o === 'push' ? 'Push' : o === 'loss' ? 'Loss' : state.payoutMultiplier >= 2.5 ? 'Blackjack' : 'Win'
-      const subtitle = `${formatChips(state.betAmount)} · ${resultKind} · ${formatMultiplier(state.payoutMultiplier)}`
       const built = buildPendingResult(
         { outcome: o, betAmount: state.betAmount, payout: resolved.payout },
-        subtitle,
-        { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+        {
+          bet: formatChips(state.betAmount),
+          result: resultKind,
+        },
       )
-      setTimeout(
-        () =>
-          setPendingResult({
-            tone: built.tone === 'win' ? 'win' : 'loss',
-            label: built.label,
-            outcomeLabel: built.outcomeLabel,
-            entry: built.entry,
-          }),
-        resultDelay,
-      )
+      setTimeout(() => setPendingResult(built), resultDelay)
     }
   }
 
@@ -450,12 +441,13 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {round.stage === 'settled' && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -464,7 +456,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
             )}
           </div>
 
-          <div className="flex min-h-[2.75rem] w-full flex-col items-center justify-center gap-1">
+          <div className={`${GAME_DOCK_ACTIONS} min-h-[2.75rem] justify-center`}>
             {isBetting && (
               <button
                 type="button"
@@ -483,7 +475,10 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
               </div>
             )}
             {round.stage === 'settled' && pendingResult && (
-              <button type="button" onClick={handleNextHand} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
+              <div className="flex justify-center gap-2">
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+                <button type="button" onClick={handleNextHand} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
+              </div>
             )}
           </div>
 

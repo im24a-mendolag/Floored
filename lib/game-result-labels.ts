@@ -7,10 +7,26 @@ export interface GameRoundAmounts {
   outcome: 'win' | 'loss' | 'push'
 }
 
-/** Settled dock: total chips returned to the player (not net profit/loss). */
-export function formatSettledWinningsDisplay(payout: number) {
-  if (payout > 0) return formatChips(payout)
-  return formatChips(0)
+export interface GamePendingResult {
+  tone: 'win' | 'loss'
+  betSummary: string
+  resultSummary: string
+  profitLabel: string
+  multiplierHint?: string
+  entry: MatchHistoryEntry
+}
+
+/** Net profit/loss for settled dock display. */
+export function formatNetProfitDisplay(
+  payout: number,
+  betAmount: number,
+  outcome: GameRoundAmounts['outcome'],
+): string {
+  if (outcome === 'push') return '$0'
+  const net = payout - betAmount
+  if (net > 0) return `+${formatChips(net)}`
+  if (net < 0) return `−${formatChips(-net)}`
+  return '$0'
 }
 
 /** Match history title: net profit/loss. */
@@ -39,15 +55,16 @@ export function formatSettledMultiplierHint(
 
 export function buildPendingResult(
   amounts: GameRoundAmounts,
-  subtitle: string,
+  detail: { bet: string; result: string },
   options?: {
-    winLabel?: string
-    lossLabel?: string
+    historySubtitle?: string
     gameMultiplier?: number
     payoutBoostMult?: number
   },
-) {
-  const tone: MatchHistoryTone =
+): GamePendingResult {
+  const net = amounts.payout - amounts.betAmount
+  const tone: 'win' | 'loss' = net >= 0 ? 'win' : 'loss'
+  const historyTone: MatchHistoryTone =
     amounts.outcome === 'win' || amounts.outcome === 'push'
       ? 'win'
       : amounts.outcome === 'loss'
@@ -56,27 +73,23 @@ export function buildPendingResult(
           ? 'win'
           : 'loss'
   const title = formatHistoryNetTitle(amounts.payout, amounts.betAmount, amounts.outcome)
-  const label = formatSettledWinningsDisplay(amounts.payout)
-  const outcomeLabel =
-    amounts.payout > 0
-      ? (options?.winLabel ?? 'Total winnings')
-      : amounts.outcome === 'push'
-        ? 'Push'
-        : (options?.lossLabel ?? 'No winnings')
-
+  const profitLabel = formatNetProfitDisplay(amounts.payout, amounts.betAmount, amounts.outcome)
   const multiplierHint = formatSettledMultiplierHint(options?.gameMultiplier, options?.payoutBoostMult)
+  const subtitle =
+    options?.historySubtitle ?? `${detail.bet} → ${detail.result}`
 
   return {
     tone,
-    label,
-    outcomeLabel,
+    betSummary: detail.bet,
+    resultSummary: detail.result,
+    profitLabel,
     multiplierHint,
     entry: {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       at: new Date(),
       title,
       subtitle,
-      tone,
-    } satisfies MatchHistoryEntry,
+      tone: historyTone,
+    },
   }
 }

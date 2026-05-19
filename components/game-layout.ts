@@ -23,8 +23,8 @@ export const GAME_CONTROL_DOCK =
 
 /** Fixed-height control shells — swap inner panels without collapsing the dock. */
 export const GAME_CONTROL_DOCK_S =
-  `${GAME_CONTROL_DOCK} relative flex min-h-[200px] flex-col justify-center`
+  `${GAME_CONTROL_DOCK} relative flex min-h-[200px] flex-col`
 export const GAME_CONTROL_DOCK_M =
-  `${GAME_CONTROL_DOCK} relative flex min-h-[200px] flex-col justify-center`
+  `${GAME_CONTROL_DOCK} relative flex min-h-[200px] flex-col`
 export const GAME_CONTROL_DOCK_L =
   `${GAME_CONTROL_DOCK} relative flex min-h-[360px] flex-col justify-center`

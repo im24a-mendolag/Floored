@@ -165,7 +165,10 @@ export function GameFieldWithHistory({
           {children}
 
           {hasPlays && latest ? (
-            <div className="pointer-events-auto absolute right-2 top-2 z-30 flex max-w-[min(13rem,46vw)] flex-col items-end">
+            <div className="pointer-events-auto absolute right-2 top-2 z-30 flex max-w-[min(13rem,46vw)] flex-col items-end gap-0.5">
+              <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-600 pr-0.5">
+                History
+              </span>
               <button
                 type="button"
                 onClick={toggle}
@@ -175,7 +178,6 @@ export function GameFieldWithHistory({
                   'hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500',
                 )}
               >
-                <p className="text-[9px] uppercase tracking-wider text-zinc-600">{gameLabel} · last</p>
                 <p className={cn('truncate text-sm font-black leading-tight', toneTitle(latest.tone))}>
                   {latest.title}
                 </p>
