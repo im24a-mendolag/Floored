@@ -42,6 +42,7 @@ export function ModeSelect() {
         <button
           type="button"
           onClick={handleSurvivalClick}
+          onMouseEnter={() => router.prefetch('/survival')}
           className="relative overflow-hidden rounded-2xl border border-amber-900/50 hover:border-amber-600 bg-gradient-to-br from-amber-950 to-red-950 cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group transition-all duration-200 text-left"
         >
           <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={FELT} />

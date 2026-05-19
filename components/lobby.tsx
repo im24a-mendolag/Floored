@@ -313,6 +313,7 @@ export function Lobby({ mode }: Props) {
             <button
               type="button"
               onClick={() => available && handlePick(g.name)}
+              onMouseEnter={() => available && router.prefetch(`/${mode}/${g.name}`)}
               className={[
                 'relative overflow-hidden rounded-2xl border transition-all duration-200 text-left w-full',
                 g.gradient ? `bg-gradient-to-br ${g.gradient}` : '',
