@@ -1,7 +1,6 @@
 import { ROWS } from './engine'
 
 export const VIEWBOX_WIDTH = 440
-export const VIEWBOX_HEIGHT = 490
 
 export const PIN_R = 4
 export const BALL_R = 7
@@ -12,9 +11,11 @@ const ROW_HEIGHT = 25              // vertical gap between rows
 const PIN_SPACING = 24             // horizontal gap between adjacent pins in the same row
 
 // The slot band sits just below the "virtual" row ROWS
-export const SLOT_BAND_TOP = BOARD_TOP + ROWS * ROW_HEIGHT + 10  // 430
+export const SLOT_BAND_TOP = BOARD_TOP + ROWS * ROW_HEIGHT + 10
 export const SLOT_HEIGHT = 36
-export const SLOT_WIDTH = PIN_SPACING  // 24 — one slot per inter-pin column
+export const SLOT_WIDTH = PIN_SPACING  // one slot per inter-pin column
+
+export const VIEWBOX_HEIGHT = SLOT_BAND_TOP + SLOT_HEIGHT + 14
 
 /**
  * X center of the pin at (row, col).

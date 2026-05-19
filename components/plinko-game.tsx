@@ -35,10 +35,11 @@ import { PlinkoBoard, type PlinkoBall } from '@/components/plinko-board'
 interface PlinkoSession extends PlinkoBall {
   bet: number
   result: PlinkoPayoutResult
+  shielded: boolean
 }
 
 interface PlinkoResult {
-  outcome: 'win' | 'loss'
+  outcome: 'win' | 'loss' | 'push'
   betAmount: number
   payout: number
   multiplier: number
@@ -79,6 +80,8 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   autoReBetRef.current = autoReBet
   const onResolveRef = useRef(onResolve)
   onResolveRef.current = onResolve
+  const shieldProcRef = useRef(shieldProc)
+  shieldProcRef.current = shieldProc
 
   const isDropping = sessions.length > 0
   const commitBet = currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
@@ -102,7 +105,8 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     const result = computePayout(bet, path, risk)
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const startedAt = performance.now()
-    setSessions((prev) => [...prev, { id, path, startedAt, bet, result }])
+    const shielded = mode === 'survival' ? shieldProc.rollForBet() : false
+    setSessions((prev) => [...prev, { id, path, startedAt, bet, result, shielded }])
     setLastBet(bet)
     setCurrentBet(0)
     setQuoteIdx((prev) => pickQuote(prev))
@@ -115,17 +119,23 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
     setSessions((prev) => prev.filter((s) => s.id !== id))
 
+    const shieldActive = session.shielded && session.result.outcome === 'loss'
+    const finalOutcome = shieldActive ? 'push' : session.result.outcome
+    const finalPayout = shieldActive ? session.bet : session.result.payout
+
     resolveGame(onResolveRef.current, {
-      outcome: session.result.outcome,
+      outcome: finalOutcome,
       betAmount: session.bet,
-      payout: session.result.payout,
+      payout: finalPayout,
       multiplier: session.result.multiplier,
     })
 
+    if (session.shielded) shieldProcRef.current.resetPerk()
+
     const built = buildPendingResult(
-      { outcome: session.result.outcome, betAmount: session.bet, payout: session.result.payout },
+      { outcome: finalOutcome, betAmount: session.bet, payout: finalPayout },
       `${formatChips(session.bet)} · ${session.result.multiplier}×`,
-      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      { winLabel: 'Total winnings', lossLabel: shieldActive ? 'Push (shield)' : 'No winnings' },
     )
     setLastResultMsg(`Hit ${session.result.multiplier}× · ${built.entry.title}`)
     setMatchHistory((h) => [built.entry, ...h].slice(0, 80))
