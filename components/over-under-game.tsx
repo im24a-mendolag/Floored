@@ -233,10 +233,17 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
                 className="absolute inset-y-0 left-0 bg-teal-700/80 transition-all duration-100"
                 style={{ width: `${displaySafeZone}%` }}
               />
+              <div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none select-none">
+                <span className="text-teal-100/50 text-sm font-bold">Safe</span>
+                <span className="text-red-200/50 text-sm font-bold">Danger</span>
+              </div>
               <div
-                className="absolute inset-y-0 w-[3px] bg-white/40"
+                className="absolute inset-y-0 w-[3px] bg-white/40 overflow-visible"
                 style={{ left: `calc(${displaySafeZone}% - 1.5px)` }}
-              />
+              >
+                <span className="absolute top-1/2 -translate-y-1/2 right-full pr-1.5 text-white/60 text-xs font-bold pointer-events-none select-none">←</span>
+                <span className="absolute top-1/2 -translate-y-1/2 left-full pl-1.5 text-white/60 text-xs font-bold pointer-events-none select-none">→</span>
+              </div>
               {markerAt !== null && (
                 <div
                   className={`absolute top-[12%] bottom-[12%] w-[5px] rounded-full ${
@@ -256,10 +263,6 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
                   }}
                 />
               )}
-              <div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none select-none">
-                <span className="text-teal-100/50 text-sm font-bold">← Safe</span>
-                <span className="text-red-200/50 text-sm font-bold">Danger →</span>
-              </div>
               <input
                 type="range"
                 min={10}
@@ -271,10 +274,8 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-default appearance-none"
               />
             </div>
-            <div className="flex justify-between mt-2 px-1 text-xs text-zinc-600">
-              <span>Low risk</span>
+            <div className="flex justify-center mt-2 px-1 text-xs text-zinc-600">
               <span>{isBetting ? 'Drag to adjust' : `Rolled ${round.rollResult ?? '—'}`}</span>
-              <span>High risk</span>
             </div>
           </div>
 
