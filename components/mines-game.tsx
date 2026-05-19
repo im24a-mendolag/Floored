@@ -106,7 +106,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
   }
 
-  function recordOutcome(next: MinesState, outcome: 'win' | 'loss', bet: string, result: string) {
+  function recordOutcome(next: MinesState, outcome: 'win' | 'loss', result: string) {
     const payoutAmount = getMinesPayout(next)
     const resolved = resolveGame(onResolve, {
       outcome,
@@ -116,7 +116,10 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
     })
     const built = buildPendingResult(
       { outcome, betAmount: next.betAmount, payout: resolved.payout },
-      { bet, result },
+      {
+        betSpecification: DIFFICULTY_LABELS[next.difficulty],
+        result,
+      },
       { gameMultiplier: outcome === 'win' ? next.multiplier : undefined },
     )
     setPendingResult(built)
@@ -147,7 +150,6 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
       recordOutcome(
         next,
         next.outcome,
-        formatChips(next.betAmount),
         next.outcome === 'win' ? 'Cash out' : 'Mine hit',
       )
     }
@@ -156,12 +158,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   function handleCashOut() {
     const next = cashOutMines(round)
     setRound(next)
-    recordOutcome(
-      next,
-      'win',
-      formatChips(next.betAmount),
-      'Cash out',
-    )
+    recordOutcome(next, 'win', 'Cash out')
   }
 
   const handleNewRound = useCallback(() => {

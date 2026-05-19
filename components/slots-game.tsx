@@ -222,7 +222,6 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
       const built = buildPendingResult(
         { outcome: finalOutcome, betAmount: result.betAmount, payout: resolved.payout },
         {
-          bet: formatChips(result.betAmount),
           result: result.isJackpotSpin ? 'Jackpot' : isWin || finalOutcome === 'push' ? titlePrefix : 'No match',
         },
         {

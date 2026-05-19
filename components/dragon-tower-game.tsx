@@ -133,8 +133,8 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
     const built = buildPendingResult(
       { outcome: next.outcome!, betAmount: next.betAmount, payout: resolved.payout },
       {
-        bet: formatChips(next.betAmount),
-        result: next.outcome === 'win' ? `Floor ${next.activeRow}` : 'Burned',
+        result: next.outcome === 'win' ? String(next.activeRow) : 'Burned',
+        resultSpecification: next.outcome === 'win' ? 'Floor' : undefined,
       },
       { gameMultiplier: next.outcome === 'win' ? next.cashoutMultiplier : undefined },
     )

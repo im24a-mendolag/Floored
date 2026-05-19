@@ -152,8 +152,9 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
     const built = buildPendingResult(
       { outcome, betAmount: settled.betAmount, payout: resolved.payout },
       {
-        bet: `${formatChips(settled.betAmount)} on ${CHICKENS[settled.pickedChicken!]!.name}`,
+        betSpecification: CHICKENS[settled.pickedChicken!]!.name,
         result: won ? `${PAYOUT_MULTIPLIER}×` : CHICKENS[settled.winner!]!.name,
+        resultSpecification: won ? 'Win' : undefined,
       },
       { gameMultiplier: won ? PAYOUT_MULTIPLIER : undefined },
     )

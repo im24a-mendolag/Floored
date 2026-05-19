@@ -23,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, formatBetSummary, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { rouletteEliminatedNumbers } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
@@ -36,6 +36,8 @@ import {
   BET_LABELS,
   EUROPEAN_WHEEL_ORDER,
   getLabelForTarget,
+  getOutcomeLabelForTarget,
+  formatRouletteResultLabel,
   getNumberColor,
   getPayoutForTarget,
   initRoulette,
@@ -246,26 +248,25 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
         multiplier: total > 0 ? result.totalPayout / total : 0,
       })
 
-      const resultLabel = result.result === 0
-        ? '🟢 Zero'
-        : result.resultColor === 'red'
-          ? `🔴 ${result.result}`
-          : `⚫ ${result.result}`
-      const betLabel = getLabelForTarget(spunTarget)
+      const resultLabel = formatRouletteResultLabel(
+        result.result ?? 0,
+        result.resultColor ?? 'green',
+      )
+      const betLabel = getOutcomeLabelForTarget(spunTarget)
       const partial =
         outcome === 'loss' && result.totalPayout > 0 && result.totalPayout < result.totalBetAmount
       const outcomeWord = outcome === 'win' ? 'Win!' : outcome === 'push' ? 'Push' : partial ? 'Partial return' : 'Miss'
       const built = buildPendingResult(
         { outcome, betAmount: result.totalBetAmount, payout: resolved.payout },
         {
-          bet: total > 0 ? `${betLabel} · ${formatChips(total)}` : betLabel,
+          betSpecification: betLabel,
           result: resultLabel,
         },
         {
           historySubtitle:
             total > 0
-              ? `Bet ${betLabel} · ${formatChips(total)} · Landed ${resultLabel} · ${outcomeWord}`
-              : `Landed ${resultLabel} · ${outcomeWord}`,
+              ? `${formatBetSummary(total, betLabel)} → ${resultLabel} · ${outcomeWord}`
+              : `${resultLabel} · ${outcomeWord}`,
         },
       )
       setPendingResult(built)
@@ -317,8 +318,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
         )}
         <GameActiveBetBadge
           betAmount={activeBet}
-          betType={activeBet > 0 && lastTarget ? getLabelForTarget(lastTarget) : undefined}
-          extra={activeBet > 0 && lastTarget ? `${getPayoutForTarget(lastTarget)}×` : undefined}
+          betType={activeBet > 0 && lastTarget ? getOutcomeLabelForTarget(lastTarget) : undefined}
           visible={activeBet > 0 && !isBetting}
         />
 

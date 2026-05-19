@@ -178,7 +178,6 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
       const built = buildPendingResult(
         { outcome: 'loss', betAmount: next.betAmount, payout: resolved.payout },
         {
-          bet: formatChips(next.betAmount),
           result: 'Loss',
         },
       )
@@ -201,8 +200,8 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
     const built = buildPendingResult(
       { outcome: 'win', betAmount: settled.betAmount, payout: resolved.payout },
       {
-        bet: formatChips(settled.betAmount),
-        result: `${settled.streak}× streak`,
+        result: `${settled.streak}×`,
+        resultSpecification: 'streak',
       },
       { gameMultiplier: settled.multiplier },
     )

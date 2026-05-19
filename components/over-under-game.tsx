@@ -148,8 +148,9 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
       const built = buildPendingResult(
         { outcome: finalOutcome, betAmount: bet, payout: resolved.payout },
         {
-          bet: formatChips(bet),
-          result: `Roll ${rollPos}`,
+          betSpecification: `${settled.safeZone}% safe zone`,
+          result: String(rollPos),
+          resultSpecification: 'Roll',
         },
         {
           gameMultiplier: finalOutcome === 'win' ? settled.payoutMultiplier : undefined,

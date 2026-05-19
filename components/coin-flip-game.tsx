@@ -130,8 +130,9 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     const built = buildPendingResult(
       { outcome, betAmount: s.betAmount, payout: resolved.payout },
       {
-        bet: formatChips(s.betAmount),
+        betSpecification: pickLabel(s.pick),
         result: outcome === 'win' ? `${s.multiplier}×` : 'Loss',
+        resultSpecification: outcome === 'win' ? 'Win' : undefined,
       },
       { gameMultiplier: outcome === 'win' ? s.multiplier : undefined },
     )

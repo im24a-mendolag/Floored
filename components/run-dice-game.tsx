@@ -201,9 +201,10 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
         const built = buildPendingResult(
           { outcome: o, betAmount: next.betAmount, payout: resolved.payout },
           {
-            bet: formatChips(next.betAmount),
             result:
-              o === 'push' ? 'Push' : next.rollResult != null ? `Roll ${next.rollResult}` : 'Settled',
+              o === 'push' ? 'Push' : next.rollResult != null ? String(next.rollResult) : 'Settled',
+            resultSpecification:
+              o === 'push' || next.rollResult == null ? undefined : 'Roll',
           },
           { gameMultiplier: o === 'win' ? next.payoutMultiplier : undefined },
         )

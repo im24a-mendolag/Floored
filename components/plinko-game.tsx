@@ -12,7 +12,7 @@ import {
 } from '@/components/game-layout'
 import {
   GAME_DOCK_INNER,
-  GameActiveBetBadge,
+  GameCurrentBetBadge,
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
@@ -20,7 +20,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, formatPlinkoRiskLabel } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
@@ -37,6 +37,7 @@ interface PlinkoSession extends PlinkoBall {
   bet: number
   result: PlinkoPayoutResult
   shielded: boolean
+  risk: PlinkoRisk
 }
 
 interface PlinkoResult {
@@ -115,7 +116,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const startedAt = performance.now()
     const shielded = mode === 'survival' ? shieldProc.rollForBet() : false
-    setSessions((prev) => [...prev, { id, path, startedAt, bet, result, shielded }])
+    setSessions((prev) => [...prev, { id, path, startedAt, bet, result, shielded, risk }])
     setLastBet(bet)
     setCurrentBet(0)
     setQuoteIdx((prev) => pickQuote(prev))
@@ -145,8 +146,9 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     const built = buildPendingResult(
       { outcome: finalOutcome, betAmount: session.bet, payout: finalPayout },
       {
-        bet: formatChips(session.bet),
+        betSpecification: formatPlinkoRiskLabel(session.risk),
         result: `${session.result.multiplier}×`,
+        resultSpecification: formatPlinkoRiskLabel(session.risk),
       },
       { gameMultiplier: session.result.multiplier },
     )
@@ -180,9 +182,9 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
             First Ball Shield — loss refunded to a push
           </PerkHint>
         )}
-        <GameActiveBetBadge
+        <GameCurrentBetBadge
           betAmount={sessions.reduce((s, x) => s + x.bet, 0)}
-          betType={isDropping ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'}` : undefined}
+          betSpecification={isDropping ? formatPlinkoRiskLabel(risk) : undefined}
           visible={isDropping}
         />
 

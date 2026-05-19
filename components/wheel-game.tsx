@@ -126,6 +126,13 @@ function wheelColorLabel(color: WheelColor) {
   return seg ? `${icon} ${name} ${seg.multiplier}×` : `${icon} ${name}`
 }
 
+/** Text-only color label for bet / outcome displays. */
+function wheelColorBetLabel(color: WheelColor) {
+  const name = color.charAt(0).toUpperCase() + color.slice(1)
+  const seg = WHEEL_SEGMENTS.find((s) => s.color === color)
+  return seg ? `${name} ${seg.multiplier}×` : name
+}
+
 function wheelColorMultiplier(color: WheelColor) {
   return WHEEL_SEGMENTS.find((s) => s.color === color)?.multiplier ?? 2
 }
@@ -210,18 +217,18 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
         multiplier: result.payoutMultiplier,
       })
 
-      const betIcon = COLOR_ICONS[result.betColor!]
-      const betName = result.betColor!.charAt(0).toUpperCase() + result.betColor!.slice(1)
-      const resultIcon = COLOR_ICONS[result.resultColor!]
-      const resultName = result.resultColor!.charAt(0).toUpperCase() + result.resultColor!.slice(1)
+      const betName = wheelColorBetLabel(result.betColor!)
+      const resultColor =
+        result.resultColor!.charAt(0).toUpperCase() + result.resultColor!.slice(1)
       const built = buildPendingResult(
         { outcome: result.outcome!, betAmount: result.betAmount, payout: resolved.payout },
         {
-          bet: `${betIcon} ${betName}`,
-          result: `${resultIcon} ${resultName}`,
+          betSpecification: betName,
+          result: `${result.resultMultiplier}×`,
+          resultSpecification: resultColor,
         },
         {
-          historySubtitle: `Bet ${betIcon} ${betName} · Landed ${resultIcon} ${resultName} ${result.resultMultiplier}×`,
+          historySubtitle: `Bet ${betName} · Landed ${result.resultMultiplier}× · ${resultColor}`,
           gameMultiplier: result.outcome === 'win' ? result.payoutMultiplier : undefined,
           payoutBoostMult: resolved.payoutBoostMult,
         },
@@ -307,7 +314,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
         )}
         <GameActiveBetBadge
           betAmount={activeBet}
-          betType={activeBet > 0 && !isBetting ? wheelColorLabel(round.betColor ?? selectedColor) : undefined}
+          betType={activeBet > 0 && !isBetting ? wheelColorBetLabel(round.betColor ?? selectedColor) : undefined}
           visible={activeBet > 0 && !isBetting}
         />
 

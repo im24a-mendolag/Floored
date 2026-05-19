@@ -54,11 +54,8 @@ function crashPendingResult(
   return buildPendingResult(
     { outcome, betAmount, payout },
     {
-      bet: formatChips(betAmount),
-      result:
-        outcome === 'win'
-          ? `Cashed at ${formatMultiplier(multiplier)}`
-          : `Crashed at ${formatMultiplier(multiplier)}`,
+      result: formatMultiplier(multiplier),
+      resultSpecification: outcome === 'win' ? 'Cashed' : 'Crashed',
     },
     { gameMultiplier: multiplier },
   )

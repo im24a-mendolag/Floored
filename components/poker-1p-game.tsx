@@ -190,7 +190,6 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
     const built = buildPendingResult(
       { outcome, betAmount: s.betAmount, payout: resolved.payout },
       {
-        bet: formatChips(s.betAmount),
         result: HAND_LABELS[s.handRank],
       },
       { gameMultiplier: outcome === 'win' && s.multiplier > 0 ? s.multiplier : undefined },

@@ -9,7 +9,7 @@ import {
   GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
   GAME_DOCK_ACTIONS,
-  GameActiveBetBadge,
+  GameCurrentBetBadge,
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
@@ -207,10 +207,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
         o === 'push' ? 'Push' : o === 'loss' ? 'Loss' : state.payoutMultiplier >= 2.5 ? 'Blackjack' : 'Win'
       const built = buildPendingResult(
         { outcome: o, betAmount: state.betAmount, payout: resolved.payout },
-        {
-          bet: formatChips(state.betAmount),
-          result: resultKind,
-        },
+        { result: resultKind },
       )
       setTimeout(() => setPendingResult(built), resultDelay)
     }
@@ -346,7 +343,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
         {showDealerHole && isInProgress && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">Hole card visible</PerkHint>
         )}
-        <GameActiveBetBadge betAmount={round.betAmount} visible={!isBetting && round.betAmount > 0} />
+        <GameCurrentBetBadge betAmount={round.betAmount} visible={!isBetting && round.betAmount > 0} />
 
         <div className="flex w-full max-w-lg flex-1 min-h-0 flex-col items-center justify-center gap-2">
         {/* Dealer zone */}

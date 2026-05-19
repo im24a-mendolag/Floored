@@ -104,8 +104,8 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
     const built = buildPendingResult(
       { outcome, betAmount: next.betAmount, payout: resolved.payout },
       {
-        bet: formatChips(next.betAmount),
-        result: outcome === 'loss' ? 'Bust' : `Step ${next.step}`,
+        result: outcome === 'loss' ? 'Bust' : String(next.step),
+        resultSpecification: outcome === 'loss' ? undefined : 'Step',
       },
       { gameMultiplier: outcome === 'win' && !partial ? next.multiplier : undefined },
     )

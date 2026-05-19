@@ -338,7 +338,6 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
       const built = buildPendingResult(
         { outcome, betAmount: settled.betAmount, payout: displayPayout },
         {
-          bet: formatChips(settled.betAmount),
           result: outcome === 'win' ? 'Win' : 'Loss',
         },
         { gameMultiplier: outcome === 'win' ? STREET_CUPS_WIN_MULTIPLIER : undefined },

@@ -204,7 +204,6 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     const built = buildPendingResult(
       { outcome, betAmount: s.totalCost, payout: resolved.payout },
       {
-        bet: `${s.selectedCases.length} cases · ${formatChips(s.totalCost)}`,
         result: outcome === 'push' ? 'Push' : resultLabel,
       },
     )
@@ -257,7 +256,6 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
         <GameDockBackButton mode={mode} visible={isSetup} />
         <GameActiveBetBadge
           betAmount={!isSetup ? state.totalCost : 0}
-          betType={!isSetup && numCases > 0 ? `${numCases} case${numCases === 1 ? '' : 's'}` : undefined}
           visible={!isSetup && state.totalCost > 0}
         />
 

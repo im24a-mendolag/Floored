@@ -120,8 +120,8 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
     const built = buildPendingResult(
       { outcome: next.outcome, betAmount: next.betAmount, payout: resolved.payout },
       {
-        bet: formatChips(next.betAmount),
-        result: `${next.hits}/${next.picks.length} hits`,
+        result: `${next.hits}/${next.picks.length}`,
+        resultSpecification: 'hits',
       },
       { gameMultiplier: next.multiplier > 0 ? next.multiplier : undefined },
     )
@@ -229,11 +229,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
             Heat: {heatNumbers.join(', ')} in this draw
           </PerkHint>
         )}
-        <GameActiveBetBadge
-          betAmount={round.betAmount}
-          betType={!isBetting ? `${round.picks.length} picks` : undefined}
-          visible={!isBetting}
-        />
+        <GameActiveBetBadge betAmount={round.betAmount} visible={!isBetting} />
 
         <div className="flex flex-col items-center w-full max-w-sm shrink-0 gap-2">
           <div
