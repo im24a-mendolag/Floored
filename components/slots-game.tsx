@@ -107,7 +107,7 @@ function Reel({ symbol, spinning, landed }: { symbol: SlotsSymbol | null; spinni
 
 export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) {
   const router = useRouter()
-  const { floorMinBet, runActive } = useSurvivalStore()
+  const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { slotsShield, slotsShieldLevel  } = useSurvivalPerks('slots')
