@@ -361,7 +361,6 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
                     style={{ background: 'transparent', overflow: 'visible' }}
                   >
                     <div
-                      xmlns="http://www.w3.org/1999/xhtml"
                       className="flex h-full w-full items-center justify-center overflow-visible bg-transparent"
                     >
                       <span
