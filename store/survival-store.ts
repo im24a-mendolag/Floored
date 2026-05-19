@@ -53,7 +53,6 @@ const RUN_PERSIST_KEYS = [
   'currentFloor',
   'floorMinBet',
   'diceConfig',
-  'jackpotMeter',
   'difficulty',
   'modifiers',
   'history',
@@ -106,7 +105,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
       floorMinBet: getFloorMinBet(1),
 
       diceConfig: { win: [], loss: [], neutral: [] },
-      jackpotMeter: 0,
       difficulty: null,
       modifiers: [],
       history: [],
@@ -153,7 +151,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
           slotsUsed: 0,
           floorMinBet: getFloorMinBet(1),
           diceConfig: generateRunDiceConfig(),
-          jackpotMeter: 0,
           difficulty,
           modifiers: [],
           history: [],
@@ -191,7 +188,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
           currentFloor: 1,
           slotsUsed: 0,
           floorMinBet: getFloorMinBet(1),
-          jackpotMeter: 0,
           difficulty: null,
           modifiers: [],
           history: [],
@@ -561,7 +557,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
           return {
             gamesPlayed: s.gamesPlayed + 1,
             streak: result.outcome === 'win' ? s.streak + 1 : 0,
-            jackpotMeter: Math.min(100, s.jackpotMeter + (result.game === 'slots' ? 5 : 1)),
             history: [...s.history, result],
             bankroll: newBankroll,
             peakBankroll: Math.max(s.peakBankroll, newBankroll),
@@ -579,7 +574,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
           return {
             gamesPlayed: s.gamesPlayed + 1,
             streak,
-            jackpotMeter: Math.min(100, s.jackpotMeter + (result.game === 'slots' ? 5 : 1)),
             history: [...s.history, result],
             bankroll: newBankroll,
             peakBankroll: Math.max(s.peakBankroll, newBankroll),
@@ -589,8 +583,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
 
       deductBet: (amount: number) =>
         set((s) => ({ bankroll: s.bankroll - amount })),
-
-      resetJackpotMeter: () => set({ jackpotMeter: 0 }),
     }),
     {
       name: 'floored-survival',

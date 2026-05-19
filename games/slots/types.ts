@@ -9,6 +9,5 @@ export interface SlotsState {
   outcome: SlotsOutcome | null
   payoutMultiplier: number
   winType: string | null
-  isJackpotSpin: boolean
   message: string
 }

@@ -107,7 +107,7 @@ function Reel({ symbol, spinning, landed }: { symbol: SlotsSymbol | null; spinni
 
 export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) {
   const router = useRouter()
-  const { floorMinBet, jackpotMeter, runActive, resetJackpotMeter } = useSurvivalStore()
+  const { floorMinBet, runActive } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { slotsShield, slotsShieldLevel  } = useSurvivalPerks('slots')
@@ -117,7 +117,6 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
     slotsShieldLevel,
   )
   const minBet = mode === 'survival' ? floorMinBet : 1
-  const jackpotReady = mode === 'survival' && runActive && jackpotMeter >= 100
 
   const [round, setRound] = useState<SlotsState>(initSlots())
   const [currentBet, setCurrentBet] = useState(0)
@@ -165,7 +164,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
 
     const shieldActive = shieldProc.rollForBet()
 
-    const result = spinSlots(bet, jackpotReady)
+    const result = spinSlots(bet)
 
     // Reel 0 lands
     const t1 = setTimeout(() => {
@@ -198,8 +197,6 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
       setIsSpinning(false)
       setRound(result)
 
-      if (jackpotReady) resetJackpotMeter()
-
       let payout = getSlotsResultPayout(result)
       let finalOutcome: 'win' | 'loss' | 'push' =
         result.outcome === 'win' ? 'win' : 'loss'
@@ -218,11 +215,10 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
       const r = result.reels!
       const line = `${PAYTABLE_GLYPH[r[0]]} ${PAYTABLE_GLYPH[r[1]]} ${PAYTABLE_GLYPH[r[2]]}`
       const isWin = finalOutcome === 'win'
-      const titlePrefix = result.isJackpotSpin ? 'Jackpot' : line
       const built = buildPendingResult(
         { outcome: finalOutcome, betAmount: result.betAmount, payout: resolved.payout },
         {
-          result: result.isJackpotSpin ? 'Jackpot' : isWin || finalOutcome === 'push' ? titlePrefix : 'No match',
+          result: isWin || finalOutcome === 'push' ? line : 'No match',
         },
         {
           gameMultiplier: isWin && result.payoutMultiplier > 0 ? result.payoutMultiplier : undefined,
@@ -278,27 +274,6 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
         <div className="flex min-h-0 flex-1 w-full max-w-sm flex-col">
           <div className="min-h-0 flex-1 shrink" aria-hidden />
           <div className="flex w-full flex-col items-center gap-4 shrink-0">
-            <div
-              className={`w-full h-[2.75rem] shrink-0 flex flex-col justify-center ${
-                mode !== 'survival' || !runActive ? 'invisible pointer-events-none' : ''
-              }`}
-            >
-              <div className="flex items-center justify-between text-xs text-white/40 mb-1.5">
-                <span className="uppercase tracking-wider">Jackpot Meter</span>
-                <span
-                  className={`font-semibold ${jackpotReady ? 'text-yellow-400 animate-pulse' : 'text-white/60'}`}
-                >
-                  {jackpotReady ? 'READY — Next spin is 100×!' : `${jackpotMeter}%`}
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${jackpotReady ? 'bg-yellow-400' : 'bg-gradient-to-r from-purple-600 to-yellow-400'}`}
-                  style={{ width: `${jackpotMeter}%` }}
-                />
-              </div>
-            </div>
-
             <div className="flex h-[8.5rem] shrink-0 items-center justify-center gap-3">
               <Reel symbol={displayedReels[0]} spinning={spinningReels[0]} landed={landedReels[0]} />
               <div className="relative">
@@ -388,13 +363,9 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
                 type="button"
                 onClick={isSettled ? handleNext : handleSpin}
                 disabled={!isSettled && (!canSpin || isSpinning)}
-                className={`min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg ${
-                  jackpotReady && isBetting
-                    ? 'bg-yellow-400 hover:bg-yellow-300 text-black animate-pulse'
-                    : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900'
-                }`}
+                className="min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900"
               >
-                {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : jackpotReady ? '★ Spin ★' : 'Spin →'}
+                {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : 'Spin →'}
               </button>
             </div>
           </div>

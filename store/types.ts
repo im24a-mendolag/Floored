@@ -116,7 +116,6 @@ export interface SurvivalStore {
   slotsUsed: number
   floorMinBet: number
   diceConfig: DiceConfig
-  jackpotMeter: number
   difficulty: Difficulty | null
   modifiers: Modifier[]
   history: GameResult[]
@@ -196,7 +195,6 @@ export interface SurvivalStore {
   recordResult: (result: GameResult) => void
   recordResultPayout: (result: GameResult) => void
   deductBet: (amount: number) => void
-  resetJackpotMeter: () => void
 }
 
 export interface FreeplayStore {

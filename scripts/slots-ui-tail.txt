@@ -13,27 +13,6 @@
         <DIVTAG className="flex min-h-0 flex-1 w-full max-w-sm flex-col">
           <DIVTAG className="min-h-0 flex-1 shrink" aria-hidden />
           <DIVTAG className="flex w-full flex-col items-center gap-4 shrink-0">
-            <DIVTAG
-              className={`w-full h-[2.75rem] shrink-0 flex flex-col justify-center ${
-                mode !== 'survival' || !runActive ? 'invisible pointer-events-none' : ''
-              }`}
-            >
-              <DIVTAG className="flex items-center justify-between text-xs text-white/40 mb-1.5">
-                <span className="uppercase tracking-wider">Jackpot Meter</span>
-                <span
-                  className={`font-semibold ${jackpotReady ? 'text-yellow-400 animate-pulse' : 'text-white/60'}`}
-                >
-                  {jackpotReady ? 'READY — Next spin is 100×!' : `${jackpotMeter}%`}
-                </span>
-              </DIVTAG>
-              <DIVTAG className="h-2 rounded-full bg-white/10 overflow-hidden">
-                <DIVTAG
-                  className={`h-full rounded-full transition-all duration-500 ${jackpotReady ? 'bg-yellow-400' : 'bg-gradient-to-r from-purple-600 to-yellow-400'}`}
-                  style={{ width: `${jackpotMeter}%` }}
-                />
-              </DIVTAG>
-            </DIVTAG>
-
             <DIVTAG className="flex h-[8.5rem] shrink-0 items-center justify-center gap-3">
               <Reel symbol={displayedReels[0]} spinning={spinningReels[0]} landed={landedReels[0]} />
               <DIVTAG className="relative">
@@ -76,7 +55,7 @@
             <DIVTAG className="min-h-10 flex w-full items-center justify-center px-2 shrink-0">
               <p className="text-center text-xs text-zinc-500 max-w-md">
                 {isBetting
-                  ? 'Match symbols on the center line. Fill the jackpot meter in Survival for a 100× spin.'
+                  ? 'Match symbols on the center line to win.'
                   : isSpinning
                     ? 'Reels spinning…'
                     : '\u00A0'}
@@ -117,13 +96,9 @@
               type="button"
               onClick={isSettled ? handleNext : handleSpin}
               disabled={!isSettled && (!canSpin || isSpinning)}
-              className={`min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg ${
-                jackpotReady && isBetting
-                  ? 'bg-yellow-400 hover:bg-yellow-300 text-black animate-pulse'
-                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900'
-              }`}
+              className="min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900"
             >
-              {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : jackpotReady ? '★ Spin ★' : 'Spin →'}
+              {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : 'Spin →'}
             </button>
             {minBet > 1 && isBetting && (
               <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>

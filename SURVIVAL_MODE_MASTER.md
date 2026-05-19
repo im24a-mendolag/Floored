@@ -48,7 +48,6 @@ Roguelike-style **Survival Mode**:
 | `floorMinBet` | Done | `getFloorMinBet(floor)` in `utils/math.ts` |
 | `runSeed` | Stub | Set on start; **not used** for RNG until Step 3 |
 | `diceConfig` | Partial | Run-wide Run Dice config |
-| `jackpotMeter` | Partial | Slots survival only |
 | `difficulty` | Stored | Scales **quota** (live) and **shop prices** via `balance.ts`; shop UI must use `calcShopPrice` |
 | `modifiers[]` | Stub | Always `[]` |
 | `history[]` | Done | `GameResult[]` per round |
@@ -122,7 +121,7 @@ Game onResolve → recordResultPayout → slotsUsed++
 
 ### 7. Technical risks
 
-- Store coupling inside `*-game.tsx` (`floorMinBet`, jackpot)
+- Store coupling inside `*-game.tsx` (`floorMinBet`)
 - Lobby vs routes mismatch
 - 3-slot model vs future quota model
 - Full persist without version (fix Step 2)
@@ -155,7 +154,7 @@ interface SurvivalRun {
   modifiers: ActiveModifier[]
   stats: RunStats
   slotsUsed: number             // legacy; reconcile in Step 5–6
-  // keep: diceConfig, jackpotMeter, history, gamesPlayed, streak, peakBankroll, lastRun
+  // keep: diceConfig, history, gamesPlayed, streak, peakBankroll, lastRun
 }
 ```
 
