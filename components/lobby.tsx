@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useSurvivalStore } from '@/store/survival-store'
 import type { GameName } from '@/store/types'
 
 interface GameEntry {
@@ -223,9 +224,11 @@ interface Props {
 
 export function Lobby({ mode }: Props) {
   const router = useRouter()
+  const floorGames = useSurvivalStore((s) => s.floorGames)
 
   function isAvailable(g: GameEntry) {
-    return mode === 'freeplay' ? g.availableFreeplay : g.availableSurvival
+    if (mode === 'freeplay') return g.availableFreeplay
+    return floorGames.includes(g.name)
   }
 
   function handlePick(game: GameName) {

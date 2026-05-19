@@ -6,6 +6,7 @@ import { useSurvivalStore } from '@/store/survival-store'
 import { FloorPanel } from '@/components/floor-panel'
 import { Lobby } from '@/components/lobby'
 import { RunSummary } from '@/components/run-summary'
+import { FloorCompleteModal } from '@/components/survival/floor-complete-modal'
 
 export default function SurvivalPage() {
   const router = useRouter()
@@ -21,9 +22,12 @@ export default function SurvivalPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <FloorPanel />
-      <Lobby mode="survival" />
-    </div>
+    <>
+      <FloorCompleteModal />
+      <div className="flex flex-col gap-6">
+        <FloorPanel />
+        <Lobby mode="survival" />
+      </div>
+    </>
   )
 }

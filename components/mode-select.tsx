@@ -1,4 +1,10 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useSurvivalStore } from '@/store/survival-store'
+import { DifficultyDialog } from '@/components/difficulty-dialog'
 
 const FELT = {
   backgroundImage:
@@ -13,87 +19,106 @@ const PLAY_ICON = (
 )
 
 export function ModeSelect() {
+  const router = useRouter()
+  const runActive = useSurvivalStore((s) => s.runActive)
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  function handleSurvivalClick() {
+    if (runActive) {
+      router.push('/survival')
+    } else {
+      setDialogOpen(true)
+    }
+  }
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
-      {/* ── Survival (locked — in development) ── */}
-      <div className="relative overflow-hidden rounded-2xl border border-amber-900/50 bg-gradient-to-br from-amber-950 to-red-950 opacity-50 cursor-default select-none">
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={FELT} />
+    <>
+      <DifficultyDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
 
-        {/* Badge */}
-        <div className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-amber-900/60 border border-amber-700/40 px-2 py-0.5">
-          <span className="text-[10px]" aria-hidden>🚧</span>
-          <span className="text-amber-300/80 text-[10px] font-semibold tracking-wide">In development</span>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
+        {/* ── Survival ── */}
+        <button
+          type="button"
+          onClick={handleSurvivalClick}
+          className="relative overflow-hidden rounded-2xl border border-amber-900/50 hover:border-amber-600 bg-gradient-to-br from-amber-950 to-red-950 cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group transition-all duration-200 text-left"
+        >
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={FELT} />
 
-        <div className="relative p-6 flex flex-col gap-5">
-          <div>
-            <p className="text-white font-black text-3xl tracking-tight">
-              Survival
-            </p>
-            <p className="text-white/40 text-xs mt-1.5">
-              Floor quotas, rising minimum bets. Run ends when you go broke.
-            </p>
-          </div>
-
-          <ul className="space-y-1.5">
-            {[
-              '1,000 starting chips',
-              'Floor min bet rises each level',
-              'Earn Sparks for upgrades',
-              'Choose your difficulty',
-            ].map((text) => (
-              <li key={text} className="flex items-center gap-2 text-white/50 text-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60 flex-shrink-0" />
-                {text}
-              </li>
-            ))}
-          </ul>
-
-          <div className="flex items-center gap-2">
-            <span className="text-amber-500/50 text-xs font-medium">Coming soon</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Freeplay ── */}
-      <Link
-        href="/freeplay"
-        className="relative overflow-hidden rounded-2xl border border-blue-900 hover:border-blue-600 bg-gradient-to-br from-slate-900 to-blue-950 cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group transition-all duration-200 text-left"
-      >
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={FELT} />
-        <div className="relative p-6 flex flex-col gap-5">
-          <div>
-            <p className="text-white font-black text-3xl tracking-tight group-hover:scale-[1.04] origin-left transition-transform duration-200">
-              Freeplay
-            </p>
-            <p className="text-white/40 text-xs mt-1.5">
-              All games, no floors, no pressure. 10,000 chips to start.
-            </p>
-          </div>
-
-          <ul className="space-y-1.5">
-            {[
-              'No economy, no stakes',
-              'Practice any game',
-              'Infinite reset',
-            ].map((text) => (
-              <li key={text} className="flex items-center gap-2 text-white/50 text-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400/60 flex-shrink-0" />
-                {text}
-              </li>
-            ))}
-          </ul>
-
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
-              {PLAY_ICON}
+          <div className="relative p-6 flex flex-col gap-5">
+            <div>
+              <p className="text-white font-black text-3xl tracking-tight group-hover:scale-[1.04] origin-left transition-transform duration-200">
+                Survival
+              </p>
+              <p className="text-white/40 text-xs mt-1.5">
+                Floor quotas, rising minimum bets. Run ends when you go broke.
+              </p>
             </div>
-            <span className="text-white/50 text-xs font-medium group-hover:text-white/80 transition-colors">
-              Play now
-            </span>
+
+            <ul className="space-y-1.5">
+              {[
+                '1,000 starting chips',
+                'Floor min bet rises each level',
+                'Earn Sparks for upgrades',
+                'Choose your difficulty',
+              ].map((text) => (
+                <li key={text} className="flex items-center gap-2 text-white/50 text-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60 flex-shrink-0" />
+                  {text}
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
+                {PLAY_ICON}
+              </div>
+              <span className="text-white/50 text-xs font-medium group-hover:text-white/80 transition-colors">
+                {runActive ? 'Continue run' : 'Play now'}
+              </span>
+            </div>
           </div>
-        </div>
-      </Link>
-    </div>
+        </button>
+
+        {/* ── Freeplay ── */}
+        <Link
+          href="/freeplay"
+          className="relative overflow-hidden rounded-2xl border border-blue-900 hover:border-blue-600 bg-gradient-to-br from-slate-900 to-blue-950 cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group transition-all duration-200 text-left"
+        >
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={FELT} />
+          <div className="relative p-6 flex flex-col gap-5">
+            <div>
+              <p className="text-white font-black text-3xl tracking-tight group-hover:scale-[1.04] origin-left transition-transform duration-200">
+                Freeplay
+              </p>
+              <p className="text-white/40 text-xs mt-1.5">
+                All games, no floors, no pressure. 10,000 chips to start.
+              </p>
+            </div>
+
+            <ul className="space-y-1.5">
+              {[
+                'No economy, no stakes',
+                'Practice any game',
+                'Infinite reset',
+              ].map((text) => (
+                <li key={text} className="flex items-center gap-2 text-white/50 text-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400/60 flex-shrink-0" />
+                  {text}
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors">
+                {PLAY_ICON}
+              </div>
+              <span className="text-white/50 text-xs font-medium group-hover:text-white/80 transition-colors">
+                Play now
+              </span>
+            </div>
+          </div>
+        </Link>
+      </div>
+    </>
   )
 }

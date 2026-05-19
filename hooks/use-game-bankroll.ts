@@ -51,8 +51,6 @@ export function useSurvivalGameBankroll(game: GameName) {
   const deductBet = useSurvivalStore((s) => s.deductBet)
   const recordResultPayout = useSurvivalStore((s) => s.recordResultPayout)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
-  const slotsUsed = useSurvivalStore((s) => s.slotsUsed)
-  const advanceFloor = useSurvivalStore((s) => s.advanceFloor)
   const endRun = useSurvivalStore((s) => s.endRun)
 
   const handleBet = useCallback(
@@ -64,7 +62,6 @@ export function useSurvivalGameBankroll(game: GameName) {
 
   const handleResolve = useCallback(
     (result: GameResolvePayload) => {
-      const shouldAdvance = slotsUsed >= 2
       recordResultPayout({
         id: `${game}-${Date.now()}`,
         game,
@@ -75,11 +72,10 @@ export function useSurvivalGameBankroll(game: GameName) {
         multiplier: result.multiplier,
         playedAt: new Date(),
       })
-      if (shouldAdvance) advanceFloor()
       const nextBankroll = useSurvivalStore.getState().bankroll
       if (nextBankroll <= 0) endRun()
     },
-    [game, currentFloor, slotsUsed, recordResultPayout, advanceFloor, endRun],
+    [game, currentFloor, recordResultPayout, endRun],
   )
 
   return { bankroll, handleBet, handleResolve }

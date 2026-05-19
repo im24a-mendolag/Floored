@@ -131,10 +131,14 @@ export interface SurvivalStore {
   /** Historical record of completed floors. */
   floorHistory: FloorRecord[]
 
+  /** True after quota is met, cleared when modal is dismissed and floor advances. */
+  floorComplete: boolean
+
   // ── Actions ──────────────────────────────────────────────────────────────
   startRun: (difficulty: Difficulty) => void
   endRun: () => void
   advanceFloor: () => void
+  dismissFloorComplete: () => void
   setQuotaProgress: (n: number) => void
   recordResult: (result: GameResult) => void
   recordResultPayout: (result: GameResult) => void
