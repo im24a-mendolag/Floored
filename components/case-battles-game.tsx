@@ -120,6 +120,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
 
   const [state, setState] = useState<CaseBattleState>(initCaseBattle)
   const [xrayCaseId, setXrayCaseId] = useState<number | null>(null)
+  const [infoCaseId, setInfoCaseId] = useState<number | null>(null)
   const [revealedCount, setRevealedCount] = useState(0)
   const [revealingIdx, setRevealingIdx] = useState(-1)
   const [lastSelectedCases, setLastSelectedCases] = useState<number[]>([])
@@ -240,6 +241,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   }, [pendingResult, autoReBet, lastSelectedCases, bankroll, cases, mode])
 
   const caseCounts = cases.map(c => state.selectedCases.filter(id => id === c.id).length)
+  const infoCaseDef = infoCaseId !== null ? (cases[infoCaseId] ?? null) : null
 
   return (
     <div className={GAME_CARD_SHELL}>
@@ -273,7 +275,14 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
                 const atMax = numCases >= 5 && count === 0
                 const isXray = xrayCaseId === c.id
                 return (
-                  <div key={c.id} className="flex flex-col items-center gap-2">
+                  <div key={c.id} className="relative flex flex-col items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setInfoCaseId(c.id)}
+                      className="absolute -top-1 -right-1 z-10 w-5 h-5 flex items-center justify-center text-[10px] font-black text-zinc-400 hover:text-white bg-zinc-950 rounded-full border border-zinc-700 hover:border-zinc-400 transition-colors leading-none"
+                    >
+                      i
+                    </button>
                     <button
                       type="button"
                       onClick={() => setState(prev => addCase(prev, c.id, cases))}
@@ -437,6 +446,56 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
           )}
         </div>
       </div>
+
+      {infoCaseDef && (() => {
+        const totalWeight = infoCaseDef.items.reduce((s, e) => s + e.weight, 0)
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setInfoCaseId(null)}
+          >
+            <div
+              className="bg-zinc-900 border border-zinc-700 rounded-2xl p-4 w-72 flex flex-col gap-3 shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{infoCaseDef.emoji}</span>
+                  <div>
+                    <p className="font-bold text-white text-sm">{infoCaseDef.name}</p>
+                    <p className="text-zinc-500 text-xs">{formatChips(infoCaseDef.price)}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInfoCaseId(null)}
+                  className="text-zinc-500 hover:text-white text-lg leading-none px-1 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {infoCaseDef.items.map((entry, i) => {
+                  const pct = Math.round((entry.weight / totalWeight) * 100)
+                  return (
+                    <div key={i} className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 bg-zinc-800/60 border ${RARITY_BORDER[entry.item.rarity]}`}>
+                      <span className="text-xl leading-none">{entry.item.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-semibold truncate ${RARITY_TEXT[entry.item.rarity]}`}>{entry.item.name}</p>
+                        <p className="text-zinc-600 text-[10px] capitalize">{entry.item.rarity}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-zinc-200 font-bold tabular-nums text-xs">{formatChips(entry.item.value)}</p>
+                        <p className="text-zinc-600 text-[10px]">{pct}%</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

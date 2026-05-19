@@ -214,7 +214,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
           />
 
           <div className="h-10 flex items-center justify-center">
-            <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />
+            <GameDockBetRow currentBet={currentBet > 0 ? currentBet : isDropping ? lastBet : 0} onClear={() => setCurrentBet(0)} />
           </div>
 
           <div className="flex justify-center">
