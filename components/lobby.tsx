@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import type { GameName } from '@/store/types'
 import { getLobbyTicketCount } from '@/lib/survival/lobby-ticket'
-import { Button } from '@/components/ui/button'
 
 interface GameEntry {
   name: GameName
@@ -230,9 +229,6 @@ export function Lobby({ mode }: Props) {
   const [pendingGame, setPendingGame] = useState<GameName | null>(null)
   const floorGames = useSurvivalStore((s) => s.floorGames)
   const inventory = useSurvivalStore((s) => s.inventory)
-  const sparks = useSurvivalStore((s) => s.sparks)
-  const difficulty = useSurvivalStore((s) => s.difficulty)
-  const purchaseLobbyRerollTicket = useSurvivalStore((s) => s.purchaseLobbyRerollTicket)
   const rerollLobbyGame = useSurvivalStore((s) => s.rerollLobbyGame)
 
   const ticketCount = getLobbyTicketCount(inventory)
