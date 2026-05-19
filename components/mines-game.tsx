@@ -30,6 +30,7 @@ import { useSurvivalPerks, boostedPotential } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import {
+  blessedCashOutMines,
   cashOutMines,
   getMinesPayout,
   initMines,
@@ -167,7 +168,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   }
 
   function handleCashOut() {
-    const next = cashOutMines(round)
+    const next = blessed ? blessedCashOutMines(round) : cashOutMines(round)
     setRound(next)
     recordOutcome(
       next,
