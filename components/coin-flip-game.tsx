@@ -14,7 +14,12 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { cashOut, flipAgain, initCoinFlip, startFlip } from '@/games/coin-flip/engine'
 import type { CoinFlipState, CoinSide } from '@/games/coin-flip/types'
@@ -45,7 +50,7 @@ interface CoinFlipGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: CoinFlipResult) => void
+  onResolve: GameResolveFn<CoinFlipResult>
 }
 
 interface PendingResult {
@@ -58,7 +63,9 @@ interface PendingResult {
 export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { coinBias } = useSurvivalPerks('coin-flip')
   const minBet = mode === 'survival' ? floorMinBet : 1
+  const useBias = mode === 'survival' && coinBias
 
   const [state, setState] = useState<CoinFlipState>(initCoinFlip)
   const [currentBet, setCurrentBet] = useState(0)
@@ -107,17 +114,17 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     if (t2Ref.current) clearTimeout(t2Ref.current)
   }, [])
 
-  function resolveGame(s: CoinFlipState) {
+  function settleRound(s: CoinFlipState) {
     const payout = s.outcome === 'win' ? Math.round(s.betAmount * s.multiplier) : 0
     const outcome = s.outcome ?? 'loss'
-    onResolve({
+    const resolved = resolveGame(onResolve, {
       outcome,
       betAmount: s.betAmount,
       payout,
       multiplier: s.outcome === 'win' ? s.multiplier : 0,
     })
     const built = buildPendingResult(
-      { outcome, betAmount: s.betAmount, payout },
+      { outcome, betAmount: s.betAmount, payout: resolved.payout },
       `${formatChips(s.betAmount)} · ${outcome === 'win' ? `${s.multiplier}× (${s.streak}× streak)` : 'Loss'}`,
       { winLabel: 'Total winnings', lossLabel: 'No winnings' },
     )
@@ -144,7 +151,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
       const result = pendingFlipRef.current!
       setState(result)
       setCoinAnim('landing')
-      if (result.stage === 'settled') resolveGame(result)
+      if (result.stage === 'settled') settleRound(result)
       t2Ref.current = setTimeout(() => setCoinAnim('idle'), COIN_LAND_MS)
     }, COIN_SPIN_MS)
   }
@@ -153,7 +160,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     if (!canFlip || !state.pick || isFlipping) return
     const bet = currentBet
     onBet?.(bet)
-    const next = startFlip(bet, state.pick)
+    const next = startFlip(bet, state.pick, useBias ? { biased: true } : undefined)
     setLastBet(bet)
     setCurrentBet(0)
     setPendingResult(null)
@@ -164,14 +171,14 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   function handleFlipAgain() {
     if (!state.nextPick || isFlipping) return
     setQuoteIdx((prev) => pickQuote(prev))
-    triggerFlip(flipAgain(state))
+    triggerFlip(flipAgain(state, useBias ? { biased: true } : undefined))
   }
 
   function handleCashOut() {
     if (isFlipping) return
     const next = cashOut(state)
     setState(next)
-    resolveGame(next)
+    settleRound(next)
   }
 
   const handleNext = useCallback(() => {
@@ -181,7 +188,8 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     setSpinKeyframes({ from: '0deg', end: '1440deg' })
     setCoinAnim('idle')
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
-  }, [pendingResult, autoReBet, lastBet, bankroll])
+    survivalAfterNext(mode)
+  }, [pendingResult, autoReBet, lastBet, bankroll, mode])
 
   const coinAnimClass = coinAnim === 'spinning' ? 'coin-spinning' : coinAnim === 'landing' ? 'coin-landing' : ''
   const displaySide = state.lastResult ?? 'heads'
@@ -206,6 +214,9 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
         gameLabel="Coin Flip"
       >
         <GameDockBackButton mode={mode} visible={isBetting && !isFlipping} />
+        {useBias && (isBetting || isRiding) && !isFlipping && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">Coin biased toward your pick</PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={activeBet}
           betType={pickLabel(isBetting ? state.pick : isRiding ? state.nextPick : state.pick)}

@@ -144,6 +144,8 @@ Run quick sanity: pool.length >= 6 always.
 
 **Do not modify:** `games/*/engine.ts`, shop, missions, `floor-complete-modal` flow (unless abandon needs no touch).
 
+**Difficulty (reference only):** Quota and shop prices scale by difficulty — see `lib/survival/balance.ts` and `components/difficulty-dialog.tsx`. Out of scope for this prompt.
+
 ---
 
 ## RULES

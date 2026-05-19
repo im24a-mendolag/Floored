@@ -3,6 +3,9 @@
 import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import type { GameName } from '@/store/types'
+import { calcShopPrice } from '@/lib/survival/balance'
+import { getLobbyTicketCount, LOBBY_REROLL_TICKET } from '@/lib/survival/lobby-ticket'
+import { Button } from '@/components/ui/button'
 
 interface GameEntry {
   name: GameName
@@ -225,10 +228,27 @@ interface Props {
 export function Lobby({ mode }: Props) {
   const router = useRouter()
   const floorGames = useSurvivalStore((s) => s.floorGames)
+  const inventory = useSurvivalStore((s) => s.inventory)
+  const sparks = useSurvivalStore((s) => s.sparks)
+  const difficulty = useSurvivalStore((s) => s.difficulty)
+  const purchaseLobbyRerollTicket = useSurvivalStore((s) => s.purchaseLobbyRerollTicket)
+  const rerollLobbyGame = useSurvivalStore((s) => s.rerollLobbyGame)
 
-  const displayGames = mode === 'survival'
-    ? GAMES.filter(g => floorGames.includes(g.name))
-    : GAMES
+  const ticketCount = getLobbyTicketCount(inventory)
+  const ticketPrice =
+    mode === 'survival' && difficulty != null
+      ? calcShopPrice(LOBBY_REROLL_TICKET.baseCost, difficulty)
+      : 0
+  const canBuyTicket = mode === 'survival' && sparks >= ticketPrice
+
+  const gameByName = new Map(GAMES.map((g) => [g.name, g]))
+
+  const displayGames =
+    mode === 'survival'
+      ? floorGames
+          .map((name) => gameByName.get(name))
+          .filter((g): g is GameEntry => g != null)
+      : GAMES
 
   function isAvailable(g: GameEntry) {
     if (mode === 'freeplay') return g.availableFreeplay
@@ -240,26 +260,68 @@ export function Lobby({ mode }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+    <div className="flex flex-col gap-3">
+      {mode === 'survival' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              Lobby Reroll Tickets
+            </p>
+            <p className="text-sm font-bold text-zinc-200 tabular-nums">
+              {ticketCount}
+              <span className="text-xs font-normal text-zinc-500 ml-1.5">
+                — use ↻ on a game to swap it
+              </span>
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canBuyTicket}
+            className="h-8 border-zinc-700 text-xs"
+            onClick={() => purchaseLobbyRerollTicket()}
+          >
+            Buy ticket ✦ {ticketPrice}
+          </Button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
       {displayGames.map((g, i) => {
         const available = isAvailable(g)
         // last item spans full width on mobile if it would be orphaned (odd total, 2-col)
         const isOrphan = displayGames.length % 2 !== 0 && i === displayGames.length - 1
 
         return (
-          <button
+          <div
             key={g.name}
-            onClick={() => available && handlePick(g.name)}
             className={[
-              'relative overflow-hidden rounded-2xl border transition-all duration-200 text-left',
+              'relative',
               isOrphan ? 'col-span-2 sm:col-span-1' : 'col-span-1',
-              g.gradient ? `bg-gradient-to-br ${g.gradient}` : '',
-              g.accent,
-              available
-                ? 'cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group'
-                : 'cursor-default',
             ].join(' ')}
           >
+            {mode === 'survival' && ticketCount > 0 && (
+              <button
+                type="button"
+                title="Use a ticket to reroll this lobby slot"
+                onClick={() => rerollLobbyGame(i)}
+                className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-black/40 text-sm font-bold text-white/90 hover:bg-black/60 hover:border-white/40 transition-colors"
+              >
+                ↻
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => available && handlePick(g.name)}
+              className={[
+                'relative overflow-hidden rounded-2xl border transition-all duration-200 text-left w-full',
+                g.gradient ? `bg-gradient-to-br ${g.gradient}` : '',
+                g.accent,
+                available
+                  ? 'cursor-pointer hover:scale-[1.02] hover:shadow-xl active:scale-[0.98] group'
+                  : 'cursor-default',
+              ].join(' ')}
+            >
             {/* Felt texture overlay */}
             <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
               style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '6px 6px' }}
@@ -297,8 +359,10 @@ export function Lobby({ mode }: Props) {
               )}
             </div>
           </button>
+          </div>
         )
       })}
+      </div>
     </div>
   )
 }

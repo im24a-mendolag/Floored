@@ -19,7 +19,14 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { kenoHeatNumbers } from '@/lib/survival/survival-perks'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   BOARD_SIZE,
@@ -50,7 +57,7 @@ interface KenoGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: KenoResult) => void
+  onResolve: GameResolveFn<KenoResult>
 }
 
 interface PendingResult {
@@ -63,6 +70,8 @@ interface PendingResult {
 export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { kenoHeat } = useSurvivalPerks('keno')
+  const heatProc = usePerkProc(mode === 'survival' && kenoHeat, 'perk_keno_heat')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<KenoState>(initKeno())
@@ -83,6 +92,11 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
   const totalWinnings = useMemo(() => getKenoPayout(round), [round])
   const revealedSet = useMemo(() => new Set(round.revealedDrawn), [round.revealedDrawn])
   const pickSet = useMemo(() => new Set(round.picks), [round.picks])
+  const heatNumbers =
+    heatProc.perkActive && isDrawing && round.drawn.length > 0
+      ? kenoHeatNumbers(round.drawn)
+      : []
+  const heatSet = useMemo(() => new Set(heatNumbers), [heatNumbers])
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
@@ -92,14 +106,14 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
     if (!next.outcome || resolvedRef.current) return
     resolvedRef.current = true
     const payoutAmount = getKenoPayout(next)
-    onResolve({
+    const resolved = resolveGame(onResolve, {
       outcome: next.outcome,
       betAmount: next.betAmount,
       payout: payoutAmount,
       multiplier: next.multiplier,
     })
     const built = buildPendingResult(
-      { outcome: next.outcome, betAmount: next.betAmount, payout: payoutAmount },
+      { outcome: next.outcome, betAmount: next.betAmount, payout: resolved.payout },
       `${formatChips(next.betAmount)} bet · ${next.hits}/${next.picks.length} hits · ${formatMultiplier(next.multiplier)}`,
       { winLabel: 'Total winnings', lossLabel: 'No winnings' },
     )
@@ -119,6 +133,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
     setPendingResult(null)
     setQuoteIdx((prev) => pickQuote(prev))
     onBet?.(currentBet)
+    heatProc.rollForBet()
     setRound(startKenoRound(currentBet, round.picks))
     setCurrentBet(0)
   }
@@ -168,6 +183,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
 
   const handleNewRound = useCallback(() => {
     resolvedRef.current = false
+    heatProc.resetPerk()
     setPendingResult(null)
     if (autoReBet && lastBet >= minBet && lastBet <= bankroll) {
       setCurrentBet(lastBet)
@@ -187,6 +203,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
   function handleNext() {
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     handleNewRound()
+    survivalAfterNext(mode)
   }
 
   return (
@@ -203,6 +220,11 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
         gameLabel="Keno"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {heatNumbers.length > 0 && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Heat: {heatNumbers.join(', ')} in this draw
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={round.betAmount}
           betType={!isBetting ? `${round.picks.length} picks` : undefined}
@@ -258,6 +280,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
               const isHit = picked && drawn
               const isMiss = picked && isSettled && !drawn
               const isDrawOnly = drawn && !picked
+              const isHeat = heatSet.has(num) && !picked
 
               return (
                 <button
@@ -267,6 +290,9 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
                   disabled={!isBetting || (!picked && round.picks.length >= MAX_PICKS)}
                   className={[
                     'h-9 rounded-md text-xs font-bold tabular-nums transition-all sm:h-10 sm:text-sm',
+                    isHeat
+                      ? 'border border-violet-400/80 bg-violet-950/60 text-violet-200 ring-1 ring-violet-500/50'
+                      : '',
                     isHit
                       ? 'border border-pink-300 bg-pink-500 text-zinc-900 shadow-lg shadow-pink-900/40'
                       : isMiss

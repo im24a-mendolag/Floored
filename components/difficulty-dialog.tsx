@@ -11,27 +11,35 @@ import {
 import { Button } from '@/components/ui/button'
 import { useSurvivalStore } from '@/store/survival-store'
 import type { Difficulty } from '@/store/types'
+import {
+  DIFFICULTY_QUOTA_MULT,
+  DIFFICULTY_SHOP_PRICE_MULT,
+} from '@/lib/survival/balance'
 
 interface Props {
   open: boolean
   onClose: () => void
 }
 
+function formatMult(n: number): string {
+  return n === 1 ? '1×' : `${n}×`
+}
+
 const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] = [
   {
     value: 'normal',
     label: 'Normal',
-    description: '1× quota',
+    description: `${formatMult(DIFFICULTY_QUOTA_MULT.normal)} quota · ${formatMult(DIFFICULTY_SHOP_PRICE_MULT.normal)} shop prices`,
   },
   {
     value: 'hard',
     label: 'Hard',
-    description: '1.5× quota',
+    description: `${formatMult(DIFFICULTY_QUOTA_MULT.hard)} quota · ${formatMult(DIFFICULTY_SHOP_PRICE_MULT.hard)} shop prices`,
   },
   {
     value: 'nightmare',
     label: 'Nightmare',
-    description: '2.5× quota',
+    description: `${formatMult(DIFFICULTY_QUOTA_MULT.nightmare)} quota · ${formatMult(DIFFICULTY_SHOP_PRICE_MULT.nightmare)} shop prices`,
   },
 ]
 
@@ -52,7 +60,10 @@ export function DifficultyDialog({ open, onClose }: Props) {
           <DialogTitle>Choose Difficulty</DialogTitle>
           <DialogDescription asChild>
             <div className="text-sm text-muted-foreground space-y-0.5">
-              <p>Affects house edge, spark earn rate, and shop availability.</p>
+              <p>
+                Difficulty scales <strong className="font-medium text-foreground">floor quota goals</strong> and{' '}
+                <strong className="font-medium text-foreground">shop prices</strong> for the whole run.
+              </p>
               <p>You always start with 1,000 chips.</p>
             </div>
           </DialogDescription>

@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
+import { useOpeningTicketActive } from '@/hooks/use-opening-ticket'
 import { formatChips } from '@/utils/format'
 
 /** Standard chip denominations — copy across games via import. */
@@ -64,6 +65,16 @@ export function GameActiveBetBadge({
   )
 }
 
+export function OpeningTicketBetMarker({ className = '' }: { className?: string }) {
+  return (
+    <span
+      className={`shrink-0 text-[10px] font-semibold uppercase tracking-wider text-emerald-300 px-1.5 py-0.5 rounded-md border border-emerald-500/50 bg-emerald-950/55 shadow-[0_0_10px_rgba(16,185,129,0.2)] animate-pulse ${className}`}
+    >
+      ✦ Opening Ticket
+    </span>
+  )
+}
+
 export function GameDockBetRow({
   currentBet,
   onClear,
@@ -71,9 +82,12 @@ export function GameDockBetRow({
   currentBet: number
   onClear: () => void
 }) {
+  const openingTicketActive = useOpeningTicketActive()
+
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2.5 flex-wrap justify-center">
       <span className="text-zinc-500 text-base">Bet</span>
+      {openingTicketActive && <OpeningTicketBetMarker />}
       <span className="font-bold text-xl text-white tabular-nums">
         {currentBet > 0 ? formatChips(currentBet) : '—'}
       </span>
@@ -94,19 +108,26 @@ export function GameDockSettledRow({
   outcomeLabel,
   label,
   tone,
+  multiplierHint,
 }: {
   outcomeLabel: string
   label: string
   tone: 'win' | 'loss'
+  multiplierHint?: string
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <p className="text-xs uppercase tracking-widest text-zinc-500">{outcomeLabel}</p>
-      <p
-        className={`text-2xl font-black tabular-nums ${tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}
-      >
-        {label}
-      </p>
+    <div className="flex flex-col items-center gap-0.5">
+      <div className="flex items-center gap-3">
+        <p className="text-xs uppercase tracking-widest text-zinc-500">{outcomeLabel}</p>
+        <p
+          className={`text-2xl font-black tabular-nums ${tone === 'win' ? 'text-emerald-400' : 'text-red-400'}`}
+        >
+          {label}
+        </p>
+      </div>
+      {multiplierHint && (
+        <p className="text-xs font-semibold text-emerald-500/90 tabular-nums">{multiplierHint}</p>
+      )}
     </div>
   )
 }

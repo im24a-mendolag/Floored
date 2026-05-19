@@ -14,7 +14,13 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   CHICKENS,
@@ -23,8 +29,10 @@ import {
   TICK_MS,
   generateRaceFrames,
   initChickenRace,
+  previewRaceOutcome,
   settleRace,
   startRace,
+  startRaceWithWinner,
 } from '@/games/chicken-race/engine'
 import type { ChickenRaceState } from '@/games/chicken-race/types'
 
@@ -39,7 +47,7 @@ interface ChickenRaceGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: ChickenRaceResult) => void
+  onResolve: GameResolveFn<ChickenRaceResult>
 }
 
 interface PendingResult {
@@ -52,9 +60,12 @@ interface PendingResult {
 export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRaceGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { chickenScout } = useSurvivalPerks('chicken-race')
+  const scoutProc = usePerkProc(mode === 'survival' && chickenScout, 'perk_chicken_scout')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [state, setState] = useState<ChickenRaceState>(initChickenRace)
+  const [scoutEliminate, setScoutEliminate] = useState<number | null>(null)
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
   const [lastPicked, setLastPicked] = useState<number | null>(null)
@@ -65,6 +76,7 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
 
   const raceFramesRef = useRef<number[][]>([])
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const scoutPreviewRef = useRef<{ winner: number; scoutEliminate: number } | null>(null)
 
   const isBetting = state.stage === 'betting'
   const isRacing = state.stage === 'racing'
@@ -89,7 +101,12 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
     if (!canRace || state.pickedChicken === null) return
     const bet = currentBet
     onBet?.(bet)
-    const next = startRace(bet, state.pickedChicken)
+    let next: ChickenRaceState
+    if (scoutProc.perkActive && scoutPreviewRef.current) {
+      next = startRaceWithWinner(bet, state.pickedChicken, scoutPreviewRef.current.winner)
+    } else {
+      next = startRace(bet, state.pickedChicken)
+    }
     setLastBet(bet)
     setLastPicked(state.pickedChicken)
     setCurrentBet(0)
@@ -110,25 +127,25 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
         setProgress([...raceFramesRef.current[RACE_TICKS - 1]!])
         setState((prev) => {
           const settled = settleRace(prev)
-          resolveGame(settled)
+          recordOutcome(settled)
           return settled
         })
       }
     }, TICK_MS)
   }
 
-  function resolveGame(settled: ChickenRaceState) {
+  function recordOutcome(settled: ChickenRaceState) {
     const won = settled.pickedChicken === settled.winner
     const payout = won ? Math.round(settled.betAmount * PAYOUT_MULTIPLIER) : 0
     const outcome = settled.outcome ?? (won ? 'win' : 'loss')
-    onResolve({
+    const resolved = resolveGame(onResolve, {
       outcome,
       betAmount: settled.betAmount,
       payout,
       multiplier: won ? PAYOUT_MULTIPLIER : 0,
     })
     const built = buildPendingResult(
-      { outcome, betAmount: settled.betAmount, payout },
+      { outcome, betAmount: settled.betAmount, payout: resolved.payout },
       `${formatChips(settled.betAmount)} on ${CHICKENS[settled.pickedChicken!]!.name} · ${CHICKENS[settled.winner!]!.name} won`,
       { winLabel: 'Total winnings', lossLabel: 'No winnings' },
     )
@@ -151,7 +168,29 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
       setState(next)
     }
     setProgress(CHICKENS.map(() => 0))
-  }, [pendingResult, autoReBet, lastBet, lastPicked, bankroll])
+    scoutProc.resetPerk()
+    scoutPreviewRef.current = null
+    setScoutEliminate(null)
+    survivalAfterNext(mode)
+  }, [pendingResult, autoReBet, lastBet, lastPicked, bankroll, mode, scoutProc])
+
+  useEffect(() => {
+    if (!isBetting || !chickenScout || mode !== 'survival') {
+      scoutPreviewRef.current = null
+      setScoutEliminate(null)
+      return
+    }
+    if (scoutProc.rollForBet()) {
+      const preview = previewRaceOutcome()
+      scoutPreviewRef.current = preview
+      setScoutEliminate(preview.scoutEliminate)
+    } else {
+      scoutPreviewRef.current = null
+      setScoutEliminate(null)
+    }
+    // Roll once each time the betting phase opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBetting, chickenScout, mode])
 
   useEffect(() => () => {
     if (tickRef.current) clearInterval(tickRef.current)
@@ -173,6 +212,11 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
         gameLabel="Chicken Race"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {scoutProc.perkActive && isBetting && scoutEliminate !== null && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Scout: {CHICKENS[scoutEliminate]!.name} won&apos;t win
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={activeBet}
           betType={
@@ -193,28 +237,35 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
               const isSelected = state.pickedChicken === chicken.id
               const isWinner = isSettled && state.winner === chicken.id
               const isLoser = isSettled && state.winner !== chicken.id
+              const isScoutCrossed =
+                scoutProc.perkActive && isBetting && scoutEliminate === chicken.id
               const prog = progress[chicken.id] ?? 0
 
               return (
                 <button
                   key={chicken.id}
                   type="button"
-                  disabled={!isBetting}
+                  disabled={!isBetting || isScoutCrossed}
                   onClick={() => selectChicken(chicken.id)}
                   className={[
-                    'w-full rounded-xl border-2 px-3 py-2.5 text-left transition-all duration-150',
-                    isBetting
-                      ? isSelected
-                        ? 'bg-yellow-400/10 border-yellow-400 cursor-pointer'
-                        : 'bg-zinc-800/60 border-zinc-700 hover:border-zinc-500 cursor-pointer'
-                      : isWinner
-                        ? 'border-2'
-                        : isLoser
-                          ? 'bg-zinc-900/40 border-zinc-800 opacity-40'
-                          : 'bg-zinc-800/60 border-zinc-700',
+                    'w-full rounded-xl border-2 px-3 py-2.5 text-left transition-all duration-150 relative',
+                    isScoutCrossed
+                      ? 'bg-zinc-900/60 border-zinc-800 opacity-50 cursor-not-allowed'
+                      : isBetting
+                        ? isSelected
+                          ? 'bg-yellow-400/10 border-yellow-400 cursor-pointer'
+                          : 'bg-zinc-800/60 border-zinc-700 hover:border-zinc-500 cursor-pointer'
+                        : isWinner
+                          ? 'border-2'
+                          : isLoser
+                            ? 'bg-zinc-900/40 border-zinc-800 opacity-40'
+                            : 'bg-zinc-800/60 border-zinc-700',
                   ].join(' ')}
                   style={isWinner ? { borderColor: chicken.color, backgroundColor: `${chicken.color}18` } : undefined}
                 >
+                  {isScoutCrossed && (
+                    <span className="absolute right-2 top-2 text-xs font-bold text-red-400/90">✕ Out</span>
+                  )}
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-lg leading-none">🐔</span>

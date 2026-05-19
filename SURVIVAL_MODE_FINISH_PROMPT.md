@@ -156,7 +156,7 @@ Each: `runActive` guard, `useSurvivalGameBankroll('<game>')`, `mode="survival"`,
 **`components/survival/survival-shop.tsx` (new)**
 
 - Seeded offers per floor (`${runSeed}:shop:${floor}`), 4–6 items from catalog
-- Difficulty rules from `difficulty-dialog` copy: hard = 3 picks, nightmare = 2 picks + 2× cost
+- All prices via `calcShopPrice(baseCost, difficulty)` — nightmare = 2× base, hard = 1.5×, normal = 1× (see `DIFFICULTY_SHOP_PRICE_MULT` in balance.ts)
 - Reroll button (cost sparks)
 - Purchase → `spendSparks` + add upgrade/inventory
 
@@ -182,11 +182,20 @@ handleResolve(result) {
 
 Do **not** change engine files.
 
-### G. Difficulty effects
+### G. Difficulty effects (quota + shop — required)
 
-**`lib/survival/balance.ts`**
+**Already implemented for quota** in `lib/survival/balance.ts`:
 
-- `difficultySparkMult(difficulty)`, `difficultyHouseEdgeMult(difficulty)` — use in sparks + optional payout nerf in `apply-modifiers` (nightmare/hard slightly reduce effective payout)
+| Difficulty | `DIFFICULTY_QUOTA_MULT` | `DIFFICULTY_SHOP_PRICE_MULT` |
+|------------|-------------------------|------------------------------|
+| normal | 1× | 1× |
+| hard | 1.5× | 1.5× |
+| nightmare | 2.5× | 2× |
+
+- **Quota:** `calcQuotaTarget(floor, difficulty)` — do not duplicate multipliers elsewhere.
+- **Shop:** Every displayed/purchased price must use `calcShopPrice(catalogBaseCost, difficulty)` from the run’s stored `difficulty`.
+- **UI:** `components/difficulty-dialog.tsx` already states quota + shop scaling at run start — keep in sync with balance.ts exports.
+- Optional later: `difficultySparkMult` for spark *earnings* (separate from shop prices).
 
 ### H. UI polish
 

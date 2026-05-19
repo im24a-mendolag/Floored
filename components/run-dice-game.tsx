@@ -19,7 +19,12 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getRunDicePayout,
@@ -53,13 +58,15 @@ interface RunDiceGameProps {
   bankroll: number
   config?: RunDiceConfig
   onBet?: (amount: number) => void
-  onResolve: (result: RunDiceResult) => void
+  onResolve: GameResolveFn<RunDiceResult>
 }
 
 export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDiceGameProps) {
-  const { floorMinBet } = useSurvivalStore()
+  const { floorMinBet, diceConfig: storeDiceConfig } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { runDiceInsight } = useSurvivalPerks('run-dice')
   const minBet = mode === 'survival' ? floorMinBet : 1
+  const insightConfig = mode === 'survival' && runDiceInsight ? storeDiceConfig : null
 
   const [round, setRound] = useState<RunDiceState>(initRunDice(config))
   const [currentBet, setCurrentBet] = useState(0)
@@ -157,13 +164,18 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
       if (next.stage === 'settled' && next.outcome) {
         const po = getRunDicePayout(next)
         const o = next.outcome
-        onResolve({ outcome: o, betAmount: next.betAmount, payout: po, multiplier: next.payoutMultiplier })
+        const resolved = resolveGame(onResolve, {
+          outcome: o,
+          betAmount: next.betAmount,
+          payout: po,
+          multiplier: next.payoutMultiplier,
+        })
         const subtitle =
           next.rollResult != null
             ? `${formatChips(next.betAmount)} bet · Roll ${next.rollResult}${o === 'win' ? ` · ${formatMultiplier(next.payoutMultiplier)}` : o === 'push' ? ' · Push' : ''}`
             : `${formatChips(next.betAmount)} bet · Settled`
         const built = buildPendingResult(
-          { outcome: o, betAmount: next.betAmount, payout: po },
+          { outcome: o, betAmount: next.betAmount, payout: resolved.payout },
           subtitle,
           { winLabel: 'Total winnings', lossLabel: 'No winnings' },
         )
@@ -195,13 +207,19 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
       setPendingResult(null)
     }
     handleNewRound()
+    survivalAfterNext(mode)
   }
 
-  function outcomeColor(val: number): string {
-    if (round.config.win.includes(val))  return 'bg-emerald-700/80 border-emerald-500 text-emerald-200'
-    if (round.config.loss.includes(val)) return 'bg-red-900/80 border-red-700 text-red-300'
+  function outcomeColor(val: number, cfg = round.config): string {
+    if (cfg.win.includes(val))  return 'bg-emerald-700/80 border-emerald-500 text-emerald-200'
+    if (cfg.loss.includes(val)) return 'bg-red-900/80 border-red-700 text-red-300'
     return 'bg-white/10 border-white/20 text-white/50'
   }
+
+  const insightHighlight = (val: number) =>
+    insightConfig != null &&
+    insightConfig.win.includes(val) &&
+    !insightConfig.loss.includes(val)
 
   function dieColor(total: number): string {
     if (round.config.win.includes(total))  return 'bg-emerald-500 border-emerald-300 text-white'
@@ -229,6 +247,11 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
         gameLabel="Run Dice"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {insightConfig && (isBetting || isInProgress) && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Win faces: {insightConfig.win.join(', ')}
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={round.betAmount}
           betType={!isBetting && round.betAmount > 0 ? `Roll ${round.rollCount} / 3` : undefined}
@@ -326,12 +349,14 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
           <p className="text-white/30 text-xs uppercase tracking-wider mb-2">Outcome map</p>
           <div className="grid grid-cols-11 gap-1">
             {Array.from({ length: 11 }, (_, i) => i + 2).map((val) => (
-              <div key={val} className={`rounded-md border px-1 py-2 text-center text-xs font-bold transition-all ${outcomeColor(val)} ${
+              <div key={val} className={`rounded-md border px-1 py-2 text-center text-xs font-bold transition-all ${outcomeColor(val, insightConfig ?? round.config)} ${
+                insightHighlight(val) ? 'ring-2 ring-violet-400/80' : ''
+              } ${
                 lastRoll === val && !isRolling ? 'ring-2 ring-yellow-400 scale-110 shadow-lg' : ''
               }`}>
                 <p className="text-[10px] leading-none opacity-60 mb-0.5">{val}</p>
                 <p className="leading-none">
-                  {round.config.win.includes(val) ? 'W' : round.config.loss.includes(val) ? 'L' : 'N'}
+                  {(insightConfig ?? round.config).win.includes(val) ? 'W' : (insightConfig ?? round.config).loss.includes(val) ? 'L' : 'N'}
                 </p>
               </div>
             ))}

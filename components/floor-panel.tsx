@@ -18,7 +18,7 @@ import {
 export function FloorPanel() {
   const router = useRouter()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const { currentFloor, floorMinBet, bankroll, quotaTarget, floorStartBankroll, floorComplete, sparks, abandonRun } = useSurvivalStore()
+  const { currentFloor, floorMinBet, bankroll, quotaTarget, floorStartBankroll, quotaMet, floorComplete, runDefeated, sparks, endlessMode, abandonRun } = useSurvivalStore()
 
   const netProgress = bankroll - floorStartBankroll
   const netTarget = quotaTarget - floorStartBankroll
@@ -26,7 +26,7 @@ export function FloorPanel() {
     ? 100
     : Math.min(100, Math.max(0, (netProgress / netTarget) * 100))
 
-  const progressColor = floorComplete
+  const progressColor = quotaMet
     ? 'bg-amber-400'
     : bankroll < floorStartBankroll
       ? 'bg-red-500'
@@ -48,7 +48,12 @@ export function FloorPanel() {
           <div className="flex flex-1 items-center justify-center gap-6">
             <div className="text-center">
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Floor</span>
-              <div className="text-2xl font-black leading-tight">{currentFloor}<span className="text-sm font-normal text-muted-foreground"> / 10</span></div>
+              <div className="text-2xl font-black leading-tight">
+                {currentFloor}
+                <span className="text-sm font-normal text-muted-foreground">
+                  {endlessMode ? ' ∞' : ' / 10'}
+                </span>
+              </div>
             </div>
 
             <div className="text-center">
@@ -83,9 +88,19 @@ export function FloorPanel() {
               style={{ width: `${progressPct}%` }}
             />
           </div>
+          {quotaMet && !floorComplete && (
+            <p className="text-xs text-amber-400 font-semibold text-center mt-1">
+              Quota met — finish early from the navbar or keep playing until the timer ends
+            </p>
+          )}
           {floorComplete && (
             <p className="text-xs text-amber-400 font-semibold text-center mt-1">
-              Quota reached — complete the floor!
+              Time&apos;s up — quota met, collect your rewards
+            </p>
+          )}
+          {runDefeated && (
+            <p className="text-xs text-red-400 font-semibold text-center mt-1">
+              Run over — tap Continue to return home
             </p>
           )}
         </div>

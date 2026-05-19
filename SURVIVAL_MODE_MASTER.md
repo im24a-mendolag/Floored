@@ -49,7 +49,7 @@ Roguelike-style **Survival Mode**:
 | `runSeed` | Stub | Set on start; **not used** for RNG until Step 3 |
 | `diceConfig` | Partial | Run-wide Run Dice config |
 | `jackpotMeter` | Partial | Slots survival only |
-| `difficulty` | Stored | No gameplay/shop logic yet |
+| `difficulty` | Stored | Scales **quota** (live) and **shop prices** via `balance.ts`; shop UI must use `calcShopPrice` |
 | `modifiers[]` | Stub | Always `[]` |
 | `history[]` | Done | `GameResult[]` per round |
 | `gamesPlayed`, `streak`, `peakBankroll` | Done | |
@@ -171,9 +171,25 @@ interface SurvivalRun {
 
 **RNG:** `createRng(seedFromString(\`${runSeed}:floor:${floor}\`))` → shuffle → slice(6).
 
-**Quota (example):** `baseQuota(f) = 50 * f^1.35 * (1 + 0.08 * (f-1))` × difficulty multiplier.
+**Quota:** `calcQuotaTarget(floor, difficulty)` in `lib/survival/balance.ts` — base bankroll goal per floor × difficulty quota multiplier.
 
 **Files:** `lib/survival/floor-generator.ts`, `lib/survival/balance.ts`.
+
+### 2b. Difficulty (quota + shop)
+
+Chosen at run start in `components/difficulty-dialog.tsx`. Stored on the run as `difficulty` and applied for the **entire run**.
+
+| Difficulty | Quota multiplier | Shop price multiplier |
+|------------|------------------|------------------------|
+| Normal | 1× | 1× |
+| Hard | 1.5× | 1.5× |
+| Nightmare | 2.5× | 2× |
+
+**Quota:** `calcQuotaTarget(floor, difficulty)` uses `DIFFICULTY_QUOTA_MULT` — higher difficulty = higher bankroll target each floor (already live).
+
+**Shop:** `calcShopPrice(baseCost, difficulty)` uses `DIFFICULTY_SHOP_PRICE_MULT` — harder runs pay more sparks per upgrade. Shop UI must call `calcShopPrice`; do not hardcode prices in components.
+
+**Source of truth:** `lib/survival/balance.ts` (`DIFFICULTY_QUOTA_MULT`, `DIFFICULTY_SHOP_PRICE_MULT`).
 
 ### 3. Sparks economy
 
@@ -182,9 +198,9 @@ interface SurvivalRun {
 | Quota met | `8 + 2 * floor` |
 | Over-quota | `base * min(2, (progress - target) / target)` |
 | Mission | `MISSION_REWARD[type] * (1 + 0.1 * floor)` |
-| Difficulty | normal ×1, hard ×0.75, nightmare ×0.5 |
+| Difficulty (sparks earn, optional) | Tune separately from quota/shop — see balance.ts when implemented |
 
-Anti-snowball: shop prices scale with owned run-wide upgrades.
+Anti-snowball: shop catalog base costs × `DIFFICULTY_SHOP_PRICE_MULT` × optional owned-upgrade scaling.
 
 ### 4. Upgrade system
 

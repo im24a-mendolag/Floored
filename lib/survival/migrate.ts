@@ -1,16 +1,12 @@
 import type { Difficulty } from '@/store/types'
-import { SURVIVAL_GAME_POOL, calcQuotaTarget } from './balance'
+import { SURVIVAL_GAME_POOL, calcQuotaTarget, FLOOR_DURATION_MS } from './balance'
 import { generateFloor } from './floor-generator'
 
 /**
  * Zustand persist migration callback for the floored-survival key.
- * Called when the stored version < current version (1).
- *
- * v0 → v1: adds quota, floorGames, and stub arrays while preserving all
- * existing bankroll/run fields. Does not wipe runActive or bankroll.
  */
 export function migratePersistedState(raw: unknown, fromVersion: number): unknown {
-  if (fromVersion >= 1) return raw
+  if (fromVersion >= 3) return raw
 
   const s =
     raw != null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -20,9 +16,9 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
   const runSeed = typeof s.runSeed === 'string' ? s.runSeed : null
   const startBankroll = typeof s.bankroll === 'number' ? s.bankroll : 1000
 
-  // Default quota + games in case generation fails.
   let quotaTarget = calcQuotaTarget(floor, difficulty ?? 'normal')
   let floorGames = SURVIVAL_GAME_POOL.slice(0, 6)
+  let missions: unknown[] = []
 
   if (runSeed && difficulty) {
     try {
@@ -34,21 +30,53 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
       })
       quotaTarget = generated.quotaTarget
       floorGames = generated.floorGames
+      missions = generated.missions
     } catch {
-      // fall through to defaults computed above
+      // fall through to defaults
     }
   }
 
-  return {
+  const bankroll = typeof s.bankroll === 'number' ? s.bankroll : startBankroll
+  const quotaTargetVal = typeof s.quotaTarget === 'number' ? s.quotaTarget : quotaTarget
+  const hadStaleQuotaComplete = fromVersion < 3 && s.floorComplete === true
+
+  const base = {
     ...s,
-    version: 1,
-    quotaTarget,
-    floorStartBankroll: startBankroll,
-    floorGames,
-    missions: [],
-    completedMissionIds: [],
-    purchasedUpgrades: [],
-    inventory: [],
-    floorHistory: [],
+    version: 3,
+    floorComplete: hadStaleQuotaComplete ? false : (s.floorComplete === true),
+    quotaTarget: quotaTargetVal,
+    floorStartBankroll: typeof s.floorStartBankroll === 'number' ? s.floorStartBankroll : startBankroll,
+    floorGames: Array.isArray(s.floorGames) && s.floorGames.length > 0 ? s.floorGames : floorGames,
+    missions: Array.isArray(s.missions) && s.missions.length > 0 ? s.missions : missions,
+    completedMissionIds: Array.isArray(s.completedMissionIds) ? s.completedMissionIds : [],
+    purchasedUpgrades: Array.isArray(s.purchasedUpgrades) ? s.purchasedUpgrades : [],
+    inventory: Array.isArray(s.inventory) ? s.inventory : [],
+    floorHistory: Array.isArray(s.floorHistory) ? s.floorHistory : [],
+    streakShieldUsed: typeof s.streakShieldUsed === 'boolean' ? s.streakShieldUsed : false,
+    firstBetInsuranceUsed: typeof s.firstBetInsuranceUsed === 'boolean' ? s.firstBetInsuranceUsed : false,
+    shopRerollCount: typeof s.shopRerollCount === 'number' ? s.shopRerollCount : 0,
+    missionRerollCount: typeof s.missionRerollCount === 'number' ? s.missionRerollCount : 0,
+    lobbyRerollCount: typeof s.lobbyRerollCount === 'number' ? s.lobbyRerollCount : 0,
+    runDefeated: typeof s.runDefeated === 'boolean' ? s.runDefeated : false,
+    defeatReason:
+      s.defeatReason === 'bust' || s.defeatReason === 'quota' ? s.defeatReason : null,
+    pendingDefeatReason:
+      s.pendingDefeatReason === 'bust' || s.pendingDefeatReason === 'quota'
+        ? s.pendingDefeatReason
+        : null,
+    endlessMode: typeof s.endlessMode === 'boolean' ? s.endlessMode : false,
+    quotaMet: typeof s.quotaMet === 'boolean' ? s.quotaMet : bankroll >= quotaTargetVal,
+    floorTimeRemainingMs: hadStaleQuotaComplete
+      ? FLOOR_DURATION_MS
+      : typeof s.floorTimeRemainingMs === 'number'
+        ? s.floorTimeRemainingMs
+        : FLOOR_DURATION_MS,
+    floorTimerPaused: typeof s.floorTimerPaused === 'boolean' ? s.floorTimerPaused : false,
+    floorTimerSyncedAt:
+      typeof s.floorTimerSyncedAt === 'number' ? s.floorTimerSyncedAt : Date.now(),
   }
+
+  if (fromVersion >= 1) return base
+
+  return base
 }

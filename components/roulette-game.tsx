@@ -19,7 +19,14 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { rouletteEliminatedNumbers } from '@/lib/survival/survival-perks'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   BET_LABELS,
@@ -69,7 +76,7 @@ interface RouletteGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: RouletteResult) => void
+  onResolve: GameResolveFn<RouletteResult>
 }
 
 interface PendingResult {
@@ -108,9 +115,12 @@ function betBtnStyle(type: RouletteBetType, isActive: boolean): string {
 export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { rouletteTracker } = useSurvivalPerks('roulette')
+  const trackerProc = usePerkProc(mode === 'survival' && rouletteTracker, 'perk_roulette_tracker')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<RouletteState>(initRoulette())
+  const [trackerEliminated, setTrackerEliminated] = useState<number[]>([])
   const [currentBet, setCurrentBet] = useState(0)
   const [currentTarget, setCurrentTarget] = useState<string | null>(null)
   const [lastBet, setLastBet] = useState(0)
@@ -166,6 +176,11 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
     setPendingResult(null)
 
     const result = spinRoulette(spunTarget, total)
+    if (trackerProc.rollForBet() && result.result != null) {
+      setTrackerEliminated(rouletteEliminatedNumbers(result.result))
+    } else {
+      setTrackerEliminated([])
+    }
     setQuoteIdx((prev) => pickQuote(prev))
     setSpinning(true)
     setSpinningPosition(WHEEL_POSITIONS[0] ?? '0')
@@ -197,7 +212,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
       setRound(result)
 
       const outcome = result.outcome ?? 'loss'
-      onResolve({
+      const resolved = resolveGame(onResolve, {
         outcome,
         betAmount: result.totalBetAmount,
         payout: result.totalPayout,
@@ -210,7 +225,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
       const betSummary =
         total > 0 ? `${getLabelForTarget(spunTarget)} ${formatChips(total)}` : ''
       const built = buildPendingResult(
-        { outcome, betAmount: result.totalBetAmount, payout: result.totalPayout },
+        { outcome, betAmount: result.totalBetAmount, payout: resolved.payout },
         `${betSummary} · ${resultLabel}`,
         { winLabel: 'Total winnings', lossLabel: 'No winnings' },
       )
@@ -227,6 +242,8 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
   }
 
   const handleNewRound = useCallback(() => {
+    trackerProc.resetPerk()
+    setTrackerEliminated([])
     setRound(initRoulette())
     setPendingResult(null)
     if (autoReBet && lastBet > 0 && lastTarget && lastBet <= bankroll) {
@@ -238,6 +255,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
   function handleNext() {
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     handleNewRound()
+    survivalAfterNext(mode)
   }
 
   useEffect(() => () => {
@@ -260,6 +278,11 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
         gameLabel="Roulette"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {trackerProc.perkActive && trackerEliminated.length > 0 && spinning && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Not winning: {trackerEliminated.join(', ')}
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={activeBet}
           betType={activeBet > 0 && lastTarget ? getLabelForTarget(lastTarget) : undefined}

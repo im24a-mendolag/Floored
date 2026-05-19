@@ -20,6 +20,25 @@ function pickWinner(): number {
   return Math.floor(Math.random() * CHICKENS.length)
 }
 
+/** Pre-roll outcome for scout perk — same winner used when the race starts. */
+export function previewRaceOutcome(): { winner: number; scoutEliminate: number } {
+  const winner = pickWinner()
+  const others = CHICKENS.filter((c) => c.id !== winner).map((c) => c.id)
+  const scoutEliminate = others[Math.floor(Math.random() * others.length)]!
+  return { winner, scoutEliminate }
+}
+
+export function startRaceWithWinner(bet: number, picked: number, winner: number): ChickenRaceState {
+  return {
+    stage: 'racing',
+    betAmount: bet,
+    pickedChicken: picked,
+    winner,
+    outcome: null,
+    message: "And they're off!",
+  }
+}
+
 export function initChickenRace(): ChickenRaceState {
   return {
     stage: 'betting',

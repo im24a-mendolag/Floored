@@ -13,9 +13,15 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
-import { PLINKO_ROWS, computePlinkoPayout, generatePlinkoPath, getSlotMultipliers } from '@/games/plinko/engine'
+import { PLINKO_ROWS, PLINKO_MULTIPLIERS, computePlinkoPayout, generatePlinkoPath, getSlotMultipliers } from '@/games/plinko/engine'
 import {
   SLOT_BAND_HEIGHT,
   SLOT_RECT_Y,
@@ -66,6 +72,7 @@ interface PlinkoSession {
   ballCount: number
   balls: PlinkoBall[]
   startedAt: number
+  firstBallShield: boolean
 }
 
 interface PlinkoResult {
@@ -79,7 +86,7 @@ interface PlinkoGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: PlinkoResult) => void
+  onResolve: GameResolveFn<PlinkoResult>
 }
 
 function formatSlotMult(m: number): string {
@@ -91,7 +98,9 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const uid = useId().replace(/:/g, '')
   const ballGlowId = `plinko-ball-${uid}`
 
-  const { floorMinBet } = useSurvivalStore()
+  const { floorMinBet, pendingDefeatReason } = useSurvivalStore()
+  const { plinkoFirstBall } = useSurvivalPerks('plinko')
+  const shieldProc = usePerkProc(mode === 'survival' && plinkoFirstBall, 'perk_plinko_first_ball')
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
@@ -133,6 +142,8 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
   const canDrop = commitBet >= minBet && commitBet + pendingBet <= bankroll && bankroll > 0
   const ballsInFlight = sessions.length > 0
+  const showSurvivalContinue =
+    mode === 'survival' && bankroll <= 0 && !ballsInFlight && pendingDefeatReason != null
   const inFlightBalls = sessions.reduce((n, s) => n + s.ballCount, 0)
   const badgeType =
     inFlightBalls > 0
@@ -162,6 +173,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         betAmount: number
         ballCount: number
         paths: number[][]
+        firstBallShield: boolean
       }[] = []
 
       const next: PlinkoSession[] = []
@@ -179,6 +191,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
               betAmount: s.betAmount,
               ballCount: s.ballCount,
               paths: s.balls.map((b) => b.path),
+              firstBallShield: s.firstBallShield,
             })
           }
         } else {
@@ -194,11 +207,29 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
       setAnimNow(now)
 
       for (const c of completions) {
-        const result = computePlinkoPayout(c.betAmount, c.ballCount, c.paths)
-        const { totalPayout, outcome, effectiveMultiplier } = result
+        let { totalPayout, outcome, effectiveMultiplier } = computePlinkoPayout(
+          c.betAmount,
+          c.ballCount,
+          c.paths,
+        )
         const bet = c.betAmount
 
-        onResolveRef.current({
+        if (c.firstBallShield && c.ballCount > 0 && c.paths.length > 0) {
+          const stake = bet / c.ballCount
+          const firstPath = c.paths[0]!
+          const finalSlot = firstPath[firstPath.length - 1] ?? 0
+          const mult = PLINKO_MULTIPLIERS[finalSlot] ?? 0
+          const firstPayout = Math.round(stake * mult)
+          if (firstPayout < stake) {
+            totalPayout += stake - firstPayout
+            if (totalPayout > bet) outcome = 'win'
+            else if (totalPayout === bet) outcome = 'push'
+            else outcome = 'loss'
+            effectiveMultiplier = bet > 0 ? totalPayout / bet : 0
+          }
+        }
+
+        const resolved = resolveGame(onResolveRef.current, {
           outcome,
           betAmount: bet,
           payout: totalPayout,
@@ -207,7 +238,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
         const subtitle = `${formatChips(bet)} · ${formatMultiplier(effectiveMultiplier)}`
         const built = buildPendingResult(
-          { outcome, betAmount: bet, payout: totalPayout },
+          { outcome, betAmount: bet, payout: resolved.payout },
           subtitle,
           { winLabel: 'Total winnings', lossLabel: 'No winnings' },
         )
@@ -276,12 +307,14 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
       ballIndex,
       track: buildPlinkoDropTrack(path),
     }))
+    const shieldActive = shieldProc.rollForBet()
     const session: PlinkoSession = {
       id,
       betAmount: bet,
       ballCount: BALLS_PER_DROP,
       balls,
       startedAt,
+      firstBallShield: shieldActive,
     }
 
     onBetRef.current?.(bet)
@@ -301,7 +334,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     const n = merged.length
     setStatusHint(`${n} ball${n === 1 ? '' : 's'} in flight — keep dropping if you like.`)
     kickLoop()
-  }, [bankroll, currentBet, kickLoop, lastBet, minBet, pendingBet])
+  }, [bankroll, currentBet, kickLoop, lastBet, minBet, pendingBet, shieldProc])
 
   return (
     <div className={GAME_CARD_SHELL}>
@@ -318,6 +351,11 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         emptyHint="No drops yet — results appear after each ball lands."
       >
         <GameDockBackButton mode={mode} visible={!ballsInFlight} />
+        {mode === 'survival' && shieldProc.perkActive && ballsInFlight && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            First Ball Shield — loss refunded to a push
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={pendingBet}
           betType={badgeType}
@@ -428,14 +466,24 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
           </div>
 
           <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={handleDrop}
-              disabled={!canDrop}
-              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-            >
-              Drop →
-            </button>
+            {showSurvivalContinue ? (
+              <button
+                type="button"
+                onClick={() => survivalAfterNext(mode)}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Continue →
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDrop}
+                disabled={!canDrop}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Drop →
+              </button>
+            )}
           </div>
 
           {minBet > 1 && (

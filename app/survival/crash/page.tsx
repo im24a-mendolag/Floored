@@ -1,17 +1,15 @@
 'use client'
 
-import { useSurvivalStore } from '@/store/survival-store'
 import { useSurvivalGameBankroll } from '@/hooks/use-game-bankroll'
 import { SurvivalGameWrapper } from '@/components/survival/survival-game-wrapper'
 import { CrashGame } from '@/components/crash-game'
 
 export default function SurvivalCrashPage() {
-  const bankroll = useSurvivalStore((s) => s.bankroll)
-  const { handleBet, handleResolve } = useSurvivalGameBankroll('crash')
+  const { wagerCap, handleBet, handleResolve } = useSurvivalGameBankroll('crash')
 
   return (
     <SurvivalGameWrapper currentGame="crash">
-      <CrashGame mode="survival" bankroll={bankroll} onBet={handleBet} onResolve={handleResolve} />
+      <CrashGame mode="survival" bankroll={wagerCap} onBet={handleBet} onResolve={handleResolve} />
     </SurvivalGameWrapper>
   )
 }

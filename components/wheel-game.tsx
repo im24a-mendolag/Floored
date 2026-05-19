@@ -19,13 +19,21 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getTargetRotation,
   getWheelPayout,
   initWheel,
+  previewWheelOutcome,
   spinWheel,
+  spinWheelWithResult,
   WHEEL_SEGMENTS,
 } from '@/games/wheel/engine'
 import type { WheelColor, WheelState } from '@/games/wheel/types'
@@ -91,13 +99,14 @@ interface WheelGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: WheelResult) => void
+  onResolve: GameResolveFn<WheelResult>
 }
 
 interface PendingResult {
   tone: 'win' | 'loss'
   label: string
   outcomeLabel: string
+  multiplierHint?: string
   entry: MatchHistoryEntry
 }
 
@@ -114,9 +123,12 @@ function wheelColorMultiplier(color: WheelColor) {
 export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { wheelScout } = useSurvivalPerks('wheel')
+  const scoutProc = usePerkProc(mode === 'survival' && wheelScout, 'perk_wheel_scout')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<WheelState>(initWheel())
+  const [crossedOutColor, setCrossedOutColor] = useState<WheelColor | null>(null)
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
   const [activeBet, setActiveBet] = useState(0)
@@ -128,6 +140,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
 
   const spinTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rotationRef = useRef(0)
+  const wheelPreviewRef = useRef<{ resultColor: WheelColor; crossedOutColor: WheelColor } | null>(null)
 
   const isBetting    = round.stage === 'betting' && !spinning
   const isSettled    = round.stage === 'settled' && !spinning
@@ -160,7 +173,10 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
     setPendingResult(null)
     setQuoteIdx((prev) => pickQuote(prev))
 
-    const result = spinWheel(selectedColor, bet)
+    const result =
+      scoutProc.perkActive && wheelPreviewRef.current
+        ? spinWheelWithResult(selectedColor, bet, wheelPreviewRef.current.resultColor)
+        : spinWheel(selectedColor, bet)
     const target = getTargetRotation(rotationRef.current, result.resultColor!)
     rotationRef.current = target
     setWheelRotation(target)
@@ -171,7 +187,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
       setRound(result)
 
       const payout = getWheelPayout(result)
-      onResolve({
+      const resolved = resolveGame(onResolve, {
         outcome: result.outcome!,
         betAmount: result.betAmount,
         payout,
@@ -179,16 +195,25 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
       })
 
       const built = buildPendingResult(
-        { outcome: result.outcome!, betAmount: result.betAmount, payout },
+        { outcome: result.outcome!, betAmount: result.betAmount, payout: resolved.payout },
         `${formatChips(result.betAmount)} bet · ${result.resultColor} ${result.resultMultiplier}×`,
-        { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+        {
+          winLabel: 'Total winnings',
+          lossLabel: 'No winnings',
+          gameMultiplier: result.outcome === 'win' ? result.payoutMultiplier : undefined,
+          payoutBoostMult: resolved.payoutBoostMult,
+        },
       )
       setPendingResult({
         tone: built.tone === 'win' ? 'win' : 'loss',
         label: built.label,
         outcomeLabel: `${result.resultColor} ${result.resultMultiplier}× — ${result.outcome === 'win' ? 'Win' : 'Miss'}`,
+        multiplierHint: built.multiplierHint,
         entry: built.entry,
       })
+      scoutProc.resetPerk()
+      wheelPreviewRef.current = null
+      setCrossedOutColor(null)
     }, SPIN_DURATION)
   }
 
@@ -202,15 +227,44 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
     })
     setPendingResult(null)
     setActiveBet(0)
+    wheelPreviewRef.current = null
+    setCrossedOutColor(null)
+    scoutProc.resetPerk()
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
-  }, [autoReBet, lastBet, bankroll])
+  }, [autoReBet, lastBet, bankroll, scoutProc])
 
   function handleNextRound() {
     if (pendingResult) {
       setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     }
     handleNewRound()
+    survivalAfterNext(mode)
   }
+
+  useEffect(() => {
+    if (!isBetting || !wheelScout || mode !== 'survival') {
+      wheelPreviewRef.current = null
+      setCrossedOutColor(null)
+      return
+    }
+    if (scoutProc.rollForBet()) {
+      const preview = previewWheelOutcome()
+      wheelPreviewRef.current = preview
+      setCrossedOutColor(preview.crossedOutColor)
+      setRound((prev) => {
+        if (prev.betColor === preview.crossedOutColor) {
+          const fallback = WHEEL_SEGMENTS.find((s) => s.color !== preview.crossedOutColor)!.color
+          return { ...prev, betColor: fallback }
+        }
+        return prev
+      })
+    } else {
+      wheelPreviewRef.current = null
+      setCrossedOutColor(null)
+    }
+    // Roll once each time the betting phase opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBetting, wheelScout, mode])
 
   useEffect(() => () => { if (spinTimer.current) clearTimeout(spinTimer.current) }, [])
 
@@ -229,6 +283,11 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
       >
 
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {scoutProc.perkActive && isBetting && crossedOutColor && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Scout: {wheelColorLabel(crossedOutColor)} won&apos;t land
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={activeBet}
           betType={activeBet > 0 && !isBetting ? wheelColorLabel(round.betColor ?? selectedColor) : undefined}
@@ -261,7 +320,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
                   d={slicePath(i, 100, 100, 96)}
                   fill={HEX[color]}
                   stroke="#000"
-                  strokeWidth="0.5"
+                  strokeWidth={0.5}
                 />
               ))}
 
@@ -290,17 +349,25 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
               {WHEEL_SEGMENTS.map((seg) => {
                 const cs = COLOR_STYLES[seg.color]
                 const isSelected = selectedColor === seg.color
+                const isScoutCrossed =
+                  scoutProc.perkActive && isBetting && crossedOutColor === seg.color
                 return (
                   <button
                     key={seg.color}
                     type="button"
+                    disabled={isScoutCrossed}
                     onClick={() => setColor(seg.color)}
-                    className={`px-5 py-1.5 rounded-xl border-2 font-bold text-sm transition-all duration-100 ${
-                      isSelected
-                        ? `${cs.bg} ${cs.border} text-white shadow-lg scale-105`
-                        : `${cs.border} ${cs.text} opacity-40 hover:opacity-70`
+                    className={`relative px-5 py-1.5 rounded-xl border-2 font-bold text-sm transition-all duration-100 ${
+                      isScoutCrossed
+                        ? 'border-zinc-700 bg-zinc-900/60 text-zinc-600 opacity-50 cursor-not-allowed'
+                        : isSelected
+                          ? `${cs.bg} ${cs.border} text-white shadow-lg scale-105`
+                          : `${cs.border} ${cs.text} opacity-40 hover:opacity-70`
                     }`}
                   >
+                    {isScoutCrossed && (
+                      <span className="absolute -top-2 -right-2 text-[10px] font-bold text-red-400">✕</span>
+                    )}
                     {seg.multiplier}×
                   </button>
                 )
@@ -331,6 +398,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
                 outcomeLabel={pendingResult.outcomeLabel}
                 label={pendingResult.label}
                 tone={pendingResult.tone}
+                multiplierHint={pendingResult.multiplierHint}
               />
             )}
             {!isBetting && !spinning && !(isSettled && pendingResult) && (

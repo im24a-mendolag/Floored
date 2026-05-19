@@ -21,6 +21,29 @@ export const SEGMENT_DEGREES: Record<WheelColor, { start: number; end: number; m
   gold:  { start: 0, end: 360, mid: 165 }, // 360 - 195 (slice 6)
 }
 
+function pickResultColor(): WheelColor {
+  const roll = Math.random() * TOTAL_SLOTS
+  let cumulative = 0
+  let resultSegment: WheelSegment = WHEEL_SEGMENTS[WHEEL_SEGMENTS.length - 1]!
+  for (const seg of WHEEL_SEGMENTS) {
+    cumulative += seg.count
+    if (roll < cumulative) {
+      resultSegment = seg
+      break
+    }
+  }
+  return resultSegment.color
+}
+
+/** Pre-roll for scout perk — same landing color used when the spin starts. */
+export function previewWheelOutcome(): { resultColor: WheelColor; crossedOutColor: WheelColor } {
+  const resultColor = pickResultColor()
+  const losingColors = WHEEL_SEGMENTS.map((s) => s.color).filter((c) => c !== resultColor)
+  const uniqueLosing = Array.from(new Set(losingColors)) as WheelColor[]
+  const crossedOutColor = uniqueLosing[Math.floor(Math.random() * uniqueLosing.length)]!
+  return { resultColor, crossedOutColor }
+}
+
 export function initWheel(): WheelState {
   return {
     stage: 'betting',
@@ -35,17 +58,15 @@ export function initWheel(): WheelState {
 }
 
 export function spinWheel(betColor: WheelColor, betAmount: number): WheelState {
-  const roll = Math.random() * TOTAL_SLOTS
-  let cumulative = 0
-  let resultSegment: WheelSegment = WHEEL_SEGMENTS[WHEEL_SEGMENTS.length - 1]!
-  for (const seg of WHEEL_SEGMENTS) {
-    cumulative += seg.count
-    if (roll < cumulative) {
-      resultSegment = seg
-      break
-    }
-  }
+  return spinWheelWithResult(betColor, betAmount, pickResultColor())
+}
 
+export function spinWheelWithResult(
+  betColor: WheelColor,
+  betAmount: number,
+  resultColor: WheelColor,
+): WheelState {
+  const resultSegment = WHEEL_SEGMENTS.find((s) => s.color === resultColor)!
   const won = resultSegment.color === betColor
 
   return {

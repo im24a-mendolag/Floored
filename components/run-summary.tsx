@@ -1,63 +1,61 @@
 'use client'
 
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatChips } from '@/utils/format'
-import type { RunSummary } from '@/store/types'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useSurvivalStore } from '@/store/survival-store'
+import type { RunSummary as RunSummaryType } from '@/store/types'
 
 interface RunSummaryProps {
-  lastRun: RunSummary
+  lastRun: RunSummaryType
+}
+
+function headline(lastRun: RunSummaryType): { title: string; description: string; accent: string } {
+  if (lastRun.victory) {
+    return {
+      title: '🏆 Victory!',
+      description: 'You cleared all 10 floors.',
+      accent: 'text-amber-400',
+    }
+  }
+  if (lastRun.endBankroll <= 0) {
+    return {
+      title: 'Defeated',
+      description: 'Your bankroll hit zero.',
+      accent: 'text-red-400',
+    }
+  }
+  return {
+    title: 'Run Over',
+    description: lastRun.endlessMode
+      ? `Endless run ended on floor ${lastRun.floorsReached}.`
+      : 'Your survival run has ended.',
+    accent: 'text-zinc-300',
+  }
 }
 
 export function RunSummary({ lastRun }: RunSummaryProps) {
+  const router = useRouter()
+  const clearLastRun = useSurvivalStore((s) => s.clearLastRun)
+  const { title, description, accent } = headline(lastRun)
+
+  function handleContinue() {
+    clearLastRun()
+    router.push('/')
+  }
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Run Complete</CardTitle>
-          <CardDescription>Review your final survival run results before starting again.</CardDescription>
+    <div className="flex flex-col items-center gap-6 max-w-md mx-auto py-8">
+      <Card className="w-full">
+        <CardHeader className="text-center">
+          <CardTitle className={accent}>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Difficulty</p>
-            <p className="font-semibold capitalize">{lastRun.difficulty}</p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Floor reached</p>
-            <p className="font-semibold">{lastRun.floorsReached}</p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">End bankroll</p>
-            <p className="font-semibold">{formatChips(lastRun.endBankroll)}</p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Peak bankroll</p>
-            <p className="font-semibold">{formatChips(lastRun.peakBankroll)}</p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Games played</p>
-            <p className="font-semibold">{lastRun.gamesPlayed}</p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Sparks earned</p>
-            <p className="font-semibold">{lastRun.sparksEarned}</p>
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <p className="text-sm text-muted-foreground">Ended at</p>
-            <p className="font-semibold">{new Date(lastRun.endedAt).toLocaleString()}</p>
-          </div>
-        </CardContent>
       </Card>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Link href="/" className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium transition hover:bg-muted">
-          Back to Home
-        </Link>
-        <Button asChild>
-          <Link href="/">Start New Run</Link>
-        </Button>
-      </div>
+      <Button onClick={handleContinue} className="w-full max-w-xs" size="lg">
+        Continue
+      </Button>
     </div>
   )
 }

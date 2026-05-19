@@ -14,7 +14,13 @@ import {
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { crashZoneBand } from '@/lib/survival/survival-perks'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { computeMultiplier, initCrash, startCrashRound } from '@/games/crash/engine'
 import type { CrashState } from '@/games/crash/types'
@@ -30,7 +36,7 @@ interface CrashGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: CrashResult) => void
+  onResolve: GameResolveFn<CrashResult>
 }
 
 interface PendingResult {
@@ -175,6 +181,7 @@ function CrashCurve({
 export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { crashZone } = useSurvivalPerks('crash')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound]         = useState<CrashState>(initCrash())
@@ -189,6 +196,8 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
   const isInProgress = round.stage === 'inProgress'
   const isSettled    = round.stage === 'settled'
   const canStart     = currentBet >= minBet && currentBet <= bankroll
+  const showCrashZone = mode === 'survival' && crashZone && isInProgress
+  const crashBand = showCrashZone ? crashZoneBand(round.crashAt) : null
 
   const handleNewRound = useCallback(() => {
     setRound(initCrash())
@@ -219,8 +228,15 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
           outcome: 'loss',
           message: `Crashed at ${formatMultiplier(crashAt)}`,
         }))
-        onResolve({ outcome: 'loss', betAmount, payout: 0, multiplier: crashAt })
-        setPendingResult(crashPendingResult('loss', betAmount, 0, crashAt))
+        const resolved = resolveGame(onResolve, {
+          outcome: 'loss',
+          betAmount,
+          payout: 0,
+          multiplier: crashAt,
+        })
+        setPendingResult(
+          crashPendingResult('loss', betAmount, resolved.payout, resolved.multiplier ?? crashAt),
+        )
       }
     }, 50)
 
@@ -253,8 +269,15 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
       outcome: 'win',
       message: `Cashed out at ${formatMultiplier(m)}`,
     }))
-    onResolve({ outcome: 'win', betAmount: round.betAmount, payout, multiplier: m })
-    setPendingResult(crashPendingResult('win', round.betAmount, payout, m))
+    const resolved = resolveGame(onResolve, {
+      outcome: 'win',
+      betAmount: round.betAmount,
+      payout,
+      multiplier: m,
+    })
+    setPendingResult(
+      crashPendingResult('win', round.betAmount, resolved.payout, resolved.multiplier ?? m),
+    )
   }
 
   function handleNextCrash() {
@@ -263,6 +286,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
       setPendingResult(null)
     }
     handleNewRound()
+    survivalAfterNext(mode)
   }
 
   const displayMult = isInProgress ? computeMultiplier(elapsedMs) : round.currentMultiplier
@@ -290,6 +314,11 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
         gameLabel="Crash"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
+        {showCrashZone && crashBand && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Crash zone ~{crashBand.low}×–{crashBand.high}×
+          </PerkHint>
+        )}
         <GameActiveBetBadge betAmount={round.betAmount} visible={(isInProgress || isSettled) && round.betAmount > 0} />
 
         <div className="flex w-full max-w-md flex-1 min-h-0 flex-col items-center justify-center gap-2">

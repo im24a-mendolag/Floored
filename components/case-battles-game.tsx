@@ -9,11 +9,18 @@ import {
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockSettledRow,
+  OpeningTicketBetMarker,
 } from '@/components/game-dock-parts'
+import { useOpeningTicketActive } from '@/hooks/use-opening-ticket'
 import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
+import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
+import { resolveGame } from '@/lib/survival/game-resolve'
+import { survivalAfterNext } from '@/lib/survival/survival-round'
+import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
   getCases,
@@ -36,7 +43,7 @@ interface CaseBattlesGameProps {
   mode: 'survival' | 'freeplay'
   bankroll: number
   onBet?: (amount: number) => void
-  onResolve: (result: CaseBattlesResult) => void
+  onResolve: GameResolveFn<CaseBattlesResult>
 }
 
 interface PendingResult {
@@ -107,10 +114,13 @@ const FREEPLAY_BASE = 10
 export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattlesGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const caseXray = useSurvivalPerks('case-battles').caseXray
+  const openingTicketActive = useOpeningTicketActive()
   const minBet = mode === 'survival' ? floorMinBet : FREEPLAY_BASE
   const cases = getCases(minBet)
 
   const [state, setState] = useState<CaseBattleState>(initCaseBattle)
+  const [xrayCaseId, setXrayCaseId] = useState<number | null>(null)
   const [revealedCount, setRevealedCount] = useState(0)
   const [revealingIdx, setRevealingIdx] = useState(-1)
   const [lastSelectedCases, setLastSelectedCases] = useState<number[]>([])
@@ -123,6 +133,12 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   const isOpening = state.stage === 'opening'
   const isSettled = state.stage === 'settled'
   const showQuoteUntilNext = isOpening || isSettled
+
+  useEffect(() => {
+    if (isSetup && mode === 'survival' && caseXray && cases.length > 0) {
+      setXrayCaseId(Math.floor(Math.random() * cases.length))
+    }
+  }, [isSetup, mode, caseXray, cases.length])
 
   const canBattle = state.selectedCases.length > 0 && state.totalCost <= bankroll && state.totalCost >= minBet
   const numCases  = state.selectedCases.length
@@ -154,7 +170,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     const tSettle = setTimeout(() => {
       setState(prev => {
         const settled = settleBattle(prev)
-        resolveGame(settled)
+        settleCaseBattle(settled)
         return settled
       })
     }, (total - 1) * 800 + 600 + 500)
@@ -165,7 +181,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
 
   useEffect(() => () => clearTimeouts(), [])
 
-  function resolveGame(s: CaseBattleState) {
+  function settleCaseBattle(s: CaseBattleState) {
     const payout = s.outcome === 'win'
       ? s.userTotal + s.botTotal
       : s.outcome === 'push'
@@ -177,7 +193,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
         ? 1
         : 0
     const outcome = s.outcome!
-    onResolve({ outcome, betAmount: s.totalCost, payout, multiplier: mult })
+    const resolved = resolveGame(onResolve, { outcome, betAmount: s.totalCost, payout, multiplier: mult })
     const resultLabel =
       outcome === 'win'
         ? `Won ${formatChips(payout)}`
@@ -185,7 +201,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
           ? 'Tie — bet returned'
           : 'Loss'
     const built = buildPendingResult(
-      { outcome, betAmount: s.totalCost, payout },
+      { outcome, betAmount: s.totalCost, payout: resolved.payout },
       `${s.selectedCases.length} cases · ${formatChips(s.totalCost)} · ${resultLabel}`,
       { winLabel: 'Total winnings', lossLabel: 'No winnings' },
     )
@@ -216,11 +232,13 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
       const cost = lastSelectedCases.reduce((s, id) => s + (cases[id]?.price ?? 0), 0)
       if (cost <= bankroll) {
         setState({ ...fresh, selectedCases: lastSelectedCases, totalCost: cost })
+        survivalAfterNext(mode)
         return
       }
     }
     setState(fresh)
-  }, [pendingResult, autoReBet, lastSelectedCases, bankroll, cases])
+    survivalAfterNext(mode)
+  }, [pendingResult, autoReBet, lastSelectedCases, bankroll, cases, mode])
 
   const caseCounts = cases.map(c => state.selectedCases.filter(id => id === c.id).length)
 
@@ -254,6 +272,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
               {cases.map(c => {
                 const count = caseCounts[c.id] ?? 0
                 const atMax = numCases >= 5 && count === 0
+                const isXray = xrayCaseId === c.id
                 return (
                   <div key={c.id} className="flex flex-col items-center gap-2">
                     <button
@@ -264,7 +283,9 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
                         'w-full h-20 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all duration-150 active:scale-95',
                         count > 0
                           ? 'border-yellow-500 bg-yellow-500/10 hover:bg-yellow-500/20 shadow-lg shadow-yellow-900/20'
-                          : 'border-zinc-700 bg-zinc-800/60 hover:border-zinc-500 hover:bg-zinc-800',
+                          : isXray
+                            ? 'border-violet-500 bg-violet-950/40 hover:border-violet-400'
+                            : 'border-zinc-700 bg-zinc-800/60 hover:border-zinc-500 hover:bg-zinc-800',
                         atMax ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer',
                       ].join(' ')}
                     >
@@ -273,7 +294,10 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
                         <span className="text-xs font-black text-yellow-400 leading-none">×{count}</span>
                       )}
                     </button>
-                    <p className="text-xs text-zinc-400 text-center font-semibold leading-tight">{c.name.replace(' Case', '')}</p>
+                    <p className="text-xs text-center font-semibold leading-tight text-zinc-400">
+                      {c.name.replace(' Case', '')}
+                      {isXray && <span className="block text-[10px] text-violet-300">X-Ray: rare+</span>}
+                    </p>
                     <p className="text-xs font-bold text-zinc-200 tabular-nums">{formatChips(c.price)}</p>
                     {count > 0 ? (
                       <button
@@ -362,8 +386,9 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
 
           <div className="h-10 flex items-center justify-center">
             {isSetup && (
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 flex-wrap justify-center">
                 <span className="text-zinc-500 text-base">Total cost</span>
+                {openingTicketActive && <OpeningTicketBetMarker />}
                 <span
                   className={`font-bold text-xl tabular-nums ${state.totalCost > bankroll ? 'text-red-400' : 'text-white'}`}
                 >
