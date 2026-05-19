@@ -351,7 +351,7 @@ export function GameDockChipRow({
               ))}
           <button
             type="button"
-            onClick={() => onAddChip(Math.floor(bankroll / 4))}
+            onClick={() => onAddChip(Math.max(Math.floor(bankroll / 4), minBet ?? 1))}
             disabled={currentBet >= bankroll || bankroll <= 0}
             className={`${FRAC_BTN} bg-blue-100 hover:bg-blue-50 border-blue-200 text-blue-900`}
           >
@@ -359,7 +359,7 @@ export function GameDockChipRow({
           </button>
           <button
             type="button"
-            onClick={() => onAddChip(Math.floor(bankroll / 2))}
+            onClick={() => onAddChip(Math.max(Math.floor(bankroll / 2), minBet ?? 1))}
             disabled={currentBet >= bankroll || bankroll <= 0}
             className={`${FRAC_BTN} bg-blue-50 hover:bg-white border-blue-100 text-blue-900`}
           >

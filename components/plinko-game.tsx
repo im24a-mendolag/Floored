@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
@@ -74,6 +74,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const [lastBet, setLastBet] = useState(0)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [quoteIdx, setQuoteIdx] = useState(0)
+  const [pendingAutoReBet, setPendingAutoReBet] = useState(false)
 
   // Refs so the ball-complete callback never needs to be recreated
   const sessionsRef = useRef<PlinkoSession[]>([])
@@ -154,11 +155,18 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     )
     setMatchHistory((h) => [built.entry, ...h].slice(0, 80))
 
-    // autoReBet when the last in-flight ball just landed
+    // Signal autoReBet — deferred to useEffect so bankroll is post-resolve
     if (autoReBetRef.current && sessionsRef.current.length === 1) {
-      setCurrentBet(Math.min(lastBetRef.current, bankrollRef.current))
+      setPendingAutoReBet(true)
     }
   }, []) // stable — all values read via refs
+
+  // Deferred autoReBet: runs after resolve updates the bankroll prop
+  useEffect(() => {
+    if (!pendingAutoReBet) return
+    setPendingAutoReBet(false)
+    if (autoReBet) setCurrentBet(Math.min(lastBet, bankroll))
+  }, [pendingAutoReBet, autoReBet, lastBet, bankroll])
 
   const balls: PlinkoBall[] = sessions.map(({ id, path, startedAt }) => ({ id, path, startedAt }))
 
