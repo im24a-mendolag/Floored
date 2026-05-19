@@ -46,7 +46,10 @@
       "Bash(Format-Table FullName)",
       "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\anmel\\\\GithubRepos\\\\Floored\\\\app\" -Recurse -Directory | ForEach-Object { $_.FullName })",
       "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\anmel\\\\GithubRepos\\\\Floored\\\\components\" -Recurse -File | Where-Object { $_.Extension -eq \".tsx\" -or $_.Extension -eq \".css\" } | Select-Object FullName | Select-Object -First 20)",
-      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies.next\\)\")",
+      "Bash(Remove-Item -Recurse -Force \"c:/Users/giova/VsProjects/Floored/.next\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"done\")"
     ]
   }
 }

@@ -1,66 +1,58 @@
-import type { PlinkoOutcome } from './types'
+import type { PlinkoPath, PlinkoPayoutResult, PlinkoRisk } from './types'
 
-export const PLINKO_ROWS = 10
-export const PLINKO_SLOT_COUNT = 11
+export const ROWS = 16
+export const SLOT_COUNT = ROWS + 1 // 17 slots, indexed 0..ROWS
 
-export const PLINKO_MULTIPLIERS = [
-  10, 5, 2, 0.5, 0.2, 0.1, 0.2, 0.5, 2, 5, 10,
-] as const
-
-const CENTER = 5
-
-function generateSinglePlinkoPath(): number[] {
-  const path: number[] = []
-  let rights = 0
-  path.push(clampSlot(CENTER + 2 * rights - 0))
-  for (let t = 1; t <= PLINKO_ROWS; t += 1) {
-    if (Math.random() < 0.5) rights += 1
-    path.push(clampSlot(CENTER + 2 * rights - t))
-  }
-  return path
+/**
+ * Slot multipliers per risk level, symmetric left-to-right.
+ * Index 0 = far-left edge, index ROWS = far-right edge.
+ *
+ * All values verified against exact binomial counts C(16,k) / 2^16:
+ *   low    → E ≈ 0.963  (~96% RTP) — no zeros, narrow swings
+ *   medium → E ≈ 0.949  (~95% RTP) — default
+ *   high   → E ≈ 0.945  (~94% RTP) — center slot pays 0×, bigger edges
+ */
+const MULTIPLIERS: Record<PlinkoRisk, readonly number[]> = {
+  low:    [25,  10,  5,  3, 2, 1.5, 1.1, 0.6, 0.5, 0.6, 1.1, 1.5, 2, 3,  5,  10,  25],
+  medium: [75,  19,  7,  4, 2, 1.5, 1,   0.6, 0.4, 0.6, 1,   1.5, 2, 4,  7,  19,  75],
+  high:   [200, 50, 15,  6, 2.5, 1.5, 1, 0.5, 0,   0.5, 1,   1.5, 2.5, 6, 15, 50, 200],
 }
 
-function clampSlot(slot: number): number {
-  return Math.max(0, Math.min(PLINKO_SLOT_COUNT - 1, slot))
+export function getSlotMultipliers(risk: PlinkoRisk = 'medium'): readonly number[] {
+  return MULTIPLIERS[risk]
 }
 
-/** One path per ball: 15 horizontal slot indices (start at center + 14 steps). */
-export function generatePlinkoPath(ballCount: number): number[][] {
-  const paths: number[][] = []
-  for (let b = 0; b < ballCount; b += 1) {
-    paths.push(generateSinglePlinkoPath())
-  }
-  return paths
+/**
+ * Generate one ball's path through the board.
+ *
+ * Each row has one independent coin flip. The ball's column at row r is the
+ * running count of right decisions through rows 0..r-1, making it trivial to
+ * derive the exact (row, col) position for any animation frame.
+ */
+export function generatePath(): PlinkoPath {
+  const decisions = Array.from({ length: ROWS }, () => Math.random() < 0.5)
+  const slotIndex = decisions.reduce((n, right) => n + (right ? 1 : 0), 0)
+  return { decisions, slotIndex }
 }
 
-export function getSlotMultipliers(): readonly number[] {
-  return PLINKO_MULTIPLIERS
+/**
+ * Resolve a path into a payout.
+ * Payout is rounded to the nearest whole chip.
+ */
+export function computePayout(betAmount: number, path: PlinkoPath, risk: PlinkoRisk = 'medium'): PlinkoPayoutResult {
+  const multiplier = MULTIPLIERS[risk][path.slotIndex] ?? 0
+  const payout = Math.round(betAmount * multiplier)
+  const outcome = payout >= betAmount ? 'win' : 'loss'
+  return { multiplier, payout, outcome }
 }
 
-export interface PlinkoPayoutResult {
-  totalPayout: number
-  outcome: PlinkoOutcome
-  /** totalPayout / betAmount (0 if bet is 0). */
-  effectiveMultiplier: number
-}
-
-/** Per ball: round((Bet / ballCount) * multiplier[finalSlot]). */
-export function computePlinkoPayout(betAmount: number, ballCount: number, paths: number[][]): PlinkoPayoutResult {
-  if (ballCount <= 0 || paths.length === 0) {
-    return { totalPayout: 0, outcome: 'loss', effectiveMultiplier: 0 }
-  }
-  const stake = betAmount / ballCount
-  let total = 0
-  for (const path of paths) {
-    const finalSlot = path[path.length - 1] ?? 0
-    const mult = PLINKO_MULTIPLIERS[finalSlot] ?? 0
-    total += Math.round(stake * mult)
-  }
-  let outcome: PlinkoOutcome
-  if (total > betAmount) outcome = 'win'
-  else if (total === betAmount) outcome = 'push'
-  else outcome = 'loss'
-
-  const effectiveMultiplier = betAmount > 0 ? total / betAmount : 0
-  return { totalPayout: total, outcome, effectiveMultiplier }
+/**
+ * Derive the ball's column within a given row from the decisions array.
+ * Column at row r = number of right decisions through rows 0..r-1.
+ * Safe to call for any r in [0, ROWS].
+ */
+export function ballColAtRow(decisions: boolean[], row: number): number {
+  let col = 0
+  for (let r = 0; r < row; r++) col += decisions[r] ? 1 : 0
+  return col
 }

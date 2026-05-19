@@ -1,9 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
-import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
+import {
+  GAME_BOARD_ARENA,
+  GAME_CARD_SHELL,
+  GAME_CONTROL_DOCK_M,
+  GAME_STATUS_BAR,
+} from '@/components/game-layout'
 import {
   GAME_DOCK_INNER,
   GameActiveBetBadge,
@@ -12,7 +17,7 @@ import {
   GameDockChipRow,
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
-import { formatChips, formatMultiplier } from '@/utils/format'
+import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
@@ -21,62 +26,19 @@ import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
-import { PLINKO_ROWS, PLINKO_MULTIPLIERS, computePlinkoPayout, generatePlinkoPath, getSlotMultipliers } from '@/games/plinko/engine'
-import {
-  SLOT_BAND_HEIGHT,
-  SLOT_RECT_Y,
-  SLOT_WIDTH,
-  VIEWBOX_HEIGHT,
-  VIEWBOX_WIDTH,
-  getBallX,
-  getPinX,
-  getPinY,
-  slotRectX,
-} from '@/games/plinko/board-geometry'
-import {
-  PLINKO_DROP_STAGGER_MS,
-  buildPlinkoDropTrack,
-  plinkoDropEndMs,
-  samplePlinkoDropTrack,
-  type PlinkoDropTrack,
-} from '@/games/plinko/drop-animation'
-import type { PlinkoOutcome } from '@/games/plinko/types'
+import { computePayout, generatePath } from '@/games/plinko/engine'
+import type { PlinkoPayoutResult, PlinkoRisk } from '@/games/plinko/types'
+import { PlinkoBoard, type PlinkoBall } from '@/components/plinko-board'
 
-/** One ball per drop — spam Drop for rapid low-stake plays. */
-const BALLS_PER_DROP = 1
-/** Minimum time between quote changes while balls are dropping. */
-const PLINKO_QUOTE_COOLDOWN_MS = 5_000
-const PIN_R = 5
-const BALL_R = 7
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-/** Solid per-slot color: blue at the high-mult edges, dark at the low-mult center. */
-function slotFill(i: number, total: number): string {
-  const center = (total - 1) / 2
-  const t = Math.abs(i - center) / center
-  const r = Math.round(36 + (59 - 36) * t)
-  const g = Math.round(36 + (130 - 36) * t)
-  const b = Math.round(42 + (246 - 42) * t)
-  return `rgb(${r},${g},${b})`
-}
-
-interface PlinkoBall {
-  id: string
-  path: number[]
-  ballIndex: number
-  track: PlinkoDropTrack
-}
-
-interface PlinkoSession {
-  id: string
-  betAmount: number
-  ballCount: number
-  balls: PlinkoBall[]
-  startedAt: number
-  firstBallShield: boolean
+interface PlinkoSession extends PlinkoBall {
+  bet: number
+  result: PlinkoPayoutResult
 }
 
 interface PlinkoResult {
-  outcome: PlinkoOutcome
+  outcome: 'win' | 'loss'
   betAmount: number
   payout: number
   multiplier: number
@@ -89,356 +51,142 @@ interface PlinkoGameProps {
   onResolve: GameResolveFn<PlinkoResult>
 }
 
-function formatSlotMult(m: number): string {
-  if (Number.isInteger(m)) return `${m}x`
-  return `${m}x`
-}
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
-  const uid = useId().replace(/:/g, '')
-  const ballGlowId = `plinko-ball-${uid}`
-
   const { floorMinBet, pendingDefeatReason } = useSurvivalStore()
   const { plinkoFirstBall } = useSurvivalPerks('plinko')
   const shieldProc = usePerkProc(mode === 'survival' && plinkoFirstBall, 'perk_plinko_first_ball')
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
 
+  const [risk, setRisk] = useState<PlinkoRisk>('medium')
+  const [sessions, setSessions] = useState<PlinkoSession[]>([])
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
-  const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
-  const [sessions, setSessions] = useState<PlinkoSession[]>([])
+  const [lastResultMsg, setLastResultMsg] = useState<string | null>(null)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
-  const [statusHint, setStatusHint] = useState('Place chips — Drop anytime, even while balls are falling.')
-  /** Drives per-frame ball interpolation while drops are in flight. */
-  const [animNow, setAnimNow] = useState(0)
+  const [quoteIdx, setQuoteIdx] = useState(0)
 
+  // Refs so the ball-complete callback never needs to be recreated
   const sessionsRef = useRef<PlinkoSession[]>([])
-  const lastQuoteRefreshRef = useRef(0)
-  const rafRef = useRef<number | null>(null)
-  const reportedSessionIdsRef = useRef<Set<string>>(new Set())
+  sessionsRef.current = sessions
+  const bankrollRef = useRef(bankroll)
+  bankrollRef.current = bankroll
+  const lastBetRef = useRef(lastBet)
+  lastBetRef.current = lastBet
+  const autoReBetRef = useRef(autoReBet)
+  autoReBetRef.current = autoReBet
   const onResolveRef = useRef(onResolve)
   onResolveRef.current = onResolve
-  const onBetRef = useRef(onBet)
-  onBetRef.current = onBet
 
-  const lastBetRef = useRef(lastBet)
-  const bankrollRef = useRef(bankroll)
-  const autoReBetRef = useRef(autoReBet)
-  lastBetRef.current = lastBet
-  bankrollRef.current = bankroll
-  autoReBetRef.current = autoReBet
-
-  const slots = useMemo(() => getSlotMultipliers(), [])
-
-  const pendingBet = useMemo(() => sessions.reduce((a, s) => a + s.betAmount, 0), [sessions])
-
-  /** Staged chips, or last stake for rapid repeat drops while balls are in flight. */
-  const commitBet = useMemo(() => {
-    if (currentBet >= minBet) return currentBet
-    if (lastBet >= minBet) return lastBet
-    return 0
-  }, [currentBet, lastBet, minBet])
-
-  const canDrop = commitBet >= minBet && commitBet + pendingBet <= bankroll && bankroll > 0
-  const ballsInFlight = sessions.length > 0
+  const isDropping = sessions.length > 0
+  const commitBet = currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
+  const canDrop = commitBet >= minBet && commitBet <= bankroll && bankroll > 0
   const showSurvivalContinue =
-    mode === 'survival' && bankroll <= 0 && !ballsInFlight && pendingDefeatReason != null
-  const inFlightBalls = sessions.reduce((n, s) => n + s.ballCount, 0)
-  const badgeType =
-    inFlightBalls > 0
-      ? `${inFlightBalls} ball${inFlightBalls === 1 ? '' : 's'} in flight`
-      : undefined
+    mode === 'survival' && bankroll <= 0 && !isDropping && pendingDefeatReason != null
 
-  const stopLoop = useCallback(() => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current)
-      rafRef.current = null
-    }
-  }, [])
+  const statusMsg = isDropping
+    ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'} in flight`
+    : lastResultMsg ?? 'Place chips and drop.'
 
-  const kickLoop = useCallback(() => {
-    if (rafRef.current != null) return
+  function addChip(value: number) {
+    setCurrentBet((prev) => Math.min(prev + value, bankroll))
+  }
 
-    const tick = (now: number) => {
-      const list = sessionsRef.current
-      if (list.length === 0) {
-        rafRef.current = null
-        setStatusHint('Place chips — Drop anytime, even while balls are falling.')
-        return
-      }
-
-      const completions: {
-        sessionId: string
-        betAmount: number
-        ballCount: number
-        paths: number[][]
-        firstBallShield: boolean
-      }[] = []
-
-      const next: PlinkoSession[] = []
-
-      for (const s of list) {
-        const elapsed = now - s.startedAt
-        const n = s.balls.length
-        const endMs = plinkoDropEndMs(n)
-
-        if (elapsed >= endMs) {
-          if (!reportedSessionIdsRef.current.has(s.id)) {
-            reportedSessionIdsRef.current.add(s.id)
-            completions.push({
-              sessionId: s.id,
-              betAmount: s.betAmount,
-              ballCount: s.ballCount,
-              paths: s.balls.map((b) => b.path),
-              firstBallShield: s.firstBallShield,
-            })
-          }
-        } else {
-          next.push(s)
-        }
-      }
-
-      if (next.length !== list.length) {
-        sessionsRef.current = next
-        setSessions(next)
-      }
-
-      setAnimNow(now)
-
-      for (const c of completions) {
-        let { totalPayout, outcome, effectiveMultiplier } = computePlinkoPayout(
-          c.betAmount,
-          c.ballCount,
-          c.paths,
-        )
-        const bet = c.betAmount
-
-        if (c.firstBallShield && c.ballCount > 0 && c.paths.length > 0) {
-          const stake = bet / c.ballCount
-          const firstPath = c.paths[0]!
-          const finalSlot = firstPath[firstPath.length - 1] ?? 0
-          const mult = PLINKO_MULTIPLIERS[finalSlot] ?? 0
-          const firstPayout = Math.round(stake * mult)
-          if (firstPayout < stake) {
-            totalPayout += stake - firstPayout
-            if (totalPayout > bet) outcome = 'win'
-            else if (totalPayout === bet) outcome = 'push'
-            else outcome = 'loss'
-            effectiveMultiplier = bet > 0 ? totalPayout / bet : 0
-          }
-        }
-
-        const resolved = resolveGame(onResolveRef.current, {
-          outcome,
-          betAmount: bet,
-          payout: totalPayout,
-          multiplier: effectiveMultiplier,
-        })
-
-        const subtitle = `${formatChips(bet)} · ${formatMultiplier(effectiveMultiplier)}`
-        const built = buildPendingResult(
-          { outcome, betAmount: bet, payout: resolved.payout },
-          subtitle,
-          { winLabel: 'Total winnings', lossLabel: 'No winnings' },
-        )
-        const entry: MatchHistoryEntry = {
-          ...built.entry,
-          id: `${c.sessionId}-log`,
-          tone:
-            outcome === 'push'
-              ? 'push'
-              : totalPayout > bet
-                ? 'win'
-                : totalPayout > 0
-                  ? 'partial'
-                  : 'loss',
-        }
-
-        setMatchHistory((prev) => [entry, ...prev].slice(0, 80))
-      }
-
-      if (completions.length) {
-        const remaining = sessionsRef.current.length
-        setStatusHint(
-          remaining > 0
-            ? `${remaining} drop${remaining === 1 ? '' : 's'} in flight…`
-            : 'Round finished — bet again or drop again.',
-        )
-        if (remaining === 0 && autoReBetRef.current) {
-          const cap = bankrollRef.current
-          setCurrentBet(() => Math.min(lastBetRef.current, cap))
-        }
-      }
-
-      if (sessionsRef.current.length > 0) {
-        rafRef.current = requestAnimationFrame(tick)
-      } else {
-        rafRef.current = null
-      }
-    }
-
-    rafRef.current = requestAnimationFrame(tick)
-  }, [])
-
-  useEffect(() => {
-    return () => stopLoop()
-  }, [stopLoop])
-
-  const addChip = useCallback(
-    (value: number) => {
-      setCurrentBet((prev) => Math.min(prev + value, Math.max(0, bankroll - pendingBet)))
-    },
-    [bankroll, pendingBet],
-  )
-
-  const handleDrop = useCallback(() => {
-    const bet =
-      currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
-    if (bet < minBet || bet + pendingBet > bankroll) return
-
-    const paths = generatePlinkoPath(BALLS_PER_DROP)
+  function handleDrop() {
+    if (!canDrop) return
+    const bet = commitBet
+    onBet?.(bet)
+    const path = generatePath()
+    const result = computePayout(bet, path, risk)
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const startedAt = performance.now()
-    setAnimNow(startedAt)
-    const balls: PlinkoBall[] = paths.map((path, ballIndex) => ({
-      id: `${id}-b${ballIndex}`,
-      path,
-      ballIndex,
-      track: buildPlinkoDropTrack(path),
-    }))
-    const shieldActive = shieldProc.rollForBet()
-    const session: PlinkoSession = {
-      id,
-      betAmount: bet,
-      ballCount: BALLS_PER_DROP,
-      balls,
-      startedAt,
-      firstBallShield: shieldActive,
-    }
-
-    onBetRef.current?.(bet)
-    const now = Date.now()
-    if (now - lastQuoteRefreshRef.current >= PLINKO_QUOTE_COOLDOWN_MS) {
-      lastQuoteRefreshRef.current = now
-      setQuoteIdx((prev) => pickQuote(prev))
-    }
+    setSessions((prev) => [...prev, { id, path, startedAt, bet, result }])
     setLastBet(bet)
-    if (currentBet >= minBet) setCurrentBet(0)
+    setCurrentBet(0)
+    setQuoteIdx((prev) => pickQuote(prev))
+  }
 
-    // Update ref synchronously so the animation loop sees the session immediately
-    const merged = [...sessionsRef.current, session]
-    sessionsRef.current = merged
-    setSessions(merged)
+  // Stable callback — uses refs for all values that change over time.
+  const handleBallComplete = useCallback((id: string) => {
+    const session = sessionsRef.current.find((s) => s.id === id)
+    if (!session) return
 
-    const n = merged.length
-    setStatusHint(`${n} ball${n === 1 ? '' : 's'} in flight — keep dropping if you like.`)
-    kickLoop()
-  }, [bankroll, currentBet, kickLoop, lastBet, minBet, pendingBet, shieldProc])
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+
+    resolveGame(onResolveRef.current, {
+      outcome: session.result.outcome,
+      betAmount: session.bet,
+      payout: session.result.payout,
+      multiplier: session.result.multiplier,
+    })
+
+    const built = buildPendingResult(
+      { outcome: session.result.outcome, betAmount: session.bet, payout: session.result.payout },
+      `${formatChips(session.bet)} · ${session.result.multiplier}×`,
+      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+    )
+    setLastResultMsg(`Hit ${session.result.multiplier}× · ${built.entry.title}`)
+    setMatchHistory((h) => [built.entry, ...h].slice(0, 80))
+
+    // autoReBet when the last in-flight ball just landed
+    if (autoReBetRef.current && sessionsRef.current.length === 1) {
+      setCurrentBet(Math.min(lastBetRef.current, bankrollRef.current))
+    }
+  }, []) // stable — all values read via refs
+
+  const balls: PlinkoBall[] = sessions.map(({ id, path, startedAt }) => ({ id, path, startedAt }))
 
   return (
     <div className={GAME_CARD_SHELL}>
       <div className={GAME_STATUS_BAR}>
         <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Plinko</span>
-        <span className="text-sm text-zinc-600 truncate max-w-[60%] text-right">{statusHint}</span>
+        <span className="text-sm text-zinc-500 truncate max-w-[60%] text-right">{statusMsg}</span>
       </div>
 
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
-        boardClassName="relative flex min-h-0 flex-col bg-[#111113] px-0 py-2"
+        boardClassName="relative flex flex-col w-full h-full bg-[#111113]"
         entries={matchHistory}
         gameLabel="Plinko"
         emptyHint="No drops yet — results appear after each ball lands."
       >
-        <GameDockBackButton mode={mode} visible={!ballsInFlight} />
-        {mode === 'survival' && shieldProc.perkActive && ballsInFlight && (
+        <GameDockBackButton mode={mode} visible={!isDropping} />
+        {mode === 'survival' && shieldProc.perkActive && isDropping && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             First Ball Shield — loss refunded to a push
           </PerkHint>
         )}
         <GameActiveBetBadge
-          betAmount={pendingBet}
-          betType={badgeType}
-          visible={ballsInFlight && pendingBet > 0}
+          betAmount={sessions.reduce((s, x) => s + x.bet, 0)}
+          betType={isDropping ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'}` : undefined}
+          visible={isDropping}
         />
 
-        <div className="flex min-h-0 flex-1 w-full flex-col">
-          <svg
-            viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-            className="min-h-0 w-full flex-1 select-none"
-            preserveAspectRatio="xMidYMid meet"
-            aria-hidden
-          >
-              <defs>
-                <filter id={ballGlowId} x="-80%" y="-80%" width="260%" height="260%">
-                  <feGaussianBlur in="SourceGraphic" stdDeviation="2.8" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
-
-              {/* Board background */}
-              <rect x={0} y={0} width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="#111113" />
-
-              {Array.from({ length: PLINKO_ROWS }, (_, row) =>
-                Array.from({ length: row + 1 }, (_, col) => (
-                  <circle key={`pin-${row}-${col}`} cx={getPinX(row, col)} cy={getPinY(row)} r={PIN_R} fill="#71717a" />
-                )),
-              )}
-
-              {slots.map((mult, i) => (
-                <g key={`slot-${i}`}>
-                  <rect
-                    x={slotRectX(i)}
-                    y={SLOT_RECT_Y}
-                    width={SLOT_WIDTH}
-                    height={SLOT_BAND_HEIGHT}
-                    fill={slotFill(i, slots.length)}
-                    stroke="rgba(0,0,0,0.4)"
-                    strokeWidth={1}
-                  />
-                  <text
-                    x={getBallX(0, i)}
-                    y={SLOT_RECT_Y + SLOT_BAND_HEIGHT / 2 + 5}
-                    textAnchor="middle"
-                    fill="white"
-                    fontWeight="bold"
-                    style={{ fontSize: 11 }}
-                  >
-                    {formatSlotMult(mult)}
-                  </text>
-                </g>
+        <div className="flex-1 min-h-0 w-full flex flex-col">
+          <div className="flex flex-col items-center gap-1 py-1.5">
+            <span className="text-xs text-zinc-600 font-semibold uppercase tracking-widest">Risk</span>
+            <div className="flex gap-2">
+              {(['low', 'medium', 'high'] as PlinkoRisk[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  disabled={isDropping}
+                  onClick={() => setRisk(r)}
+                  className={`px-3 py-0.5 rounded text-xs font-semibold transition-colors capitalize
+                    ${risk === r
+                      ? 'bg-white text-zinc-900'
+                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:hover:bg-zinc-800'
+                    } disabled:opacity-50`}
+                >
+                  {r}
+                </button>
               ))}
-
-              {sessions.flatMap((session) =>
-                session.balls.map((ball) => {
-                  const elapsed =
-                    animNow - session.startedAt - ball.ballIndex * PLINKO_DROP_STAGGER_MS
-                  const { x: cx, y: cy } = samplePlinkoDropTrack(ball.track, elapsed)
-                  return (
-                    <circle
-                      key={`${session.id}-${ball.id}`}
-                      cx={cx}
-                      cy={cy}
-                      r={BALL_R}
-                      fill="#fafafa"
-                      stroke="#60a5fa"
-                      strokeWidth={2}
-                      filter={`url(#${ballGlowId})`}
-                    />
-                  )
-                }),
-              )}
-          </svg>
-
-          <div className="min-h-10 flex shrink-0 items-center justify-center px-3">
-            <p className="text-center text-xs text-zinc-500">
-              {ballsInFlight
-                ? 'Balls still dropping — you can queue another drop anytime.'
-                : 'Drop sends one ball. Stake chips or reuse your last bet for rapid plays.'}
-            </p>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0">
+            <PlinkoBoard balls={balls} onBallComplete={handleBallComplete} risk={risk} />
           </div>
         </div>
       </GameFieldWithHistory>
@@ -447,22 +195,16 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         <div className={GAME_DOCK_INNER}>
           <GameDockChipRow
             visible
-            bankroll={Math.max(0, bankroll - pendingBet)}
+            bankroll={bankroll}
             currentBet={currentBet}
             onAddChip={addChip}
             quoteIdx={quoteIdx}
-            showQuote={ballsInFlight}
+            showQuote={false}
             minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">
-            <GameDockBetRow
-              currentBet={commitBet}
-              onClear={() => {
-                setCurrentBet(0)
-                setLastBet(0)
-              }}
-            />
+            <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />
           </div>
 
           <div className="flex justify-center">
