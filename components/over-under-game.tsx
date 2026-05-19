@@ -27,6 +27,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   getOverUnderPayout,
   getOverUnderPayoutMultiplier,
@@ -63,6 +64,7 @@ interface PendingResult {
 export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { overUnderShield } = useSurvivalPerks('over-under')
   const shieldProc = usePerkProc(mode === 'survival' && overUnderShield, 'perk_over_under_shield')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -98,7 +100,7 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
   }
 
   function handleRoll() {
-    if (!canRoll) return
+    if (!canRoll || !lock()) return
 
     animTimers.current.forEach(clearTimeout)
     animTimers.current = []
@@ -166,6 +168,7 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
   }
 
   const handleNewRound = useCallback(() => {
+    unlock()
     animTimers.current.forEach(clearTimeout)
     animTimers.current = []
     setMarkerAt(null)

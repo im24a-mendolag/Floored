@@ -27,6 +27,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   getTargetRotation,
   getWheelPayout,
@@ -123,6 +124,7 @@ function wheelColorMultiplier(color: WheelColor) {
 export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { wheelScout } = useSurvivalPerks('wheel')
   const scoutProc = usePerkProc(mode === 'survival' && wheelScout, 'perk_wheel_scout')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -163,7 +165,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
   }
 
   function handleSpin() {
-    if (!canSpin || spinning) return
+    if (!canSpin || spinning || !lock()) return
 
     const bet = currentBet
     onBet?.(bet)
@@ -218,6 +220,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
   }
 
   const handleNewRound = useCallback(() => {
+    unlock()
     if (spinTimer.current) clearTimeout(spinTimer.current)
     setRound((prev) => {
       const c = prev.betColor ?? 'red'

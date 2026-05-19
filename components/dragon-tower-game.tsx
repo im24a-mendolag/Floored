@@ -22,6 +22,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   FLOOR_MULTIPLIERS,
   NUM_ROWS,
@@ -93,6 +94,7 @@ function tileContent(row: TileRow, tileIdx: number): string {
 export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowerGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { dragonBlindspot } = useSurvivalPerks('dragon-tower')
   const blindspotProc = usePerkProc(mode === 'survival' && dragonBlindspot, 'perk_dragon_blindspot')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -139,7 +141,7 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
   }
 
   function handleStart() {
-    if (!canStart) return
+    if (!canStart || !lock()) return
     setLastBet(currentBet)
     setPendingResult(null)
     setQuoteIdx((prev) => pickQuote(prev))
@@ -162,6 +164,7 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
   }
 
   const handleNext = useCallback(() => {
+    unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
     blindspotProc.resetPerk()

@@ -28,6 +28,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   BOARD_SIZE,
   DRAW_COUNT,
@@ -70,6 +71,7 @@ interface PendingResult {
 export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { kenoHeat } = useSurvivalPerks('keno')
   const heatProc = usePerkProc(mode === 'survival' && kenoHeat, 'perk_keno_heat')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -126,7 +128,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
   }
 
   function handleStart() {
-    if (!canStart) return
+    if (!canStart || !lock()) return
     resolvedRef.current = false
     setLastBet(currentBet)
     setLastPicks(round.picks)
@@ -182,6 +184,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
   }, [isDrawing, round.revealedDrawn.length, round.drawn.length])
 
   const handleNewRound = useCallback(() => {
+    unlock()
     resolvedRef.current = false
     heatProc.resetPerk()
     setPendingResult(null)

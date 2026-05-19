@@ -27,6 +27,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import { getSlotsResultPayout, initSlots, PAYTABLE, spinSlots } from '@/games/slots/engine'
 import type { SlotsState, SlotsSymbol } from '@/games/slots/types'
 
@@ -110,6 +111,7 @@ function Reel({ symbol, spinning, landed }: { symbol: SlotsSymbol | null; spinni
 export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) {
   const { floorMinBet, jackpotMeter, runActive, resetJackpotMeter } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { slotsShield } = useSurvivalPerks('slots')
   const shieldProc = usePerkProc(mode === 'survival' && slotsShield, 'perk_slots_shield')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -143,7 +145,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
   }
 
   function handleSpin() {
-    if (!canSpin || isSpinning) return
+    if (!canSpin || isSpinning || !lock()) return
 
     animTimers.current.forEach(clearTimeout)
     animTimers.current = []
@@ -246,6 +248,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
   }
 
   const handleNewRound = useCallback(() => {
+    unlock()
     setRound(initSlots())
     setDisplayedReels([null, null, null])
     setLandedReels([false, false, false])

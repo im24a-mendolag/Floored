@@ -28,6 +28,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   BET_LABELS,
   EUROPEAN_WHEEL_ORDER,
@@ -115,6 +116,7 @@ function betBtnStyle(type: RouletteBetType, isActive: boolean): string {
 export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { rouletteTracker } = useSurvivalPerks('roulette')
   const trackerProc = usePerkProc(mode === 'survival' && rouletteTracker, 'perk_roulette_tracker')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -163,7 +165,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
   }
 
   function handleSpin() {
-    if (!canSpin || spinning || !currentTarget) return
+    if (!canSpin || spinning || !currentTarget || !lock()) return
 
     const total = currentBet
     const spunTarget = currentTarget
@@ -242,6 +244,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
   }
 
   const handleNewRound = useCallback(() => {
+    unlock()
     trackerProc.resetPerk()
     setTrackerEliminated([])
     setRound(initRoulette())

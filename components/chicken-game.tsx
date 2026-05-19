@@ -27,6 +27,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   cashOutChicken,
   advanceChickenRound,
@@ -63,6 +64,7 @@ interface PendingResult {
 export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { chickenRoadLane } = useSurvivalPerks('chicken-road')
   const laneProc = usePerkProc(mode === 'survival' && chickenRoadLane, 'perk_chicken_road_lane')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -113,7 +115,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
   }
 
   function handleStart() {
-    if (!canStart) return
+    if (!canStart || !lock()) return
     const bet = currentBet
     onBet?.(bet)
     setLastBet(bet)
@@ -139,6 +141,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
   }
 
   const handleNewRound = useCallback(() => {
+    unlock()
     laneProc.resetPerk()
     setSafeAdvancePending(false)
     setRound(initChicken())

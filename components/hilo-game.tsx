@@ -22,6 +22,7 @@ import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import type { HiLoCard, HiLoState } from '@/games/hilo/types'
 import {
   cashOutHiLo,
@@ -121,6 +122,7 @@ interface PendingResult {
 export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { hiloRange } = useSurvivalPerks('hilo')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
@@ -149,7 +151,7 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   }
 
   function handleDeal() {
-    if (!canDeal) return
+    if (!canDeal || !lock()) return
     const bet = currentBet
     onBet?.(bet)
     setLastBet(bet)
@@ -219,6 +221,7 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   }
 
   function handleNext() {
+    unlock()
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
     setCurrentCardAnim('')

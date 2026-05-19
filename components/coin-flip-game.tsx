@@ -21,6 +21,7 @@ import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import { cashOut, flipAgain, initCoinFlip, startFlip } from '@/games/coin-flip/engine'
 import type { CoinFlipState, CoinSide } from '@/games/coin-flip/types'
 
@@ -63,6 +64,7 @@ interface PendingResult {
 export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { coinBias } = useSurvivalPerks('coin-flip')
   const minBet = mode === 'survival' ? floorMinBet : 1
   const useBias = mode === 'survival' && coinBias
@@ -157,7 +159,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   }
 
   function handleFlip() {
-    if (!canFlip || !state.pick || isFlipping) return
+    if (!canFlip || !state.pick || isFlipping || !lock()) return
     const bet = currentBet
     onBet?.(bet)
     const next = startFlip(bet, state.pick, useBias ? { biased: true } : undefined)
@@ -182,6 +184,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   }
 
   const handleNext = useCallback(() => {
+    unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
     setState({ ...initCoinFlip(), pick: autoReBet ? lastPickRef.current : null })

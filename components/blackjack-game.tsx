@@ -17,6 +17,7 @@ import { formatChips, formatMultiplier } from '@/utils/format'
 import { buildPendingResult } from '@/lib/game-result-labels'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -150,6 +151,7 @@ function CardBack() {
 export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const minBet = mode === 'survival' ? floorMinBet : 1
   const { peekDealer } = useSurvivalPerks('blackjack')
   const showDealerHole = mode === 'survival' && peekDealer
@@ -247,7 +249,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
   }
 
   function handleDeal() {
-    if (!canDeal) return
+    if (!canDeal || !lock()) return
     onBet?.(currentBet)
     setQuoteIdx((prev) => pickQuote(prev))
     setLastBet(currentBet)
@@ -313,6 +315,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
   }
 
   function handleNewHand() {
+    unlock()
     cancelDealerAnim.current?.()
     cancelDealerAnim.current = null
     setDealerDisplayHand(null)
@@ -324,6 +327,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
   }
 
   function handleNextHand() {
+    unlock()
     if (pendingResult) {
       setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
       setPendingResult(null)
