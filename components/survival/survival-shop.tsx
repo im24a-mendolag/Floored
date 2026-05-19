@@ -188,7 +188,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
       )}
 
       <p className="text-[10px] text-zinc-600 leading-snug">
-        Game upgrades match this floor&apos;s lobby only. Lobby reroll tickets work on ↻ here too.
+        Game upgrades match this floor&apos;s lobby only. Lobby reroll tickets work on ↻ here too, and on missions.
         {shopRerollCount > 0 && ` · Rerolled ${shopRerollCount}× this floor`}
       </p>
 

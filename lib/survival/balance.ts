@@ -5,7 +5,12 @@ export const GRANT_ALL_UPGRADES = false
 
 /** Dev/testing: bankroll and sparks when a survival run starts (and idle reset). */
 export const STARTING_BANKROLL = 1000
-export const STARTING_SPARKS = 0
+export const STARTING_SPARKS = 15
+
+/** Dev/testing: starting reroll tickets granted in inventory for a run */
+export const STARTING_REROLL_TICKETS = 3
+/** How many reroll tickets are awarded automatically when advancing to the next floor */
+export const REROLL_TICKETS_PER_FLOOR = 3
 
 export const MAX_FLOORS = 10
 

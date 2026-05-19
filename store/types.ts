@@ -191,6 +191,9 @@ export interface SurvivalStore {
   rerollShopOfferWithTicket: (slotIndex: number) => boolean
   rerollShop: () => boolean
   rerollMissions: () => boolean
+  rerollMissionsWithTicket: () => boolean
+  rerollMissionWithTicket: (index: number) => boolean
+  rerollMission: (index: number) => boolean
   appendFloorHistory: (record: FloorRecord) => void
   recordResult: (result: GameResult) => void
   recordResultPayout: (result: GameResult) => void

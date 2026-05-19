@@ -2,6 +2,8 @@
 
 import { useSurvivalStore } from '@/store/survival-store'
 import type { FloorMission } from '@/store/types'
+import { getLobbyTicketCount } from '@/lib/survival/lobby-ticket'
+import { canRerollMission } from '@/lib/survival/mission-reroll'
 import { formatChips } from '@/utils/format'
 
 function missionLabel(m: FloorMission): string {
@@ -35,16 +37,22 @@ interface MissionPanelProps {
 export function MissionPanel({ compact = false }: MissionPanelProps) {
   const missions = useSurvivalStore((s) => s.missions)
 
+  const inventory = useSurvivalStore((s) => s.inventory)
+  const rerollMissionWithTicket = useSurvivalStore((s) => s.rerollMissionWithTicket)
+  const ticketCount = getLobbyTicketCount(inventory)
+
   const activeMissions = missions.filter((m) => !m.completed && !m.failed)
   const settledMissions = missions.filter((m) => m.completed || m.failed)
 
-  function renderMission(m: FloorMission) {
+  function renderMission(m: FloorMission, idx?: number) {
     const pct = m.target > 0 ? Math.min(100, (m.progress / m.target) * 100) : 0
     const failed = m.failed === true
+    const canRerollThis = canRerollMission(m)
+
     return (
       <li
         key={m.id}
-        className={`rounded-lg border px-2.5 py-2 ${
+        className={`rounded-lg border px-3 py-3 ${
           m.completed
             ? 'border-emerald-800/50 bg-emerald-950/20'
             : failed
@@ -65,14 +73,25 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
             {missionLabel(m)}
             {failed && !m.completed ? ' — failed' : ''}
           </span>
-          <span className={`shrink-0 font-semibold text-amber-400 tabular-nums ${compact ? 'text-[10px]' : 'text-xs'}`}>
-            ✦ {m.rewardSparks}
-          </span>
+          <div className="flex h-7 w-7 items-center justify-center">
+            {canRerollThis && ticketCount > 0 && idx != null ? (
+              <button
+                type="button"
+                onClick={() => rerollMissionWithTicket(idx)}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-700 bg-zinc-950/80 text-xs font-semibold text-zinc-100 hover:bg-zinc-900"
+                title="Use a lobby reroll ticket to reroll this mission"
+              >
+                ↻
+              </button>
+            ) : (
+              <span className="h-7 w-7" />
+            )}
+          </div>
         </div>
         {!m.completed && !failed && (
-          <div className="mt-1.5 h-1 rounded-full bg-zinc-800 overflow-hidden">
+          <div className="mt-2 h-2 rounded-full bg-zinc-800 overflow-hidden">
             <div
-              className="h-full bg-amber-500/70 rounded-full transition-all"
+              className="h-full bg-amber-500/80 rounded-full transition-all"
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -91,18 +110,21 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
 
   return (
     <div className={`h-full rounded-xl border border-zinc-800 bg-zinc-900/60 flex flex-col gap-2 ${compact ? 'p-2' : 'p-4'}`}>
-      <div className="shrink-0">
-        <p className={`font-semibold uppercase tracking-wider text-zinc-400 ${compact ? 'text-[10px]' : 'text-xs'}`}>
-          Missions
-          <span className="text-zinc-600 font-normal normal-case tracking-normal">
-            {' '}({missions.length}{activeMissions.length > 0 && activeMissions.length < missions.length ? ` · ${activeMissions.length} active` : ''})
-          </span>
-        </p>
-        {!compact && (
-          <p className="text-[10px] text-zinc-600 leading-snug mt-0.5">
-            Play-game missions use this floor&apos;s lobby only.
+      <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className={`font-semibold uppercase tracking-wider text-zinc-400 ${compact ? 'text-[10px]' : 'text-xs'}`}>
+            Missions
+            <span className="text-zinc-600 font-normal normal-case tracking-normal">
+              {' '}({missions.length}{activeMissions.length > 0 && activeMissions.length < missions.length ? ` · ${activeMissions.length} active` : ''})
+            </span>
           </p>
-        )}
+          {!compact && (
+            <p className="text-[10px] text-zinc-600 leading-snug mt-0.5">
+              Play-game missions use this floor&apos;s lobby only.
+            </p>
+          )}
+        </div>
+
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain flex flex-col gap-2 pr-0.5 min-h-0">
@@ -115,7 +137,7 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
                 </p>
               </li>
             )}
-            {activeMissions.map((m) => renderMission(m))}
+            {activeMissions.map((m, i) => renderMission(m, i))}
           </ul>
         )}
 
@@ -128,7 +150,7 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
                 </p>
               </li>
             )}
-            {settledMissions.map((m) => renderMission(m))}
+            {settledMissions.map((m, i) => renderMission(m, i))}
           </ul>
         )}
       </div>

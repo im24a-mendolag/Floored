@@ -125,8 +125,7 @@ export function FloorCompleteModal() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3 mt-2">
-          <div className="rounded-xl bg-muted/50 px-4 py-3 space-y-2 text-sm">
+        <div className="flex flex-col gap-3 mt-2">          <div className="text-xs text-zinc-500">You start runs with 3 reroll tickets and gain 3 additional reroll tickets each floor.</div>          <div className="rounded-xl bg-muted/50 px-4 py-3 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Goal bankroll</span>
               <span className="font-semibold">{formatChips(quotaTarget)}</span>
