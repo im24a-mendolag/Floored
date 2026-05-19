@@ -8,21 +8,42 @@ export interface ShopOffer {
   price: number
 }
 
-/** Run-wide + consumables always eligible; game items only for current floor lobby. */
-export function buildShopPool(floorGames: GameName[], ownedUpgradeIds: string[]): CatalogItem[] {
-  const owned = new Set(ownedUpgradeIds)
-  return UPGRADES_CATALOG.filter((item) => {
-    if (item.scope === 'consumable') return false
-    if (item.scope === 'game') {
-      if (!item.game || !floorGames.includes(item.game)) return false
-    }
-    if (item.scope === 'run' || item.scope === 'game') {
-      if (owned.has(item.id)) return false
-    }
-    return true
-  })
+function pickRandom<T>(pool: T[], rng: () => number, n: number): T[] {
+  const copy = [...pool]
+  const picked: T[] = []
+  for (let i = 0; i < n && copy.length > 0; i++) {
+    const idx = Math.floor(rng() * copy.length)
+    picked.push(copy.splice(idx, 1)[0]!)
+  }
+  return picked
 }
 
+/** Game-scope items for the current floor lobby (unowned). */
+export function buildGameItemPool(floorGames: GameName[], ownedUpgradeIds: string[]): CatalogItem[] {
+  const owned = new Set(ownedUpgradeIds)
+  return UPGRADES_CATALOG.filter(
+    (item) => item.scope === 'game' && item.game && floorGames.includes(item.game) && !owned.has(item.id),
+  )
+}
+
+/** Run-wide items (unowned). */
+export function buildRunItemPool(ownedUpgradeIds: string[]): CatalogItem[] {
+  const owned = new Set(ownedUpgradeIds)
+  return UPGRADES_CATALOG.filter((item) => item.scope === 'run' && !owned.has(item.id))
+}
+
+/** Legacy pool helper — used by the shop UI to check if rerolls are available. */
+export function buildShopPool(floorGames: GameName[], ownedUpgradeIds: string[]): CatalogItem[] {
+  return [
+    ...buildGameItemPool(floorGames, ownedUpgradeIds),
+    ...buildRunItemPool(ownedUpgradeIds),
+  ]
+}
+
+/**
+ * Always returns exactly: 2 game upgrades + 1 run upgrade.
+ * A 4th active-item slot is reserved in the UI (not generated here).
+ */
 export function generateShopOffers(input: {
   runSeed: string
   floor: number
@@ -32,20 +53,15 @@ export function generateShopOffers(input: {
   rerollCount?: number
   count?: number
 }): ShopOffer[] {
-  const count = input.count ?? 4
   const rerollCount = input.rerollCount ?? 0
   const rng = createRng(seedFromString(`${input.runSeed}:shop:${input.floor}:${rerollCount}`))
-  const pool = buildShopPool(input.floorGames, input.ownedUpgradeIds ?? [])
-  const offers: ShopOffer[] = []
+  const owned = input.ownedUpgradeIds ?? []
 
-  for (let i = 0; i < count && pool.length > 0; i++) {
-    const idx = Math.floor(rng() * pool.length)
-    const item = pool.splice(idx, 1)[0]!
-    offers.push({
-      item,
-      price: calcShopPrice(item.baseCost, input.difficulty),
-    })
-  }
+  const gameItems = pickRandom(buildGameItemPool(input.floorGames, owned), rng, 2)
+  const runItems  = pickRandom(buildRunItemPool(owned), rng, 1)
 
-  return offers
+  return [...gameItems, ...runItems].map((item) => ({
+    item,
+    price: calcShopPrice(item.baseCost, input.difficulty),
+  }))
 }

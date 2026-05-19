@@ -7,50 +7,62 @@ export type MissionType =
   | 'min_multiplier'
   | 'games_played'
   | 'flawless'
+  | 'win_count'
+  | 'big_win'
 
-/** All mission templates that can appear on a floor (1–2 picked at random per floor). */
+/** All mission templates that can appear on a floor (3–5 picked at random per floor). */
 export const MISSION_DEFINITIONS: Array<{
   type: MissionType
   target: number
   baseReward: number
   description: string
 }> = [
+  // win_streak — only one variant will appear per floor
   {
     type: 'win_streak',
     target: 2,
-    baseReward: 3,
+    baseReward: 4,
     description: 'Win 2 rounds in a row on this floor (a loss resets progress).',
   },
   {
     type: 'win_streak',
     target: 3,
-    baseReward: 4,
+    baseReward: 6,
     description: 'Win 3 rounds in a row on this floor (a loss resets progress).',
   },
   {
     type: 'win_streak',
     target: 4,
-    baseReward: 5,
+    baseReward: 8,
     description: 'Win 4 rounds in a row on this floor (a loss resets progress).',
   },
   {
     type: 'win_streak',
     target: 5,
-    baseReward: 6,
+    baseReward: 10,
     description: 'Win 5 rounds in a row on this floor (a loss resets progress).',
   },
+  // play_game
   {
     type: 'play_game',
     target: 1,
-    baseReward: 3,
+    baseReward: 5,
     description: 'Play a specific floor lobby game once at the floor minimum bet or higher.',
   },
+  // min_multiplier
   {
     type: 'min_multiplier',
     target: 2,
-    baseReward: 4,
+    baseReward: 5,
     description: 'Win a round with a 2× or higher payout multiplier.',
   },
+  {
+    type: 'min_multiplier',
+    target: 3,
+    baseReward: 8,
+    description: 'Win a round with a 3× or higher payout multiplier.',
+  },
+  // games_played
   {
     type: 'games_played',
     target: 4,
@@ -58,10 +70,43 @@ export const MISSION_DEFINITIONS: Array<{
     description: 'Play 4 separate rounds on this floor.',
   },
   {
+    type: 'games_played',
+    target: 6,
+    baseReward: 6,
+    description: 'Play 6 separate rounds on this floor.',
+  },
+  // flawless
+  {
     type: 'flawless',
     target: 1,
-    baseReward: 5,
+    baseReward: 8,
     description: 'Complete the floor without losing a single bet.',
+  },
+  // win_count — total wins this floor (losses OK)
+  {
+    type: 'win_count',
+    target: 2,
+    baseReward: 4,
+    description: 'Win 2 rounds on this floor (losses are fine).',
+  },
+  {
+    type: 'win_count',
+    target: 4,
+    baseReward: 6,
+    description: 'Win 4 rounds on this floor (losses are fine).',
+  },
+  // big_win — net chips won in a single round
+  {
+    type: 'big_win',
+    target: 100,
+    baseReward: 5,
+    description: 'Net at least 100 chips in a single round.',
+  },
+  {
+    type: 'big_win',
+    target: 300,
+    baseReward: 8,
+    description: 'Net at least 300 chips in a single round.',
   },
 ]
 
@@ -76,12 +121,15 @@ function rewardForFloor(base: number, floor: number, difficulty: Difficulty): nu
   return Math.max(1, Math.floor(base * (1 + (floor - 1) * 0.1) * mult))
 }
 
+// Types with multiple variants — once one is picked, all variants are excluded.
+const EXCLUSIVE_TYPES: MissionType[] = ['win_streak', 'min_multiplier', 'games_played', 'win_count', 'big_win']
+
 function removePickedFromPool(
   pool: typeof MISSION_POOL,
   picked: (typeof MISSION_POOL)[number],
 ): typeof MISSION_POOL {
-  if (picked.type === 'win_streak') {
-    return pool.filter((p) => p.type !== 'win_streak')
+  if ((EXCLUSIVE_TYPES as string[]).includes(picked.type)) {
+    return pool.filter((p) => p.type !== picked.type)
   }
   return pool.filter((p) => p.type !== picked.type || p.target !== picked.target)
 }
@@ -98,7 +146,7 @@ export function generateMissionsForFloor(
   rerollCount = 0,
 ): FloorMission[] {
   const rng = createRng(seedFromString(`${runSeed}:missions:${floor}:${rerollCount}`))
-  const count = rng() < 0.45 ? 1 : 2
+  const count = Math.floor(rng() * 3) + 3 // 3, 4, or 5
   let pool = [...MISSION_POOL]
   const picked: FloorMission[] = []
 

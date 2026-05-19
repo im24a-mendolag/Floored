@@ -34,6 +34,7 @@ export function Navbar() {
   useFloorTimer()
   const floorTimeRemainingMs = useFloorTimeRemainingMs()
 
+  const isHome = pathname === '/'
   const inFreeplay = pathname?.startsWith('/freeplay')
   const inSurvival = pathname?.startsWith('/survival')
 
@@ -105,20 +106,22 @@ export function Navbar() {
                 FLOORED
               </Link>
 
-              <div className="hidden sm:flex items-center gap-1">
-                {survivalDesktop}
+              {!isHome && (
+                <div className="hidden sm:flex items-center gap-1">
+                  {survivalDesktop}
 
-                <Link
-                  href="/freeplay"
-                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    inFreeplay
-                      ? 'bg-white/15 text-white'
-                      : 'text-white/60 hover:text-white hover:bg-white/8'
-                  }`}
-                >
-                  Freeplay
-                </Link>
-              </div>
+                  <Link
+                    href="/freeplay"
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                      inFreeplay
+                        ? 'bg-white/15 text-white'
+                        : 'text-white/60 hover:text-white hover:bg-white/8'
+                    }`}
+                  >
+                    Freeplay
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Center: finish quota (early floor clear) */}
@@ -214,17 +217,19 @@ export function Navbar() {
           </div>
 
           {/* Mobile nav strip */}
-          <div className="sm:hidden flex gap-1 pb-2">
-            {survivalMobile}
-            <Link
-              href="/freeplay"
-              className={`flex-1 text-center py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                inFreeplay ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white/80'
-              }`}
-            >
-              Freeplay
-            </Link>
-          </div>
+          {!isHome && (
+            <div className="sm:hidden flex gap-1 pb-2">
+              {survivalMobile}
+              <Link
+                href="/freeplay"
+                className={`flex-1 text-center py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  inFreeplay ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white/80'
+                }`}
+              >
+                Freeplay
+              </Link>
+            </div>
+          )}
         </div>
       </nav>
     </>

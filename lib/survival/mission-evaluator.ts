@@ -63,6 +63,18 @@ export function evaluateMissionOnGame(m: FloorMission, event: MissionGameEvent):
       }
       return m
     }
+    case 'win_count': {
+      if (event.outcome !== 'win') return m
+      const progress = clampProgress(m.progress + 1, m.target)
+      const next = { ...m, progress }
+      return progress >= m.target ? markComplete(next) : next
+    }
+    case 'big_win': {
+      if (event.outcome !== 'win') return m
+      const net = event.payout - event.betAmount
+      if (net < m.target) return m
+      return markComplete({ ...m, progress: m.target })
+    }
     default:
       return m
   }

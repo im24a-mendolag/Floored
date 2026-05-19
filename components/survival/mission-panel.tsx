@@ -3,9 +3,6 @@
 import { useSurvivalStore } from '@/store/survival-store'
 import type { FloorMission } from '@/store/types'
 import { formatChips } from '@/utils/format'
-import { Button } from '@/components/ui/button'
-import { calcMissionRerollCost } from '@/lib/survival/balance'
-import { canRerollMissions } from '@/lib/survival/mission-reroll'
 
 function missionLabel(m: FloorMission): string {
   switch (m.type) {
@@ -22,6 +19,10 @@ function missionLabel(m: FloorMission): string {
       return `Play ${m.target} games this floor`
     case 'flawless':
       return 'No losses this floor'
+    case 'win_count':
+      return `Win ${m.target} rounds this floor`
+    case 'big_win':
+      return `Net ${formatChips(m.target)}+ in one round`
     default:
       return m.type
   }
@@ -33,18 +34,9 @@ interface MissionPanelProps {
 
 export function MissionPanel({ compact = false }: MissionPanelProps) {
   const missions = useSurvivalStore((s) => s.missions)
-  const sparks = useSurvivalStore((s) => s.sparks)
-  const difficulty = useSurvivalStore((s) => s.difficulty)
-  const missionRerollCount = useSurvivalStore((s) => s.missionRerollCount)
-  const rerollMissions = useSurvivalStore((s) => s.rerollMissions)
-
-  const missionsRerollable = canRerollMissions(missions)
-  const rerollCost = difficulty != null ? calcMissionRerollCost(missionRerollCount, difficulty) : 0
-  const canReroll = missionsRerollable && sparks >= rerollCost && missions.length > 0
 
   const activeMissions = missions.filter((m) => !m.completed && !m.failed)
   const settledMissions = missions.filter((m) => m.completed || m.failed)
-  const scrollClass = compact ? 'max-h-36' : 'max-h-56'
 
   function renderMission(m: FloorMission) {
     const pct = m.target > 0 ? Math.min(100, (m.progress / m.target) * 100) : 0
@@ -91,55 +83,29 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
 
   if (missions.length === 0) {
     return (
-      <div className={`rounded-xl border border-zinc-800 bg-zinc-900/60 ${compact ? 'p-2' : 'p-4'}`}>
+      <div className={`h-full rounded-xl border border-zinc-800 bg-zinc-900/60 ${compact ? 'p-2' : 'p-4'}`}>
         <p className="text-xs text-zinc-500">No missions this floor.</p>
       </div>
     )
   }
 
   return (
-    <div className={`rounded-xl border border-zinc-800 bg-zinc-900/60 flex flex-col gap-2 min-h-0 shrink ${compact ? 'p-2' : 'p-4'}`}>
-      <div className="flex items-center justify-between gap-2 shrink-0">
+    <div className={`h-full rounded-xl border border-zinc-800 bg-zinc-900/60 flex flex-col gap-2 ${compact ? 'p-2' : 'p-4'}`}>
+      <div className="shrink-0">
         <p className={`font-semibold uppercase tracking-wider text-zinc-400 ${compact ? 'text-[10px]' : 'text-xs'}`}>
           Missions
           <span className="text-zinc-600 font-normal normal-case tracking-normal">
-            {' '}
-            ({missions.length}
-            {activeMissions.length > 0 && activeMissions.length < missions.length
-              ? ` · ${activeMissions.length} active`
-              : ''}
-            )
+            {' '}({missions.length}{activeMissions.length > 0 && activeMissions.length < missions.length ? ` · ${activeMissions.length} active` : ''})
           </span>
         </p>
         {!compact && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canReroll}
-            className="h-7 text-[11px] px-2 border-zinc-700"
-            onClick={() => rerollMissions()}
-            title={
-              !missionsRerollable
-                ? 'Cannot reroll after mission progress'
-                : sparks < rerollCost
-                  ? 'Not enough sparks'
-                  : undefined
-            }
-          >
-            Reroll ✦ {rerollCost}
-          </Button>
+          <p className="text-[10px] text-zinc-600 leading-snug mt-0.5">
+            Play-game missions use this floor&apos;s lobby only.
+          </p>
         )}
       </div>
 
-      {!compact && (
-        <p className="text-[10px] text-zinc-600 leading-snug shrink-0">
-          Play-game missions use this floor&apos;s lobby only.
-          {missionRerollCount > 0 && ` · Rerolled ${missionRerollCount}×`}
-          {!missionsRerollable && ' · Reroll locked (progress started)'}
-        </p>
-      )}
-
-      <div className={`overflow-y-auto overscroll-contain min-h-0 flex flex-col gap-2 pr-0.5 ${scrollClass}`}>
+      <div className="flex-1 overflow-y-auto overscroll-contain flex flex-col gap-2 pr-0.5 min-h-0">
         {activeMissions.length > 0 && (
           <ul className="flex flex-col gap-2 shrink-0">
             {activeMissions.length < missions.length && (

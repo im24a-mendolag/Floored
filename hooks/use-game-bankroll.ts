@@ -86,6 +86,9 @@ export function useSurvivalGameBankroll(game: GameName) {
 
       if (isFree) {
         useSurvivalStore.setState({ firstBetInsuranceUsed: true })
+        const freeCap = floorMinBet * 10
+        const excess = Math.max(0, amount - freeCap)
+        if (excess > 0) deductBet(excess)
         return
       }
       deductBet(amount)

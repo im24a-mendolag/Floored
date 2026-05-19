@@ -238,7 +238,7 @@ export const UPGRADES_CATALOG: CatalogItem[] = [
   {
     id: 'first_bet_insurance',
     name: 'Opening Ticket',
-    description: 'First bet on each floor is free — no stake deducted.',
+    description: 'First bet on each floor is free up to 10× the floor minimum bet. Excess is charged normally.',
     baseCost: 20,
     scope: 'run',
     effectKey: 'first_bet_free',

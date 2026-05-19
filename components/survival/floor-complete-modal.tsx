@@ -138,7 +138,7 @@ export function FloorCompleteModal() {
             {overQuota > 0 && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Over quota</span>
-                <span className="font-semibold text-amber-400">+{formatChips(overQuota)}</span>
+                <span className="font-semibold text-emerald-400">+{formatChips(overQuota)}</span>
               </div>
             )}
             <div className="border-t border-border pt-2 flex justify-between">
@@ -152,9 +152,9 @@ export function FloorCompleteModal() {
               <p className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Missions completed</p>
               <ul className="space-y-1">
                 {completedMissions.map((m) => (
-                  <li key={m.id} className="flex justify-between text-emerald-400">
-                    <span className="text-xs capitalize">{m.type.replace(/_/g, ' ')}</span>
-                    <span className="text-xs font-semibold">✦ {m.rewardSparks}</span>
+                  <li key={m.id} className="flex justify-between">
+                    <span className="text-xs capitalize text-emerald-400">{m.type.replace(/_/g, ' ')}</span>
+                    <span className="text-xs font-semibold text-yellow-400">✦ {m.rewardSparks}</span>
                   </li>
                 ))}
               </ul>

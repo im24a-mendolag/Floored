@@ -42,11 +42,11 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
       floor: currentFloor,
       difficulty,
       floorGames,
-      ownedUpgradeIds,
       rerollCount: shopRerollCount,
-      count: 4,
     })
-  }, [runSeed, currentFloor, difficulty, floorGames, ownedUpgradeIds, shopRerollCount])
+  // ownedUpgradeIds intentionally excluded — offers stay stable after purchase
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runSeed, currentFloor, difficulty, floorGames, shopRerollCount])
 
   const rerollCost = difficulty != null ? calcShopRerollCost(shopRerollCount, difficulty) : 0
   const poolRemaining =
@@ -83,7 +83,9 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
             >
               Reroll ✦ {rerollCost}
             </Button>
-            <span className="text-sm font-bold text-amber-400 tabular-nums">✦ {sparks.toLocaleString()}</span>
+            <span className="text-sm font-bold text-amber-400 tabular-nums">
+              <span className="text-[10px] font-normal text-zinc-500 mr-1">Sparks:</span>✦ {sparks.toLocaleString()}
+            </span>
           </div>
         </div>
       )}
@@ -94,7 +96,50 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {offers.map(({ item, price }) => {
+        {/* Top row: run upgrade(s) first, then active placeholder */}
+        {offers.filter(({ item }) => item.scope === 'run').map(({ item, price }) => {
+          const owned = isOwned(item.id, item.scope)
+          const ownedText = ownedLabel(item.id, item.scope)
+          const canAfford = sparks >= price
+          const disabled = (item.scope !== 'consumable' && owned) || !canAfford
+          const scopeLabel = catalogScopeLabel(item)
+          return (
+            <div key={item.id} className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  {scopeLabel && (
+                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5 text-violet-400/80">{scopeLabel}</p>
+                  )}
+                  <p className="text-sm font-semibold text-zinc-200">{item.name}</p>
+                  {item.rarity && <p className="text-[10px] uppercase tracking-wider text-zinc-600">{item.rarity}</p>}
+                </div>
+                <span className="text-sm font-bold text-amber-400 tabular-nums shrink-0">✦ {price}</span>
+              </div>
+              <p className="text-xs text-zinc-500 leading-snug">{item.description}</p>
+              <Button size="sm" variant={ownedText ? 'secondary' : 'default'} disabled={disabled} className="w-full mt-auto" onClick={() => purchaseUpgrade(item.id, price)}>
+                {ownedText ?? (canAfford ? 'Purchase' : 'Not enough sparks')}
+              </Button>
+            </div>
+          )
+        })}
+
+        {/* Active item slot — coming soon */}
+        <div className="rounded-xl border border-dashed border-zinc-700/40 bg-zinc-950/30 p-3 flex flex-col gap-2 opacity-50">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5 text-orange-400/80">Active</p>
+              <p className="text-sm font-semibold text-zinc-500">Coming Soon</p>
+            </div>
+            <span className="text-sm font-bold text-zinc-600 tabular-nums shrink-0">✦ —</span>
+          </div>
+          <p className="text-xs text-zinc-600 leading-snug">Active items with on-use effects.</p>
+          <button disabled className="w-full mt-auto rounded-md bg-zinc-800 text-zinc-600 text-xs py-1.5 cursor-not-allowed">
+            Locked
+          </button>
+        </div>
+
+        {/* Bottom row: game-specific upgrades */}
+        {offers.filter(({ item }) => item.scope === 'game').map(({ item, price }) => {
           const owned = isOwned(item.id, item.scope)
           const ownedText = ownedLabel(item.id, item.scope)
           const canAfford = sparks >= price
