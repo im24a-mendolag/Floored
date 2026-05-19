@@ -25,6 +25,7 @@ import { resolveGame } from '@/lib/survival/game-resolve'
 import { findFirstSafeMineTile } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import { useSurvivalPerks, boostedPotential } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
@@ -71,6 +72,7 @@ interface PendingResult {
 export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { minesSafe, payoutBoostMult } = useSurvivalPerks('mines')
   const minesProc = usePerkProc(mode === 'survival' && minesSafe, 'perk_mines_safe')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -123,7 +125,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   }
 
   function handleStart() {
-    if (!canStart) return
+    if (!canStart || !lock()) return
     setLastBet(currentBet)
     setLastDifficulty(difficulty)
     setPendingResult(null)
@@ -165,6 +167,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   }
 
   const handleNewRound = useCallback(() => {
+    unlock()
     minesProc.resetPerk()
     setRound(initMines())
     setPendingResult(null)

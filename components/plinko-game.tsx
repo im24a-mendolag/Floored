@@ -74,6 +74,9 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   sessionsRef.current = sessions
   const bankrollRef = useRef(bankroll)
   bankrollRef.current = bankroll
+  // Tracks bets committed but not yet resolved — updated synchronously so rapid
+  // clicks can't over-commit before React re-renders with the updated bankroll.
+  const inFlightBetRef = useRef(0)
   const lastBetRef = useRef(lastBet)
   lastBetRef.current = lastBet
   const autoReBetRef = useRef(autoReBet)
@@ -85,7 +88,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
   const isDropping = sessions.length > 0
   const commitBet = currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
-  const canDrop = commitBet >= minBet && commitBet <= bankroll && bankroll > 0
+  const canDrop = commitBet >= minBet && commitBet <= bankroll - inFlightBetRef.current && bankroll > 0
   const showSurvivalContinue =
     mode === 'survival' && bankroll <= 0 && !isDropping && pendingDefeatReason != null
 
@@ -98,8 +101,9 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   }
 
   function handleDrop() {
-    if (!canDrop) return
     const bet = commitBet
+    if (bet < minBet || bet > bankrollRef.current - inFlightBetRef.current) return
+    inFlightBetRef.current += bet
     onBet?.(bet)
     const path = generatePath()
     const result = computePayout(bet, path, risk)
@@ -118,6 +122,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     if (!session) return
 
     setSessions((prev) => prev.filter((s) => s.id !== id))
+    inFlightBetRef.current = Math.max(0, inFlightBetRef.current - session.bet)
 
     const shieldActive = session.shielded && session.result.outcome === 'loss'
     const finalOutcome = shieldActive ? 'push' : session.result.outcome

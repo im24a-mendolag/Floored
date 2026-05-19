@@ -22,6 +22,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   HAND_LABELS,
   HAND_PAYOUTS,
@@ -122,6 +123,7 @@ const HAND_RANK_COLOR: Record<PokerHandRank, string> = {
 export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { pokerHoldBias } = useSurvivalPerks('poker-1p')
   const holdProc = usePerkProc(mode === 'survival' && pokerHoldBias, 'perk_poker_hold_bias')
   const holdBiasRef = useRef(false)
@@ -149,7 +151,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
   }
 
   function handleDeal() {
-    if (!canDeal) return
+    if (!canDeal || !lock()) return
     const bet = currentBet
     onBet?.(bet)
     setLastBet(bet)
@@ -197,6 +199,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
   }
 
   const handleNext = useCallback(() => {
+    unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
     setState(initPoker())

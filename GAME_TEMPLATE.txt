@@ -255,19 +255,50 @@ and opens a slide-out panel showing all history. Layout is never affected.
 
 
 ────────────────────────────────────────────
-9. AUTO-REBET
+9. BET GUARD (required for every game)
+────────────────────────────────────────────
+
+import { useBetGuard } from '@/hooks/use-bet-guard'
+
+  const { lock, unlock } = useBetGuard()
+
+Prevents the player from committing more chips than they have by rapid-clicking
+before React can re-render with the updated bankroll prop.
+
+Rules:
+  - Call lock() at the TOP of every bet handler, before any state changes.
+    If lock() returns false a bet is already in flight — bail out immediately.
+  - Call unlock() as the FIRST line of handleNext / handleNewRound so the
+    guard resets the moment the round returns to the betting phase.
+
+  function handleStart() {
+    if (!canStart || !lock()) return   // ← lock guards the handler
+    // ... place bet
+  }
+
+  function handleNext() {             // or handleNewRound
+    unlock()                          // ← always first
+    // ... reset to betting stage
+  }
+
+Never skip unlock() — if a game has multiple exit paths back to betting
+(e.g. cash-out vs bust), add unlock() to each one.
+
+
+────────────────────────────────────────────
+10. AUTO-REBET
 ────────────────────────────────────────────
 
 const { autoReBet } = useSettingsStore()
 
-On handleNext / handleNewRound:
+On handleNext / handleNewRound (after unlock()):
   if (autoReBet && lastBet > 0 && lastBet <= bankroll) {
     setCurrentBet(lastBet)
   }
 
 
 ────────────────────────────────────────────
-10. COLOR PALETTE
+11. COLOR PALETTE
 ────────────────────────────────────────────
 
 Background:    zinc-950 (card), zinc-900 (control dock), black (status bar)
@@ -286,7 +317,7 @@ Active row / in-focus element accent: use the game's lobby color
 
 
 ────────────────────────────────────────────
-11. GAME STATES CONVENTION
+12. GAME STATES CONVENTION
 ────────────────────────────────────────────
 
 Every game has at minimum three stages:
@@ -305,7 +336,7 @@ All randomness lives in the engine. The component only dispatches engine calls a
 
 
 ────────────────────────────────────────────
-12. DYNAMIC CLASS NAMES WARNING
+13. DYNAMIC CLASS NAMES WARNING
 ────────────────────────────────────────────
 
 Tailwind JIT only includes classes it can statically scan.

@@ -26,6 +26,7 @@ import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   getRunDicePayout,
   initRunDice,
@@ -64,6 +65,7 @@ interface RunDiceGameProps {
 export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDiceGameProps) {
   const { floorMinBet, diceConfig: storeDiceConfig } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { runDiceInsight } = useSurvivalPerks('run-dice')
   const minBet = mode === 'survival' ? floorMinBet : 1
   const insightConfig = mode === 'survival' && runDiceInsight ? storeDiceConfig : null
@@ -113,7 +115,7 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
   }
 
   function handleStart() {
-    if (!canStart) return
+    if (!canStart || !lock()) return
     const bet = currentBet
     onBet?.(bet)
     setLastBet(bet)
@@ -192,6 +194,7 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
   }
 
   const handleNewRound = useCallback(() => {
+    unlock()
     clearAnimTimers()
     setRound(initRunDice(config))
     setPendingResult(null)

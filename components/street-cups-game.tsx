@@ -23,6 +23,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import type { StreetCupsState } from '@/games/street-cups/types'
 import {
   STREET_CUPS_WIN_MULTIPLIER,
@@ -172,6 +173,7 @@ interface PendingResult {
 export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet }   = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { streetCupsTruth } = useSurvivalPerks('street-cups')
   const cupsProc = usePerkProc(mode === 'survival' && streetCupsTruth, 'perk_street_cups_truth')
   const cupsProcActiveRef = useRef(false)
@@ -227,7 +229,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
 
   /* ── Start ── */
   function handleStart() {
-    if (!canStart) return
+    if (!canStart || !lock()) return
     const bet = currentBet
     onBet?.(bet)
     clearTimers()
@@ -350,6 +352,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
 
   /* ── Next round ── */
   function handleNext() {
+    unlock()
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     clearTimers()
     setPendingResult(null)

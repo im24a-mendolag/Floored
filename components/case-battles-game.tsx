@@ -21,6 +21,7 @@ import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   getCases,
   addCase,
@@ -113,6 +114,7 @@ const FREEPLAY_BASE = 10
 export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattlesGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const caseXray = useSurvivalPerks('case-battles').caseXray
   const openingTicketActive = useOpeningTicketActive()
   const minBet = mode === 'survival' ? floorMinBet : FREEPLAY_BASE
@@ -215,7 +217,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   }
 
   function handleBattle() {
-    if (!canBattle) return
+    if (!canBattle || !lock()) return
     onBet?.(state.totalCost)
     setLastSelectedCases(state.selectedCases)
     setQuoteIdx((prev) => pickQuote(prev))
@@ -225,6 +227,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   }
 
   const handleNext = useCallback(() => {
+    unlock()
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
     const fresh = initCaseBattle()

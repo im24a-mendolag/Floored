@@ -22,6 +22,7 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
+import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   CHICKENS,
   PAYOUT_MULTIPLIER,
@@ -60,6 +61,7 @@ interface PendingResult {
 export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRaceGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
+  const { lock, unlock } = useBetGuard()
   const { chickenScout } = useSurvivalPerks('chicken-race')
   const scoutProc = usePerkProc(mode === 'survival' && chickenScout, 'perk_chicken_scout')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -98,7 +100,7 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
   }
 
   function handleRace() {
-    if (!canRace || state.pickedChicken === null) return
+    if (!canRace || state.pickedChicken === null || !lock()) return
     const bet = currentBet
     onBet?.(bet)
     let next: ChickenRaceState
@@ -158,6 +160,7 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
   }
 
   const handleNext = useCallback(() => {
+    unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
     const next = initChickenRace()
