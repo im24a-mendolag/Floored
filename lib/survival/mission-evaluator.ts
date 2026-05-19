@@ -68,10 +68,7 @@ export function evaluateMissionOnGame(m: FloorMission, event: MissionGameEvent):
   }
 }
 
-export function evaluateMissionOnFloorComplete(
-  m: FloorMission,
-  _event: MissionFloorCompleteEvent,
-): FloorMission {
+export function evaluateMissionOnFloorComplete(m: FloorMission): FloorMission {
   if (m.completed || m.failed || (m.type as MissionType) !== 'flawless') return m
   return markComplete({ ...m, progress: m.target })
 }
@@ -87,5 +84,6 @@ export function evaluateMissionsOnFloorComplete(
   missions: FloorMission[],
   event: MissionFloorCompleteEvent,
 ): FloorMission[] {
-  return missions.map((m) => evaluateMissionOnFloorComplete(m, event))
+  void event
+  return missions.map((m) => evaluateMissionOnFloorComplete(m))
 }

@@ -178,7 +178,6 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound]         = useState<StreetCupsState>(initStreetCups)
-  const [eliminatedCupSlot, setEliminatedCupSlot] = useState<number | null>(null)
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet]     = useState(0)
   const [pendingResult, setPendingResult] = useState<PendingResult | null>(null)
