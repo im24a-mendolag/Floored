@@ -147,3 +147,45 @@ export function getRunDicePayout(state: RunDiceState) {
   if (state.outcome === 'push') return state.betAmount
   return 0
 }
+
+/**
+ * Cursed roll: draws from loss OR neutral sums (never win) so the dice can
+ * still re-roll naturally. On the final allowed roll the pool is narrowed to
+ * loss-only so the game always settles as a loss instead of a push.
+ */
+export function loseGame(state: RunDiceState): RunDiceState {
+  if (state.stage !== 'inProgress') return state
+  const nextRollCount = state.rollCount + 1
+  const isLastRoll = nextRollCount >= 3
+  const candidates = isLastRoll
+    ? state.config.loss
+    : [...state.config.loss, ...state.config.neutral]
+
+  const targetSum = candidates[Math.floor(Math.random() * candidates.length)]!
+  const minDie1 = Math.max(1, targetSum - 6)
+  const maxDie1 = Math.min(6, targetSum - 1)
+  const die1 = Math.floor(Math.random() * (maxDie1 - minDie1 + 1)) + minDie1
+  const dice: [number, number] = [die1, targetSum - die1]
+
+  if (state.config.loss.includes(targetSum)) {
+    return {
+      ...state,
+      stage: 'settled',
+      rollResult: targetSum,
+      dice,
+      rollCount: nextRollCount,
+      outcome: 'loss',
+      payoutMultiplier: 0,
+      message: `Loss on ${targetSum}.`,
+    }
+  }
+
+  // Neutral — keep inProgress so the player re-rolls (same as normal flow)
+  return {
+    ...state,
+    rollCount: nextRollCount,
+    rollResult: targetSum,
+    dice,
+    message: `Neutral on ${targetSum}. Re-roll ${3 - nextRollCount} remaining.`,
+  }
+}

@@ -104,16 +104,33 @@ function advanceChickenStepSuccess(state: ChickenState, roll: number): ChickenSt
 
 export function cashOutChicken(state: ChickenState): ChickenState {
   if (state.stage !== 'inProgress') return state
+  const cashoutValue = Math.round(state.betAmount * state.multiplier)
+  const outcome: ChickenOutcome = cashoutValue > state.betAmount ? 'win' : 'loss'
   return {
     ...state,
     stage: 'settled',
-    outcome: 'win',
+    outcome,
     rollResult: null,
     message: `Cashed out at ${state.multiplier.toFixed(1)}×.`,
-    cashoutValue: Math.round(state.betAmount * state.multiplier),
+    cashoutValue,
   }
 }
 
 export function getChickenPayout(state: ChickenState) {
-  return state.outcome === 'win' ? state.cashoutValue : 0
+  // cashoutValue is 0 on death, actual return on cashout — correct in both cases
+  return state.cashoutValue
+}
+
+/** Cursed advance: the chicken always dies on this step. */
+export function loseGame(state: ChickenState): ChickenState {
+  if (state.stage !== 'inProgress') return state
+  return {
+    ...state,
+    stage: 'settled',
+    rollResult: 0,
+    outcome: 'loss',
+    message: `Death at step ${state.step}.`,
+    multiplier: 0,
+    cashoutValue: 0,
+  }
 }

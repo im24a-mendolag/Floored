@@ -96,6 +96,16 @@ export function getWheelPayout(state: WheelState): number {
   return state.outcome === 'win' ? state.betAmount * state.payoutMultiplier : 0
 }
 
+/**
+ * Cursed spin: picks a random color that is NOT the player's bet so the
+ * wheel always misses. Uses spinWheelWithResult so the animation is identical.
+ */
+export function loseGame(betColor: WheelColor, betAmount: number): WheelState {
+  const losers = WHEEL_SEGMENTS.map((s) => s.color).filter((c) => c !== betColor) as WheelColor[]
+  const resultColor = losers[Math.floor(Math.random() * losers.length)]!
+  return spinWheelWithResult(betColor, betAmount, resultColor)
+}
+
 export function getWinChance(color: WheelColor): number {
   const seg = WHEEL_SEGMENTS.find((s) => s.color === color)!
   return seg.count / TOTAL_SLOTS

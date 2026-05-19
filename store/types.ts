@@ -167,6 +167,8 @@ export interface SurvivalStore {
   lobbyRerollCount: number
   /** Player chose to continue past floor 10. */
   endlessMode: boolean
+  /** Player is cursed — all games are rigged to lose. */
+  cursed: boolean
 
   // ── Actions ──────────────────────────────────────────────────────────────
   startRun: (difficulty: Difficulty) => void
@@ -196,6 +198,7 @@ export interface SurvivalStore {
   recordResultPayout: (result: GameResult) => void
   deductBet: (amount: number) => void
   resetJackpotMeter: () => void
+  setCursed: (val: boolean) => void
 }
 
 export interface FreeplayStore {

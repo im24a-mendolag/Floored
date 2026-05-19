@@ -26,7 +26,8 @@ import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
-import { computePayout, generatePath } from '@/games/plinko/engine'
+import { computePayout, generatePath, loseGamePath } from '@/games/plinko/engine'
+import { useCurse } from '@/hooks/use-curse'
 import type { PlinkoPayoutResult, PlinkoRisk } from '@/games/plinko/types'
 import { PlinkoBoard, type PlinkoBall } from '@/components/plinko-board'
 
@@ -56,6 +57,7 @@ interface PlinkoGameProps {
 
 export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
   const { floorMinBet, pendingDefeatReason } = useSurvivalStore()
+  const { cursed } = useCurse()
   const { plinkoFirstBall } = useSurvivalPerks('plinko')
   const shieldProc = usePerkProc(mode === 'survival' && plinkoFirstBall, 'perk_plinko_first_ball')
   const { autoReBet } = useSettingsStore()
@@ -105,7 +107,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     if (bet < minBet || bet > bankrollRef.current - inFlightBetRef.current) return
     inFlightBetRef.current += bet
     onBet?.(bet)
-    const path = generatePath()
+    const path = cursed ? loseGamePath(risk) : generatePath()
     const result = computePayout(bet, path, risk)
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const startedAt = performance.now()

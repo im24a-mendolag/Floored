@@ -40,6 +40,22 @@ export function startCrashRound(amount: number): CrashState {
   }
 }
 
+/**
+ * Cursed round: crash point is forced to MIN_CRASH (1.05×), which is reached
+ * in ~200ms — physically impossible for a player to cash out profitably.
+ */
+export function loseGame(amount: number): CrashState {
+  return {
+    stage: 'inProgress',
+    betAmount: amount,
+    currentMultiplier: 1.0,
+    crashAt: MIN_CRASH,
+    payoutMultiplier: 1.0,
+    outcome: null,
+    message: 'Multiplier is climbing — cash out before it crashes!',
+  }
+}
+
 export function getCrashPayout(state: CrashState): number {
   if (state.outcome === 'win') return Math.round(state.betAmount * state.payoutMultiplier)
   return 0

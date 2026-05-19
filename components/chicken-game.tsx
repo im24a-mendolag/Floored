@@ -34,8 +34,10 @@ import {
   advanceChickenRoundSafe,
   getChickenPayout,
   initChicken,
+  loseGame,
   startChickenRound,
 } from '@/games/chicken-road/engine'
+import { useCurse } from '@/hooks/use-curse'
 import type { ChickenState } from '@/games/chicken-road/types'
 
 const MAX_STEPS = 10
@@ -65,6 +67,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
   const { chickenRoadLane } = useSurvivalPerks('chicken-road')
   const laneProc = usePerkProc(mode === 'survival' && chickenRoadLane, 'perk_chicken_road_lane')
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -99,7 +102,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
     })
     const built = buildPendingResult(
       { outcome, betAmount: next.betAmount, payout: resolved.payout },
-      outcome === 'loss'
+      outcome === 'loss' && next.rollResult !== null
         ? `${formatChips(next.betAmount)} bet · Bust step ${next.step}`
         : `${formatChips(next.betAmount)} bet · Step ${next.step} · ${formatMultiplier(next.multiplier)}`,
       { winLabel: 'Total winnings', lossLabel: 'No winnings' },
@@ -129,7 +132,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
   function handleAdvance() {
     const useSafe = safeAdvancePending
     if (useSafe) setSafeAdvancePending(false)
-    const next = useSafe ? advanceChickenRoundSafe(round) : advanceChickenRound(round)
+    const next = cursed ? loseGame(round) : useSafe ? advanceChickenRoundSafe(round) : advanceChickenRound(round)
     setRound(next)
     if (next.stage === 'settled') settleRound(next)
   }

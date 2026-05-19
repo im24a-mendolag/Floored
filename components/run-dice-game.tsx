@@ -30,9 +30,11 @@ import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   getRunDicePayout,
   initRunDice,
+  loseGame,
   rollRunDice,
   startRunDiceRound,
 } from '@/games/run-dice/engine'
+import { useCurse } from '@/hooks/use-curse'
 import type { RunDiceConfig, RunDiceState } from '@/games/run-dice/types'
 
 const DICE_WEIGHT: Record<number, number> = {2:1,3:2,4:3,5:4,6:5,7:6,8:5,9:4,10:3,11:2,12:1}
@@ -66,6 +68,7 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
   const { floorMinBet, diceConfig: storeDiceConfig } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
   const { runDiceInsight } = useSurvivalPerks('run-dice')
   const minBet = mode === 'survival' ? floorMinBet : 1
   const insightConfig = mode === 'survival' && runDiceInsight ? storeDiceConfig : null
@@ -131,7 +134,7 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
     if (isRolling) return
     clearAnimTimers()
 
-    const next = rollRunDice(round)
+    const next = cursed ? loseGame(round) : rollRunDice(round)
 
     // Snapshot target values for the animation to reveal
     setTargetDice(next.dice)

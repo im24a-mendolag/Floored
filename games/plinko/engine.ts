@@ -36,6 +36,28 @@ export function generatePath(): PlinkoPath {
 }
 
 /**
+ * Cursed path: forces the ball into a losing slot (multiplier < 1).
+ * Picks randomly from all losing slots so the trajectory looks natural —
+ * the decisions are shuffled so the ball bounces realistically to the target.
+ */
+export function loseGamePath(risk: PlinkoRisk = 'medium'): PlinkoPath {
+  const mults = MULTIPLIERS[risk]
+  const losingSlots = mults.map((m, i) => (m < 1 ? i : -1)).filter((i) => i >= 0)
+  const slotIndex = losingSlots.length > 0
+    ? losingSlots[Math.floor(Math.random() * losingSlots.length)]!
+    : Math.floor(ROWS / 2)
+
+  // Build exactly `slotIndex` right decisions and shuffle them so the visual
+  // path looks organic even though the landing slot is predetermined.
+  const decisions = Array.from({ length: ROWS }, (_, i) => i < slotIndex)
+  for (let i = decisions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[decisions[i], decisions[j]] = [decisions[j]!, decisions[i]!]
+  }
+  return { decisions, slotIndex }
+}
+
+/**
  * Resolve a path into a payout.
  * Payout is rounded to the nearest whole chip.
  */

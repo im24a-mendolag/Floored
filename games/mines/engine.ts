@@ -109,3 +109,20 @@ export function cashOutMines(state: MinesState): MinesState {
 export function getMinesPayout(state: MinesState) {
   return state.outcome === 'win' ? Math.round(state.betAmount * state.multiplier) : 0
 }
+
+/** Cursed reveal: the clicked tile is always a mine, regardless of placement. */
+export function loseGame(state: MinesState, tileId: number): MinesState {
+  if (state.stage !== 'inProgress') return state
+  const tile = state.tiles.find((t) => t.id === tileId)
+  if (!tile || tile.revealed) return state
+  return {
+    ...state,
+    stage: 'settled',
+    tiles: state.tiles.map((t) =>
+      t.id === tileId ? { ...t, hasMine: true, revealed: true } : t,
+    ),
+    multiplier: 0,
+    outcome: 'loss',
+    message: 'Boom! You hit a mine.',
+  }
+}
