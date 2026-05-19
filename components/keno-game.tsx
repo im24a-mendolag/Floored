@@ -308,6 +308,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={isDrawing}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

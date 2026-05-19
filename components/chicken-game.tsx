@@ -251,6 +251,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={isInProgress}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

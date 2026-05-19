@@ -245,6 +245,7 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={isClimbing}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

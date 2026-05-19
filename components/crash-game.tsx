@@ -344,10 +344,19 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={isInProgress}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
+            {isInProgress && (
+              <p className="text-sm text-zinc-400 tabular-nums">
+                Cashout now:{' '}
+                <span className="font-semibold text-emerald-400">
+                  {formatChips(Math.round(round.betAmount * displayMult))}
+                </span>
+              </p>
+            )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
                 outcomeLabel={pendingResult.outcomeLabel}
@@ -355,7 +364,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
                 tone={pendingResult.tone}
               />
             )}
-            {!isBetting && !(isSettled && pendingResult) && (
+            {isSettled && !pendingResult && (
               <p className="text-sm invisible select-none">{'\u00A0'}</p>
             )}
           </div>

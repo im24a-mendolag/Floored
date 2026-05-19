@@ -270,6 +270,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={isInProgress}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

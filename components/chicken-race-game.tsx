@@ -275,6 +275,7 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={isRacing}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

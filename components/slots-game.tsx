@@ -333,6 +333,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={isSpinning}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

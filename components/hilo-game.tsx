@@ -324,6 +324,7 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={showQuoteUntilNext}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

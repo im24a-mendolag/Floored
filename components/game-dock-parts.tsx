@@ -118,6 +118,7 @@ export function GameDockChipRow({
   onAddChip,
   quoteIdx,
   showQuote = false,
+  minBet,
 }: {
   visible: boolean
   bankroll: number
@@ -125,7 +126,18 @@ export function GameDockChipRow({
   onAddChip: (value: number) => void
   quoteIdx?: number
   showQuote?: boolean
+  minBet?: number
 }) {
+  const useSurvivalChips = (minBet ?? 1) > 1
+  const survivalChips = useSurvivalChips
+    ? [
+        { value: minBet!, label: formatChips(minBet!) },
+        { value: Math.round(minBet! * 2.5), label: formatChips(Math.round(minBet! * 2.5)) },
+        { value: Math.round(minBet! * 10), label: formatChips(Math.round(minBet! * 10)) },
+        { value: Math.round(minBet! * 50), label: formatChips(Math.round(minBet! * 50)) },
+      ]
+    : null
+
   return (
     <div
       className={`flex flex-nowrap justify-center items-center gap-2 min-h-12 ${!visible ? 'invisible pointer-events-none' : ''}`}
@@ -134,17 +146,29 @@ export function GameDockChipRow({
         <GameDockRandomQuote quoteIdx={quoteIdx} />
       ) : (
         <>
-          {GAME_CHIPS.map((chip) => (
-            <button
-              key={chip.value}
-              type="button"
-              onClick={() => onAddChip(chip.value)}
-              disabled={chip.value > bankroll - currentBet}
-              className={`${CHIP_BTN} ${chip.cls}`}
-            >
-              {chip.label}
-            </button>
-          ))}
+          {useSurvivalChips
+            ? survivalChips!.map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => onAddChip(chip.value)}
+                  disabled={chip.value > bankroll - currentBet}
+                  className={`${FRAC_BTN} bg-amber-950 hover:bg-amber-900 border-amber-800 text-amber-300`}
+                >
+                  {chip.label}
+                </button>
+              ))
+            : GAME_CHIPS.map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => onAddChip(chip.value)}
+                  disabled={chip.value > bankroll - currentBet}
+                  className={`${CHIP_BTN} ${chip.cls}`}
+                >
+                  {chip.label}
+                </button>
+              ))}
           <button
             type="button"
             onClick={() => onAddChip(Math.floor(bankroll / 4))}

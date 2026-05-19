@@ -15,31 +15,34 @@ export const SURVIVAL_GAME_POOL: GameName[] = [
   'over-under',
   'wheel',
   'run-dice',
+  'mines',
   'chicken-road',
   'slots',
   'roulette',
-  'mines',
+  'dragon-tower',
+  'chicken-race',
+  'street-cups',
+  'case-battles',
+  'poker-1p',
+  'hilo',
+  'keno',
+  'coin-flip',
 ]
-
-/**
- * Base quota = net-profit chips the player must earn this floor.
- * Formula: 100 × 1.5^(floor-1), capped at MAX_FLOORS for param lookup.
- * Floor 1: 100 | Floor 3: 225 | Floor 5: 506 | Floor 10: 3,844
- */
-function baseQuota(floor: number): number {
-  const f = Math.min(floor, MAX_FLOORS)
-  return Math.floor(100 * Math.pow(1.5, f - 1))
-}
 
 const DIFFICULTY_MULT: Record<Difficulty, number> = {
   normal: 1.0,
-  hard: 1.4,
-  nightmare: 2.0,
+  hard: 1.5,
+  nightmare: 2.5,
 }
 
-/** Chips of net profit required to clear the floor. */
+/**
+ * Absolute bankroll goal for a given floor.
+ * Floor 1 = $2,000  |  Floor 10 = $1,000,000  |  endless scaling beyond.
+ * Formula: 2000 * 500^((floor-1)/9)
+ */
 export function calcQuotaTarget(floor: number, difficulty: Difficulty): number {
-  return Math.floor(baseQuota(floor) * DIFFICULTY_MULT[difficulty])
+  const base = Math.round(2_000 * Math.pow(500, (floor - 1) / 9))
+  return Math.round(base * DIFFICULTY_MULT[difficulty])
 }
 
 /**

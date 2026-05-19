@@ -277,6 +277,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={showQuoteUntilNext}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

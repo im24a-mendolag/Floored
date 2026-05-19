@@ -21,19 +21,18 @@ const PLAY_ICON = (
 export function ModeSelect() {
   const router = useRouter()
   const runActive = useSurvivalStore((s) => s.runActive)
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [difficultyOpen, setDifficultyOpen] = useState(false)
 
   function handleSurvivalClick() {
     if (runActive) {
       router.push('/survival')
     } else {
-      setDialogOpen(true)
+      setDifficultyOpen(true)
     }
   }
 
   return (
     <>
-      <DifficultyDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-2xl">
         {/* ── Survival ── */}
@@ -59,7 +58,6 @@ export function ModeSelect() {
                 '1,000 starting chips',
                 'Floor min bet rises each level',
                 'Earn Sparks for upgrades',
-                'Choose your difficulty',
               ].map((text) => (
                 <li key={text} className="flex items-center gap-2 text-white/50 text-sm">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60 flex-shrink-0" />
@@ -119,6 +117,8 @@ export function ModeSelect() {
           </div>
         </Link>
       </div>
+
+      <DifficultyDialog open={difficultyOpen} onClose={() => setDifficultyOpen(false)} />
     </>
   )
 }

@@ -1,62 +1,99 @@
-import type { CaseBattleState, CaseDef, CaseItem, OpenedCase } from './types'
+import type { CaseBattleState, CaseDef, CaseItem, CaseRarity, OpenedCase } from './types'
 
-export const CASES: CaseDef[] = [
+export const CASE_MULTIPLIERS = [1, 5, 10, 50, 100] as const
+
+// Item value ratios relative to case price (same across all cases → uniform EV ~0.94×)
+const ITEM_TIERS: Array<{ ratio: number; rarity: CaseRarity; weight: number }> = [
+  { ratio: 0.2, rarity: 'common',    weight: 30 },
+  { ratio: 0.6, rarity: 'common',    weight: 28 },
+  { ratio: 1.0, rarity: 'uncommon',  weight: 22 },
+  { ratio: 1.6, rarity: 'rare',      weight: 12 },
+  { ratio: 3.0, rarity: 'epic',      weight: 6  },
+  { ratio: 6.0, rarity: 'legendary', weight: 2  },
+]
+
+const CASE_TEMPLATES = [
   {
-    id: 0, name: 'Bronze Case', price: 10, emoji: '📦', colorHex: '#b45309',
+    name: 'Bronze Case', emoji: '📦', colorHex: '#b45309',
     items: [
-      { item: { name: 'Worn Glove',   icon: '🧤', value: 2,    rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Cracked Lens', icon: '🔭', value: 6,    rarity: 'common'    }, weight: 28 },
-      { item: { name: 'Steel Pipe',   icon: '🔧', value: 10,   rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: 'Hunter Coat',  icon: '🧥', value: 16,   rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Shadow Fang',  icon: '🗡️', value: 30,   rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Cursed Relic', icon: '💀', value: 60,   rarity: 'legendary' }, weight: 2  },
+      { name: 'Worn Glove',   icon: '🧤' },
+      { name: 'Cracked Lens', icon: '🔭' },
+      { name: 'Steel Pipe',   icon: '🔧' },
+      { name: 'Hunter Coat',  icon: '🧥' },
+      { name: 'Shadow Fang',  icon: '🗡️'  },
+      { name: 'Cursed Relic', icon: '💀' },
     ],
   },
   {
-    id: 1, name: 'Silver Case', price: 100, emoji: '🗃️', colorHex: '#71717a',
+    name: 'Silver Case', emoji: '🗃️', colorHex: '#71717a',
     items: [
-      { item: { name: 'Frayed Rope',   icon: '🪢', value: 20,   rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Basic Grenade', icon: '💥', value: 60,   rarity: 'common'    }, weight: 28 },
-      { item: { name: 'Combat Knife',  icon: '🔪', value: 100,  rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: 'Tactical Vest', icon: '🦺', value: 160,  rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Elite Scope',   icon: '🎯', value: 300,  rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Phantom Blade', icon: '⚔️', value: 600,  rarity: 'legendary' }, weight: 2  },
+      { name: 'Frayed Rope',   icon: '🪢' },
+      { name: 'Basic Grenade', icon: '💥' },
+      { name: 'Combat Knife',  icon: '🔪' },
+      { name: 'Tactical Vest', icon: '🦺' },
+      { name: 'Elite Scope',   icon: '🎯' },
+      { name: 'Phantom Blade', icon: '⚔️'  },
     ],
   },
   {
-    id: 2, name: 'Gold Case', price: 1000, emoji: '💼', colorHex: '#ca8a04',
+    name: 'Gold Case', emoji: '💼', colorHex: '#ca8a04',
     items: [
-      { item: { name: 'Iron Shield',     icon: '🛡️', value: 200,   rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Precision Rifle', icon: '🔫', value: 600,   rarity: 'common'    }, weight: 28 },
-      { item: { name: 'Battle Armor',    icon: '🪖', value: 1000,  rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: "Dragon's Eye",    icon: '👁️', value: 1600,  rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Void Cannon',     icon: '💣', value: 3000,  rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Mythic Greaves',  icon: '👟', value: 6000,  rarity: 'legendary' }, weight: 2  },
+      { name: 'Iron Shield',     icon: '🛡️'  },
+      { name: 'Precision Rifle', icon: '🔫' },
+      { name: 'Battle Armor',    icon: '🪖' },
+      { name: "Dragon's Eye",    icon: '👁️'  },
+      { name: 'Void Cannon',     icon: '💣' },
+      { name: 'Mythic Greaves',  icon: '👟' },
     ],
   },
   {
-    id: 3, name: 'Diamond Case', price: 10000, emoji: '💎', colorHex: '#22d3ee',
+    name: 'Diamond Case', emoji: '💎', colorHex: '#22d3ee',
     items: [
-      { item: { name: 'Dark Crystal',  icon: '🔷', value: 2000,  rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Inferno Blade', icon: '🔥', value: 6000,  rarity: 'common'    }, weight: 28 },
-      { item: { name: 'War Machine',   icon: '⚙️', value: 10000, rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: 'Thunder Fist',  icon: '⚡', value: 16000, rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Cosmic Dagger', icon: '🌙', value: 30000, rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Eternal Aegis', icon: '🌀', value: 60000, rarity: 'legendary' }, weight: 2  },
+      { name: 'Dark Crystal',  icon: '🔷' },
+      { name: 'Inferno Blade', icon: '🔥' },
+      { name: 'War Machine',   icon: '⚙️'  },
+      { name: 'Thunder Fist',  icon: '⚡' },
+      { name: 'Cosmic Dagger', icon: '🌙' },
+      { name: 'Eternal Aegis', icon: '🌀' },
     ],
   },
   {
-    id: 4, name: 'Crown Case', price: 100000, emoji: '👑', colorHex: '#a855f7',
+    name: 'Crown Case', emoji: '👑', colorHex: '#a855f7',
     items: [
-      { item: { name: 'Storm Rune',    icon: '🔮', value: 20000,  rarity: 'common'    }, weight: 30 },
-      { item: { name: 'Chaos Engine',  icon: '🌪️', value: 60000,  rarity: 'common'    }, weight: 28 },
-      { item: { name: 'Celestial Bow', icon: '🏹', value: 100000, rarity: 'uncommon'  }, weight: 22 },
-      { item: { name: "God's Anvil",   icon: '⚒️', value: 160000, rarity: 'rare'      }, weight: 12 },
-      { item: { name: 'Reality Shard', icon: '💫', value: 300000, rarity: 'epic'      }, weight: 6  },
-      { item: { name: 'Omega Crown',   icon: '👑', value: 600000, rarity: 'legendary' }, weight: 2  },
+      { name: 'Storm Rune',    icon: '🔮' },
+      { name: 'Chaos Engine',  icon: '🌪️'  },
+      { name: 'Celestial Bow', icon: '🏹' },
+      { name: "God's Anvil",   icon: '⚒️'  },
+      { name: 'Reality Shard', icon: '💫' },
+      { name: 'Omega Crown',   icon: '👑' },
     ],
   },
 ]
+
+export function getCases(minBet: number): CaseDef[] {
+  return CASE_TEMPLATES.map((tpl, idx) => {
+    const price = Math.round(minBet * CASE_MULTIPLIERS[idx]!)
+    return {
+      id: idx,
+      name: tpl.name,
+      price,
+      emoji: tpl.emoji,
+      colorHex: tpl.colorHex,
+      items: tpl.items.map((item, tierIdx) => {
+        const tier = ITEM_TIERS[tierIdx]!
+        return {
+          item: {
+            name: item.name,
+            icon: item.icon,
+            value: Math.max(1, Math.round(price * tier.ratio)),
+            rarity: tier.rarity,
+          },
+          weight: tier.weight,
+        }
+      }),
+    }
+  })
+}
 
 function rollItem(caseDef: CaseDef): CaseItem {
   const total = caseDef.items.reduce((s, e) => s + e.weight, 0)
@@ -82,34 +119,34 @@ export function initCaseBattle(): CaseBattleState {
   }
 }
 
-function computeCost(ids: number[]): number {
-  return ids.reduce((s, id) => s + (CASES[id]?.price ?? 0), 0)
+function computeCost(ids: number[], cases: CaseDef[]): number {
+  return ids.reduce((s, id) => s + (cases[id]?.price ?? 0), 0)
 }
 
-export function addCase(state: CaseBattleState, caseId: number): CaseBattleState {
+export function addCase(state: CaseBattleState, caseId: number, cases: CaseDef[]): CaseBattleState {
   if (state.selectedCases.length >= 5) return state
   const next = [...state.selectedCases, caseId]
-  return { ...state, selectedCases: next, totalCost: computeCost(next) }
+  return { ...state, selectedCases: next, totalCost: computeCost(next, cases) }
 }
 
-export function removeCase(state: CaseBattleState, caseId: number): CaseBattleState {
+export function removeCase(state: CaseBattleState, caseId: number, cases: CaseDef[]): CaseBattleState {
   const idx = state.selectedCases.lastIndexOf(caseId)
   if (idx === -1) return state
   const next = [...state.selectedCases]
   next.splice(idx, 1)
-  return { ...state, selectedCases: next, totalCost: computeCost(next) }
+  return { ...state, selectedCases: next, totalCost: computeCost(next, cases) }
 }
 
-export function startBattle(state: CaseBattleState): CaseBattleState {
+export function startBattle(state: CaseBattleState, cases: CaseDef[]): CaseBattleState {
   if (state.selectedCases.length === 0) return state
 
   const userItems: OpenedCase[] = state.selectedCases.map(caseId => ({
     caseId,
-    item: rollItem(CASES[caseId]!),
+    item: rollItem(cases[caseId]!),
   }))
   const botItems: OpenedCase[] = state.selectedCases.map(caseId => ({
     caseId,
-    item: rollItem(CASES[caseId]!),
+    item: rollItem(cases[caseId]!),
   }))
 
   return {

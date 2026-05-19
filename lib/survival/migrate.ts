@@ -18,6 +18,7 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
   const floor = typeof s.currentFloor === 'number' ? s.currentFloor : 1
   const difficulty = (s.difficulty as Difficulty | null) ?? null
   const runSeed = typeof s.runSeed === 'string' ? s.runSeed : null
+  const startBankroll = typeof s.bankroll === 'number' ? s.bankroll : 1000
 
   // Default quota + games in case generation fails.
   let quotaTarget = calcQuotaTarget(floor, difficulty ?? 'normal')
@@ -42,7 +43,7 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
     ...s,
     version: 1,
     quotaTarget,
-    quotaProgress: 0,
+    floorStartBankroll: startBankroll,
     floorGames,
     missions: [],
     completedMissionIds: [],

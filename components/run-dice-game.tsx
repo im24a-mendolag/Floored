@@ -376,6 +376,7 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={isInProgress}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

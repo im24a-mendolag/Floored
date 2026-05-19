@@ -414,6 +414,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={ballsInFlight}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

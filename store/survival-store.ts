@@ -44,7 +44,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
 
       // ── Per-floor generated state defaults ─────────────────────────────
       quotaTarget: 0,
-      quotaProgress: 0,
+      floorStartBankroll: 1000,
       floorGames: [],
       missions: [],
       completedMissionIds: [],
@@ -81,7 +81,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           peakBankroll: 1000,
           lastRun: null,
           quotaTarget: floor1.quotaTarget,
-          quotaProgress: 0,
+          floorStartBankroll: 1000,
           floorGames: floor1.floorGames,
           missions: floor1.missions,
           completedMissionIds: [],
@@ -91,6 +91,34 @@ export const useSurvivalStore = create<SurvivalStore>()(
           floorComplete: false,
         })
       },
+
+      abandonRun: () =>
+        set({
+          runActive: false,
+          runSeed: null,
+          lastRun: null,
+          gamesPlayed: 0,
+          streak: 0,
+          currentFloor: 1,
+          slotsUsed: 0,
+          floorMinBet: getFloorMinBet(1),
+          jackpotMeter: 0,
+          difficulty: null,
+          modifiers: [],
+          history: [],
+          peakBankroll: 1000,
+          bankroll: 1000,
+          sparks: 0,
+          quotaTarget: 0,
+          floorStartBankroll: 1000,
+          floorGames: [],
+          missions: [],
+          completedMissionIds: [],
+          purchasedUpgrades: [],
+          inventory: [],
+          floorHistory: [],
+          floorComplete: false,
+        }),
 
       endRun: () =>
         set((s) => ({
@@ -125,7 +153,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
             slotsUsed: 0,
             floorMinBet: getFloorMinBet(nextFloor),
             quotaTarget: nextFloorData.quotaTarget,
-            quotaProgress: 0,
+            floorStartBankroll: s.bankroll,
             floorGames: nextFloorData.floorGames,
             missions: nextFloorData.missions,
             floorComplete: false,
@@ -133,8 +161,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
         }),
 
       dismissFloorComplete: () => set({ floorComplete: false }),
-
-      setQuotaProgress: (n: number) => set({ quotaProgress: n }),
 
       recordResult: (result: GameResult) =>
         set((s) => {
@@ -154,9 +180,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
       recordResultPayout: (result: GameResult) =>
         set((s) => {
           const newBankroll = s.bankroll + result.payout
-          const netProfit = result.payout - result.betAmount
-          const newQuotaProgress = s.quotaProgress + netProfit
-          const quotaJustMet = !s.floorComplete && newQuotaProgress >= s.quotaTarget
+          const quotaJustMet = !s.floorComplete && newBankroll >= s.quotaTarget
           return {
             gamesPlayed: s.gamesPlayed + 1,
             slotsUsed: s.slotsUsed + 1,
@@ -165,7 +189,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
             history: [...s.history, result],
             bankroll: newBankroll,
             peakBankroll: Math.max(s.peakBankroll, newBankroll),
-            quotaProgress: newQuotaProgress,
             floorComplete: quotaJustMet || s.floorComplete,
           }
         }),

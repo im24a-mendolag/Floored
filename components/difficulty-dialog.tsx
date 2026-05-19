@@ -21,17 +21,17 @@ const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] 
   {
     value: 'normal',
     label: 'Normal',
-    description: 'Standard house edge. Full spark earn rate. Full shop catalogue.',
+    description: '1× quota',
   },
   {
     value: 'hard',
     label: 'Hard',
-    description: '+10% house edge. −25% sparks. Shop shows 3 random picks per visit.',
+    description: '1.5× quota',
   },
   {
     value: 'nightmare',
     label: 'Nightmare',
-    description: '+20% house edge. −50% sparks. Shop: 2 picks, costs doubled.',
+    description: '2.5× quota',
   },
 ]
 
@@ -47,20 +47,22 @@ export function DifficultyDialog({ open, onClose }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Choose Difficulty</DialogTitle>
-          <DialogDescription>
-            Affects house edge, spark earn rate, and shop availability. You always start with
-            1,000 chips.
+          <DialogDescription asChild>
+            <div className="text-sm text-muted-foreground space-y-0.5">
+              <p>Affects house edge, spark earn rate, and shop availability.</p>
+              <p>You always start with 1,000 chips.</p>
+            </div>
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3 mt-4">
+        <div className="flex flex-col gap-3 mt-4 items-center">
           {DIFFICULTIES.map((d) => (
             <Button
               key={d.value}
               variant="outline"
-              className="h-auto py-3 flex-col items-start text-left"
+              className="w-full h-auto py-3 flex-col items-center text-center"
               onClick={() => handleSelect(d.value)}
             >
               <span className="font-semibold">{d.label}</span>

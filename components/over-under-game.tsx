@@ -264,6 +264,7 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={isInProgress}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

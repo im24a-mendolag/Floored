@@ -315,6 +315,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={spinning}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

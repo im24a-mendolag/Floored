@@ -277,6 +277,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={showQuoteUntilNext}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

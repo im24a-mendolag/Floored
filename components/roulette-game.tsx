@@ -418,6 +418,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={spinning}
+            minBet={minBet}
           />
 
           <div className="h-10 flex flex-col items-center justify-center">

@@ -432,6 +432,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={playerCanAct}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

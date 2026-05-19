@@ -417,6 +417,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
             onAddChip={addChip}
             quoteIdx={quoteIdx}
             showQuote={showQuoteUntilNext}
+            minBet={minBet}
           />
 
           <div className="h-10 flex items-center justify-center">

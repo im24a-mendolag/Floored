@@ -16,7 +16,7 @@ import { formatChips } from '@/utils/format'
 import { buildPendingResult } from '@/lib/game-result-labels'
 import { pickQuote } from '@/lib/gambling-quotes'
 import {
-  CASES,
+  getCases,
   addCase,
   initCaseBattle,
   removeCase,
@@ -102,10 +102,13 @@ function ItemSlot({
   )
 }
 
+const FREEPLAY_BASE = 10
+
 export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattlesGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
-  const minBet = mode === 'survival' ? floorMinBet : 1
+  const minBet = mode === 'survival' ? floorMinBet : FREEPLAY_BASE
+  const cases = getCases(minBet)
 
   const [state, setState] = useState<CaseBattleState>(initCaseBattle)
   const [revealedCount, setRevealedCount] = useState(0)
@@ -201,7 +204,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     setLastSelectedCases(state.selectedCases)
     setQuoteIdx((prev) => pickQuote(prev))
     clearTimeouts()
-    setState((prev) => startBattle(prev))
+    setState((prev) => startBattle(prev, cases))
     setPendingResult(null)
   }
 
@@ -210,16 +213,16 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     setPendingResult(null)
     const fresh = initCaseBattle()
     if (autoReBet && lastSelectedCases.length > 0) {
-      const cost = lastSelectedCases.reduce((s, id) => s + (CASES[id]?.price ?? 0), 0)
+      const cost = lastSelectedCases.reduce((s, id) => s + (cases[id]?.price ?? 0), 0)
       if (cost <= bankroll) {
         setState({ ...fresh, selectedCases: lastSelectedCases, totalCost: cost })
         return
       }
     }
     setState(fresh)
-  }, [pendingResult, autoReBet, lastSelectedCases, bankroll])
+  }, [pendingResult, autoReBet, lastSelectedCases, bankroll, cases])
 
-  const caseCounts = CASES.map(c => state.selectedCases.filter(id => id === c.id).length)
+  const caseCounts = cases.map(c => state.selectedCases.filter(id => id === c.id).length)
 
   return (
     <div className={GAME_CARD_SHELL}>
@@ -248,14 +251,14 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
               Select up to 5 cases — {numCases}/5
             </p>
             <div className="grid grid-cols-5 gap-2.5">
-              {CASES.map(c => {
+              {cases.map(c => {
                 const count = caseCounts[c.id] ?? 0
                 const atMax = numCases >= 5 && count === 0
                 return (
                   <div key={c.id} className="flex flex-col items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setState(prev => addCase(prev, c.id))}
+                      onClick={() => setState(prev => addCase(prev, c.id, cases))}
                       disabled={numCases >= 5}
                       className={[
                         'w-full h-20 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all duration-150 active:scale-95',
@@ -275,7 +278,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
                     {count > 0 ? (
                       <button
                         type="button"
-                        onClick={() => setState(prev => removeCase(prev, c.id))}
+                        onClick={() => setState(prev => removeCase(prev, c.id, cases))}
                         className="w-full py-1.5 text-sm font-bold text-red-400 hover:text-white bg-red-950 hover:bg-red-700 border border-red-800 hover:border-red-600 rounded-lg transition-colors active:scale-95"
                       >
                         − Remove
@@ -301,7 +304,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
               {state.userItems.map((oc, i) => (
                 <ItemSlot
                   key={i}
-                  caseEmoji={CASES[oc.caseId]?.emoji ?? '📦'}
+                  caseEmoji={cases[oc.caseId]?.emoji ?? '📦'}
                   item={oc.item}
                   isRevealing={i === revealingIdx}
                   isRevealed={i < revealedCount}
@@ -324,7 +327,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
               {state.botItems.map((oc, i) => (
                 <ItemSlot
                   key={i}
-                  caseEmoji={CASES[oc.caseId]?.emoji ?? '📦'}
+                  caseEmoji={cases[oc.caseId]?.emoji ?? '📦'}
                   item={oc.item}
                   isRevealing={i === revealingIdx}
                   isRevealed={i < revealedCount}
@@ -369,7 +372,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
                 {numCases > 0 && (
                   <button
                     type="button"
-                    onClick={() => setState(initCaseBattle())}
+                    onClick={() => setState(initCaseBattle())  /* cost resets to 0 */}
                     className="px-2 py-0.5 text-xs font-medium rounded border border-zinc-700 hover:border-zinc-500 text-zinc-500 hover:text-white transition-colors"
                   >
                     Clear

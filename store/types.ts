@@ -114,10 +114,10 @@ export interface SurvivalStore {
   lastRun: RunSummary | null
 
   // ── Per-floor generated state (Step 2 / 3) ───────────────────────────────
-  /** Chips of net profit required to clear this floor. */
+  /** Bankroll value the player must reach to clear this floor. */
   quotaTarget: number
-  /** Net profit earned so far this floor (updated in Step 5). */
-  quotaProgress: number
+  /** Bankroll at the start of the current floor — used to compute net progress. */
+  floorStartBankroll: number
   /** Six unique games available on this floor (seeded, deterministic). */
   floorGames: GameName[]
   /** Active missions for this floor (populated in Step 8). */
@@ -137,9 +137,9 @@ export interface SurvivalStore {
   // ── Actions ──────────────────────────────────────────────────────────────
   startRun: (difficulty: Difficulty) => void
   endRun: () => void
+  abandonRun: () => void
   advanceFloor: () => void
   dismissFloorComplete: () => void
-  setQuotaProgress: (n: number) => void
   recordResult: (result: GameResult) => void
   recordResultPayout: (result: GameResult) => void
   deductBet: (amount: number) => void

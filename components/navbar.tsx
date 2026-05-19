@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation'
 import { useFreeplayStore } from '@/store/freeplay-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useSurvivalStore } from '@/store/survival-store'
-import { DifficultyDialog } from '@/components/difficulty-dialog'
 import { formatChips } from '@/utils/format'
 
 export function Navbar() {
@@ -15,7 +14,6 @@ export function Navbar() {
   const { autoReBet, setAutoReBet } = useSettingsStore()
   const runActive = useSurvivalStore((s) => s.runActive)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [diffDialogOpen, setDiffDialogOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const inFreeplay = pathname?.startsWith('/freeplay')
@@ -32,10 +30,6 @@ export function Navbar() {
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [menuOpen])
 
-  function handleSurvivalNav() {
-    if (!runActive) setDiffDialogOpen(true)
-  }
-
   const survivalDesktop = runActive ? (
     <Link
       href="/survival"
@@ -48,13 +42,12 @@ export function Navbar() {
       Survival
     </Link>
   ) : (
-    <button
-      type="button"
-      onClick={handleSurvivalNav}
+    <Link
+      href="/"
       className="px-4 py-2 rounded-lg text-sm font-semibold text-white/60 hover:text-white hover:bg-white/8 transition-colors"
     >
       Survival
-    </button>
+    </Link>
   )
 
   const survivalMobile = runActive ? (
@@ -67,19 +60,16 @@ export function Navbar() {
       Survival
     </Link>
   ) : (
-    <button
-      type="button"
-      onClick={handleSurvivalNav}
+    <Link
+      href="/"
       className="flex-1 text-center py-1.5 rounded-lg text-sm font-medium text-white/50 hover:text-white/80 transition-colors"
     >
       Survival
-    </button>
+    </Link>
   )
 
   return (
     <>
-      <DifficultyDialog open={diffDialogOpen} onClose={() => setDiffDialogOpen(false)} />
-
       <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur-md">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
@@ -124,6 +114,7 @@ export function Navbar() {
                   <div className="w-2 h-2 rounded-full bg-blue-400 shadow-sm shadow-blue-400/50 flex-shrink-0" />
                 </div>
               )}
+
 
               <div className="relative" ref={menuRef}>
                 <button
