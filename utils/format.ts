@@ -23,6 +23,7 @@ const CHIP_SUFFIXES: [number, string][] = [
 ]
 
 export function formatChips(n: number): string {
+  if (n < 0) return `-${formatChips(-n)}`
   for (const [threshold, suffix] of CHIP_SUFFIXES) {
     if (n >= threshold) return `${(n / threshold).toFixed(1)}${suffix}`
   }
@@ -31,4 +32,19 @@ export function formatChips(n: number): string {
 
 export function formatMultiplier(n: number): string {
   return `${n.toFixed(2)}x`
+}
+
+export function parseChips(s: string): number | null {
+  const lower = s.trim().toLowerCase()
+  if (!lower) return null
+  // Check longest suffixes first to avoid partial matches (e.g. "Nod" before "No")
+  for (const [threshold, suffix] of CHIP_SUFFIXES) {
+    if (lower.endsWith(suffix.toLowerCase())) {
+      const numPart = lower.slice(0, -suffix.length).trim()
+      const n = parseFloat(numPart)
+      if (!isNaN(n) && isFinite(n)) return n * threshold
+    }
+  }
+  const n = parseFloat(lower)
+  return !isNaN(n) && isFinite(n) ? n : null
 }

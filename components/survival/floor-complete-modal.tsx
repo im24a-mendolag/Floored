@@ -132,7 +132,7 @@ export function FloorCompleteModal() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Net profit</span>
-              <span className="font-semibold text-emerald-400">+{formatChips(netProgress)}</span>
+              <span className={`font-semibold ${netProgress >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{netProgress >= 0 ? '+' : ''}{formatChips(netProgress)}</span>
             </div>
             {overQuota > 0 && (
               <div className="flex justify-between">

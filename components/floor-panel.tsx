@@ -59,7 +59,7 @@ export function FloorPanel() {
             <div className="text-center">
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Bankroll</span>
               <div className="text-2xl font-black tabular-nums leading-tight">
-                <span className={bankroll >= floorStartBankroll ? 'text-foreground' : 'text-red-400'}>
+                <span className={bankroll >= quotaTarget ? 'text-foreground' : 'text-red-400'}>
                   {formatChips(bankroll)}
                 </span>
                 <span className="text-sm font-normal text-muted-foreground"> / {formatChips(quotaTarget)}</span>
@@ -68,7 +68,7 @@ export function FloorPanel() {
 
             <div className="text-center">
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Sparks</span>
-              <div className="text-2xl font-black tabular-nums leading-tight text-amber-300">{sparks.toLocaleString()}</div>
+              <div className="text-2xl font-black tabular-nums leading-tight text-amber-300">{formatChips(sparks)}</div>
             </div>
           </div>
 
