@@ -1,14 +1,16 @@
 import type { ChickenState, ChickenOutcome } from './types'
 
 const STEP_DATA = [
-  { multiplier: 0.9, deathChance: 0.1 },
-  { multiplier: 1.5, deathChance: 0.15 },
-  { multiplier: 2.0, deathChance: 0.2 },
-  { multiplier: 3.0, deathChance: 0.3 },
-  { multiplier: 4.5, deathChance: 0.4 },
-  { multiplier: 7.0, deathChance: 0.5 },
-  { multiplier: 11.0, deathChance: 0.6 },
-  { multiplier: 17.0, deathChance: 0.7 },
+  { multiplier: 0.9,  deathChance: 0.1  },
+  { multiplier: 1.5,  deathChance: 0.15 },
+  { multiplier: 2.0,  deathChance: 0.2  },
+  { multiplier: 3.0,  deathChance: 0.3  },
+  { multiplier: 4.5,  deathChance: 0.4  },
+  { multiplier: 7.0,  deathChance: 0.5  },
+  { multiplier: 11.0, deathChance: 0.6  },
+  { multiplier: 17.0, deathChance: 0.7  },
+  { multiplier: 25.0, deathChance: 0.8  },
+  { multiplier: 40.0, deathChance: 0.9  },
 ]
 
 function randomChance() {
@@ -85,20 +87,32 @@ export function advanceChickenRoundSafe(state: ChickenState): ChickenState {
 }
 
 function advanceChickenStepSuccess(state: ChickenState, roll: number): ChickenState {
-  const nextStep = Math.min(state.step + 1, STEP_DATA.length)
+  const nextStep = state.step + 1
   const nextIndex = nextStep - 1
   const nextInfo = STEP_DATA[nextIndex]
-  const nextMultiplier = nextInfo?.multiplier ?? state.multiplier
+
+  // Arrived at the final step (or beyond) — auto-settle as a win
+  if (!nextInfo || nextStep >= STEP_DATA.length) {
+    const finalMultiplier = nextInfo?.multiplier ?? state.multiplier
+    return {
+      ...state,
+      stage: 'settled',
+      outcome: 'win',
+      step: nextStep,
+      multiplier: finalMultiplier,
+      rollResult: Math.round(roll * 100),
+      message: `Road complete! All steps conquered at ${finalMultiplier.toFixed(1)}×.`,
+      cashoutValue: Math.round(state.betAmount * finalMultiplier),
+    }
+  }
 
   return {
     ...state,
     step: nextStep,
-    multiplier: nextMultiplier,
+    multiplier: nextInfo.multiplier,
     rollResult: Math.round(roll * 100),
-    message: nextInfo
-      ? `Step ${nextStep}: ${nextMultiplier.toFixed(1)}× with ${nextInfo.deathChance * 100}% danger.`
-      : state.message,
-    cashoutValue: Math.round(state.betAmount * nextMultiplier),
+    message: `Step ${nextStep}: ${nextInfo.multiplier.toFixed(1)}× with ${nextInfo.deathChance * 100}% danger.`,
+    cashoutValue: Math.round(state.betAmount * nextInfo.multiplier),
   }
 }
 
