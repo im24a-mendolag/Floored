@@ -1,12 +1,7 @@
 'use client'
 
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import {
-  GameLastBetPanel,
-  GameOutcomeColumns,
-  hasOutcomeEntry,
-} from '@/components/game-dock-parts'
+import { useCallback, useState, type ReactNode } from 'react'
+import { hasOutcomeEntry, GameOutcomeColumns, GameLastBetPanel } from '@/components/game-dock-parts'
 import { cn } from '@/lib/utils'
 
 export type MatchHistoryTone = 'win' | 'push' | 'loss' | 'partial' | 'neutral'
@@ -49,8 +44,6 @@ function toneTitle(t: MatchHistoryTone) {
 }
 
 /** Wider panel for three-column outcome rows */
-const PANEL_W = 320
-const GAP = 8
 
 function HistoryEntryCard({ entry }: { entry: MatchHistoryEntry }) {
   if (hasOutcomeEntry(entry)) {
@@ -83,6 +76,7 @@ interface GameFieldWithHistoryProps {
   emptyHint?: string
   className?: string
   boardClassName?: string
+  showLastBet?: boolean
   children: ReactNode
 }
 
@@ -96,6 +90,7 @@ export function GameFieldWithHistory({
   emptyHint = 'No plays yet.',
   className,
   boardClassName,
+  showLastBet = false,
   children,
 }: GameFieldWithHistoryProps) {
   const [open, setOpen] = useState(false)
@@ -103,136 +98,72 @@ export function GameFieldWithHistory({
   const toggle = useCallback(() => setOpen((o) => !o), [])
   const hasPlays = entries.length > 0
   const latest = entries[0]
-  const showOutcomeLastBet = latest && hasOutcomeEntry(latest)
-
-  const fieldRef = useRef<HTMLDivElement>(null)
-  const [panelBox, setPanelBox] = useState<{
-    top: number
-    left: number
-    width: number
-    height: number
-  } | null>(null)
-
-  const updatePanelPosition = useCallback(() => {
-    if (!open || !hasPlays) return
-    const el = fieldRef.current
-    if (!el || typeof window === 'undefined') return
-    const r = el.getBoundingClientRect()
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    const panelWidth = Math.min(PANEL_W, vw * 0.92, vw - 16)
-    let left = r.right + GAP
-    if (left + panelWidth > vw - 8) {
-      left = Math.max(8, vw - panelWidth - 8)
-    }
-    const top = Math.max(8, r.top)
-    const maxH = vh - top - 8
-    const height = Math.min(Math.max(r.height, 120), maxH)
-    setPanelBox({ top, left, width: panelWidth, height })
-  }, [open, hasPlays])
-
-  useLayoutEffect(() => {
-    if (!open || !hasPlays) {
-      setPanelBox(null)
-      return
-    }
-    updatePanelPosition()
-    window.addEventListener('resize', updatePanelPosition)
-    window.addEventListener('scroll', updatePanelPosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePanelPosition)
-      window.removeEventListener('scroll', updatePanelPosition, true)
-    }
-  }, [open, hasPlays, updatePanelPosition, entries.length])
-
-  const historyPortal =
-    open && hasPlays && panelBox && typeof document !== 'undefined' ? (
-      <>
-        <button
-          type="button"
-          className="fixed inset-0 z-[85] cursor-default border-0 bg-black/15 p-0"
-          onClick={close}
-          aria-label="Close history"
-        />
-        <aside
-          className={cn(
-            'fixed z-[90] flex flex-col overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl',
-          )}
-          style={{
-            top: panelBox.top,
-            left: panelBox.left,
-            width: panelBox.width,
-            height: panelBox.height,
-            maxHeight: panelBox.height,
-          }}
-          aria-label={`${gameLabel} match history`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-3 py-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Match history</span>
-            <button
-              type="button"
-              onClick={close}
-              className="rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300"
-            >
-              Close
-            </button>
-          </div>
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 py-2">
-            {entries.map((e) => (
-              <HistoryEntryCard key={e.id} entry={e} />
-            ))}
-          </div>
-        </aside>
-      </>
-    ) : null
+  const showOutcomeLastBet = showLastBet && latest && hasOutcomeEntry(latest)
 
   return (
-    <>
-      <div ref={fieldRef} className={cn('relative min-h-0 w-full flex-1 overflow-hidden', className)}>
-        <div className={cn('relative min-h-0 min-w-0 h-full w-full overflow-hidden', boardClassName)}>
-          {children}
+    <div className={cn('relative min-h-0 w-full flex-1 overflow-hidden', className)}>
+      <div className={cn('relative min-h-0 min-w-0 h-full w-full overflow-hidden', boardClassName)}>
+        {children}
 
-          {hasPlays && latest ? (
-            showOutcomeLastBet ? (
-              <GameLastBetPanel
-                betSummary={latest.betSummary!}
-                resultSummary={latest.resultSummary!}
-                profitLabel={latest.profitLabel!}
-                profitTone={latest.profitTone ?? 'loss'}
-                historyOpen={open}
-                onToggleHistory={toggle}
-              />
-            ) : (
-              <div className="pointer-events-auto absolute right-2 top-2 z-30 flex max-w-[min(13rem,46vw)] flex-col items-end gap-0.5">
-                <span className="text-xs font-bold uppercase tracking-widest text-zinc-500 pr-0.5">
-                  History
-                </span>
-                <button
-                  type="button"
-                  onClick={toggle}
-                  aria-expanded={open}
-                  className={cn(
-                    'rounded-xl border border-zinc-700/90 bg-zinc-950/95 px-3 py-2 text-left shadow-lg backdrop-blur-sm',
-                    'hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500',
-                  )}
-                >
-                  <p className={cn('truncate text-sm font-black leading-tight', toneTitle(latest.tone))}>
-                    {latest.title}
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] text-zinc-500">{latest.subtitle}</p>
-                  <p className="mt-1 text-[10px] text-zinc-600">{open ? 'Hide full history' : 'Open full history'}</p>
-                </button>
-              </div>
-            )
-          ) : (
-            <div className="pointer-events-none absolute right-2 top-2 z-20 max-w-[min(11rem,44vw)] text-right text-[10px] leading-snug text-zinc-600">
-              {emptyHint}
-            </div>
-          )}
-        </div>
+        {showOutcomeLastBet ? (
+          <GameLastBetPanel
+            betSummary={latest.betSummary!}
+            resultSummary={latest.resultSummary!}
+            profitLabel={latest.profitLabel!}
+            profitTone={latest.profitTone ?? 'loss'}
+            historyOpen={open}
+            onToggleHistory={toggle}
+          />
+        ) : (
+          <div className="pointer-events-auto absolute right-2 top-2 z-30">
+            <button
+              type="button"
+              onClick={toggle}
+              aria-expanded={open}
+              className={cn(
+                'rounded-xl border border-zinc-700/90 bg-zinc-950/95 px-3 py-2 text-xs font-bold uppercase tracking-widest text-zinc-500 shadow-lg backdrop-blur-sm',
+                'hover:bg-zinc-900 hover:text-zinc-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500',
+              )}
+            >
+              History
+            </button>
+          </div>
+        )}
       </div>
-      {historyPortal ? createPortal(historyPortal, document.body) : null}
-    </>
+
+      {open && (
+        <>
+          <button
+            type="button"
+            className="absolute inset-0 z-[85] cursor-default border-0 bg-black/15 p-0"
+            onClick={close}
+            aria-label="Close history"
+          />
+          <aside
+            className="absolute inset-y-0 right-0 z-[90] flex w-[min(17rem,80%)] flex-col overflow-hidden border-l border-zinc-700 bg-zinc-950 shadow-2xl"
+            aria-label={`${gameLabel} match history`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-3 py-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Match history</span>
+              <button
+                type="button"
+                onClick={close}
+                className="rounded px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300"
+              >
+                Close
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 py-2">
+              {hasPlays ? entries.map((e) => (
+                <HistoryEntryCard key={e.id} entry={e} />
+              )) : (
+                <p className="px-1 pt-2 text-xs text-zinc-600">{emptyHint}</p>
+              )}
+            </div>
+          </aside>
+        </>
+      )}
+    </div>
   )
 }
