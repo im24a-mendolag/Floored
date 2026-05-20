@@ -1,7 +1,7 @@
 import type { Difficulty, GameName } from '@/store/types'
 
 /** Dev/testing: grant every shop upgrade when a survival run starts. Set false before release. */
-export const GRANT_ALL_UPGRADES = false
+export const GRANT_ALL_UPGRADES = true
 
 /** Dev/testing: bankroll and sparks when a survival run starts (and idle reset). */
 export const STARTING_BANKROLL = 1000
