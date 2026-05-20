@@ -8,7 +8,7 @@ export const STARTING_BANKROLL = 1000
 export const STARTING_SPARKS = 15
 
 /** Dev/testing: starting reroll tickets granted in inventory for a run */
-export const STARTING_REROLL_TICKETS = 99
+export const STARTING_REROLL_TICKETS = 3
 /** How many reroll tickets are awarded automatically when advancing to the next floor */
 export const REROLL_TICKETS_PER_FLOOR = 3
 
