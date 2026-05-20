@@ -380,3 +380,59 @@ export function allPurchasedUpgradesForDev(): PurchasedUpgrade[] {
 }
 
 export { normalizeUpgradeId } from './upgrade-levels'
+
+export function getMaxOwnedLevelInFamily(
+  purchasedUpgrades: PurchasedUpgrade[],
+  familyId: string,
+): number {
+  let max = 0
+  for (const pu of purchasedUpgrades) {
+    const item = getCatalogItem(normalizeUpgradeId(pu.id))
+    if (!item || item.familyId !== familyId) continue
+    max = Math.max(max, item.level ?? 0)
+  }
+  return max
+}
+
+export function getMaxOwnedLevelForEffect(
+  purchasedUpgrades: PurchasedUpgrade[],
+  effectKey: string,
+  options?: { game?: string; scope?: 'run' | 'game' },
+): number {
+  let max = 0
+  for (const pu of purchasedUpgrades) {
+    const item = getCatalogItem(normalizeUpgradeId(pu.id))
+    if (!item || item.effectKey !== effectKey) continue
+    if (options?.scope && item.scope !== options.scope) continue
+    if (options?.game && item.scope === 'game' && item.game !== options.game) continue
+    max = Math.max(max, item.level ?? 0)
+  }
+  return max
+}
+
+export function isUpgradeOfferable(
+  item: { id: string; familyId?: string; level?: number },
+  ownedIds: string[],
+): boolean {
+  const normalized = ownedIds.map(normalizeUpgradeId)
+  if (normalized.includes(item.id)) return false
+  if (!item.familyId || !item.level) return true
+  const maxOwned = getMaxOwnedLevelInFamily(
+    normalized.map((id) => ({ id, purchasedAt: '' })),
+    item.familyId,
+  )
+  if (maxOwned >= MAX_UPGRADE_LEVEL) return false
+  return item.level === maxOwned + 1
+}
+
+export function canPurchaseUpgrade(
+  id: string,
+  purchasedUpgrades: PurchasedUpgrade[],
+): boolean {
+  const item = getCatalogItem(id)
+  if (!item?.familyId || !item.level) return true
+  const normalized = purchasedUpgrades.map((u) => normalizeUpgradeId(u.id))
+  if (normalized.includes(id)) return false
+  const maxOwned = getMaxOwnedLevelInFamily(purchasedUpgrades, item.familyId)
+  return item.level === maxOwned + 1
+}

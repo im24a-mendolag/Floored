@@ -20,7 +20,7 @@ const HUD_PILL =
 export function Navbar() {
   const pathname = usePathname()
   const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
-  const { autoReBet, setAutoReBet, forceTie, setForceTie } = useSettingsStore()
+  const { autoReBet, setAutoReBet, forceTie, setForceTie, showAllGames, setShowAllGames } = useSettingsStore()
   const cursed = useSurvivalStore((s) => s.cursed)
   const setCursed = useSurvivalStore((s) => s.setCursed)
   const blessed = useSurvivalStore((s) => s.blessed)
@@ -30,6 +30,9 @@ export function Navbar() {
   const floorComplete = useSurvivalStore((s) => s.floorComplete)
   const runDefeated = useSurvivalStore((s) => s.runDefeated)
   const quotaMet = useSurvivalStore((s) => s.quotaMet)
+  const quotaTarget = useSurvivalStore((s) => s.quotaTarget)
+  const bankroll = useSurvivalStore((s) => s.bankroll)
+  const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
   const toggleFloorTimerPause = useSurvivalStore((s) => s.toggleFloorTimerPause)
   const finishQuotaEarly = useSurvivalStore((s) => s.finishQuotaEarly)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -77,11 +80,8 @@ export function Navbar() {
     </Link>
   )
 
-  const inSurvivalGame =
-    inSurvival && pathname != null && /^\/survival\/[^/]+$/.test(pathname)
-
-  const showFinishQuota =
-    runActive && inSurvivalGame && quotaMet && !floorComplete && !runDefeated
+  const showFinishQuota = inSurvival && runActive && !floorComplete && !runDefeated
+  const finishQuotaEnabled = (quotaMet || bankroll >= quotaTarget) && bankroll >= floorMinBet
 
   return (
     <>
@@ -117,13 +117,18 @@ export function Navbar() {
               )}
             </div>
 
-            {/* Center: finish quota (early floor clear) */}
+            {/* Center: finish quota (always visible in survival) */}
             {showFinishQuota && (
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
                 <button
                   type="button"
-                  onClick={() => finishQuotaEarly()}
-                  className="px-4 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide bg-amber-500 text-zinc-950 hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/25 whitespace-nowrap"
+                  onClick={() => finishQuotaEnabled && finishQuotaEarly()}
+                  disabled={!finishQuotaEnabled}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-bold uppercase tracking-wide whitespace-nowrap transition-colors ${
+                    finishQuotaEnabled
+                      ? 'bg-amber-500 text-zinc-950 hover:bg-amber-400 shadow-lg shadow-amber-500/25 cursor-pointer'
+                      : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                  }`}
                 >
                   Finish Quota
                 </button>
@@ -211,6 +216,16 @@ export function Navbar() {
                       <span className="text-sm text-white/80">Force tie <span className="text-white/30 text-xs">(HiLo test)</span></span>
                       <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${forceTie ? 'bg-yellow-500' : 'bg-white/20'}`}>
                         <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${forceTie ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllGames(!showAllGames)}
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors"
+                    >
+                      <span className="text-sm text-white/80">All games <span className="text-white/30 text-xs">(survival test)</span></span>
+                      <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${showAllGames ? 'bg-yellow-500' : 'bg-white/20'}`}>
+                        <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${showAllGames ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
                       </div>
                     </button>
                     <div className="flex w-full flex-col gap-1.5 px-3 py-2">

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 import type { GameName } from '@/store/types'
 import { getLobbyTicketCount } from '@/lib/survival/lobby-ticket'
 
@@ -230,6 +231,7 @@ export function Lobby({ mode }: Props) {
   const floorGames = useSurvivalStore((s) => s.floorGames)
   const inventory = useSurvivalStore((s) => s.inventory)
   const rerollLobbyGame = useSurvivalStore((s) => s.rerollLobbyGame)
+  const { showAllGames } = useSettingsStore()
 
   const ticketCount = getLobbyTicketCount(inventory)
 
@@ -237,21 +239,25 @@ export function Lobby({ mode }: Props) {
 
   const displayGames =
     mode === 'survival'
-      ? floorGames
-          .map((name) => gameByName.get(name))
-          .filter((g): g is GameEntry => g != null)
+      ? showAllGames
+        ? GAMES.filter((g) => g.availableSurvival)
+        : floorGames
+            .map((name) => gameByName.get(name))
+            .filter((g): g is GameEntry => g != null)
       : GAMES
 
   useEffect(() => {
     if (mode === 'survival') {
-      floorGames.forEach((name) => router.prefetch(`/survival/${name}`))
+      const toPreload = showAllGames ? GAMES.filter((g) => g.availableSurvival) : floorGames.map((name) => gameByName.get(name)).filter((g): g is GameEntry => g != null)
+      toPreload.forEach((g) => router.prefetch(`/survival/${g.name}`))
     } else {
       GAMES.filter((g) => g.availableFreeplay).forEach((g) => router.prefetch(`/freeplay/${g.name}`))
     }
-  }, [mode, floorGames, router])
+  }, [mode, floorGames, showAllGames, router])
 
   function isAvailable(g: GameEntry) {
     if (mode === 'freeplay') return g.availableFreeplay
+    if (showAllGames) return g.availableSurvival
     return floorGames.includes(g.name)
   }
 

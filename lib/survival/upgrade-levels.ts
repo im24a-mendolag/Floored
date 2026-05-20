@@ -1,5 +1,4 @@
 import type { PurchasedUpgrade } from '@/store/types'
-import { getCatalogItem } from './upgrades-catalog'
 
 export const MAX_UPGRADE_LEVEL = 5
 
@@ -12,7 +11,7 @@ export const RUN_PAYOUT_MULT_BY_LEVEL = [1.05, 1.10, 1.15, 1.20, 1.25] as const
 /** Opening Ticket: free-bet cap as × floor minimum bet. */
 export const OPENING_TICKET_CAP_BY_LEVEL = [10, 12, 16, 22, 30] as const
 
-/** Weighted coin: win chance for the player’s pick. */
+/** Weighted coin: win chance for the player's pick. */
 export const COIN_BIAS_CHANCE_BY_LEVEL = [0.58, 0.63, 0.67, 0.71, 0.75] as const
 
 /** Crash Zone: band padding as a fraction of crashAt, by level (tighter = stronger). */
@@ -46,58 +45,5 @@ export function payoutPercentLabel(mult: number): string {
   return `+${Math.round((mult - 1) * 100)}%`
 }
 
-export function getMaxOwnedLevelInFamily(
-  purchasedUpgrades: PurchasedUpgrade[],
-  familyId: string,
-): number {
-  let max = 0
-  for (const pu of purchasedUpgrades) {
-    const item = getCatalogItem(normalizeUpgradeId(pu.id))
-    if (!item || item.familyId !== familyId) continue
-    max = Math.max(max, item.level ?? 0)
-  }
-  return max
-}
-
-export function getMaxOwnedLevelForEffect(
-  purchasedUpgrades: PurchasedUpgrade[],
-  effectKey: string,
-  options?: { game?: string; scope?: 'run' | 'game' },
-): number {
-  let max = 0
-  for (const pu of purchasedUpgrades) {
-    const item = getCatalogItem(normalizeUpgradeId(pu.id))
-    if (!item || item.effectKey !== effectKey) continue
-    if (options?.scope && item.scope !== options.scope) continue
-    if (options?.game && item.scope === 'game' && item.game !== options.game) continue
-    max = Math.max(max, item.level ?? 0)
-  }
-  return max
-}
-
-export function isUpgradeOfferable(
-  item: { id: string; familyId?: string; level?: number },
-  ownedIds: string[],
-): boolean {
-  const normalized = ownedIds.map(normalizeUpgradeId)
-  if (normalized.includes(item.id)) return false
-  if (!item.familyId || !item.level) return true
-  const maxOwned = getMaxOwnedLevelInFamily(
-    normalized.map((id) => ({ id, purchasedAt: '' })),
-    item.familyId,
-  )
-  if (maxOwned >= MAX_UPGRADE_LEVEL) return false
-  return item.level === maxOwned + 1
-}
-
-export function canPurchaseUpgrade(
-  id: string,
-  purchasedUpgrades: PurchasedUpgrade[],
-): boolean {
-  const item = getCatalogItem(id)
-  if (!item?.familyId || !item.level) return true
-  const normalized = purchasedUpgrades.map((u) => normalizeUpgradeId(u.id))
-  if (normalized.includes(id)) return false
-  const maxOwned = getMaxOwnedLevelInFamily(purchasedUpgrades, item.familyId)
-  return item.level === maxOwned + 1
-}
+// Re-exported from upgrades-catalog to avoid breaking existing imports
+export type { PurchasedUpgrade }
