@@ -22,8 +22,8 @@ export function pickLobbyReplacement(
   rng: () => number,
 ): GameName | null {
   if (slotIndex < 0 || slotIndex >= floorGames.length) return null
-  const others = new Set(floorGames.filter((_, i) => i !== slotIndex))
-  const candidates = pool.filter((g) => !others.has(g))
+  const exclude = new Set(floorGames)
+  const candidates = pool.filter((g) => !exclude.has(g))
   if (candidates.length === 0) return null
   return candidates[Math.floor(rng() * candidates.length)]!
 }

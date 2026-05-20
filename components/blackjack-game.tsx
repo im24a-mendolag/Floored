@@ -220,6 +220,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
       const built = buildPendingResult(
         { outcome: o, betAmount: state.betAmount, payout: resolved.payout },
         { result: resultKind },
+        { freeBet: resolved.firstBetWasFree },
       )
       setTimeout(() => setPendingResult(built), resultDelay)
     }
@@ -491,9 +492,6 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
             )}
           </div>
 
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>

@@ -212,6 +212,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
       {
         result: outcome === 'push' ? 'Push' : resultLabel,
       },
+      { freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }
@@ -449,9 +450,6 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
             </div>
           </div>
 
-          {minBet > 1 && isSetup && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
 

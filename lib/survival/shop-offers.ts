@@ -118,6 +118,7 @@ export function generateShopOffersWithTicketRerolls(
       continue
     }
     const excludeItemIds = [
+      base[i]!.item.id,
       ...result.map((o) => o.item.id),
       ...base.slice(i + 1).map((o) => o.item.id),
     ]

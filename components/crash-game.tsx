@@ -52,6 +52,7 @@ function crashPendingResult(
   betAmount: number,
   payout: number,
   multiplier: number,
+  freeBet?: boolean,
 ): PendingResult {
   return buildPendingResult(
     { outcome, betAmount, payout },
@@ -59,7 +60,7 @@ function crashPendingResult(
       result: formatMultiplier(multiplier),
       resultSpecification: outcome === 'win' ? 'Cashed' : 'Crashed',
     },
-    { gameMultiplier: multiplier },
+    { gameMultiplier: multiplier, freeBet },
   )
 }
 
@@ -234,7 +235,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
           multiplier: crashAt,
         })
         setPendingResult(
-          crashPendingResult('loss', betAmount, resolved.payout, resolved.multiplier ?? crashAt),
+          crashPendingResult('loss', betAmount, resolved.payout, resolved.multiplier ?? crashAt, resolved.firstBetWasFree),
         )
       }
     }, 50)
@@ -275,7 +276,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
       multiplier: m,
     })
     setPendingResult(
-      crashPendingResult('win', round.betAmount, resolved.payout, resolved.multiplier ?? m),
+      crashPendingResult('win', round.betAmount, resolved.payout, resolved.multiplier ?? m, resolved.firstBetWasFree),
     )
   }
 
@@ -423,9 +424,6 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
             </div>
           </div>
 
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>

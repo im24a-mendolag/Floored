@@ -54,7 +54,7 @@ export function GameDockBackButton({
       onClick={() => router.push(`/${mode}`)}
       className="absolute left-2 top-2 z-10 rounded-xl border border-zinc-600 bg-zinc-900 px-3 py-2 shadow-lg text-sm font-semibold text-zinc-200 hover:bg-zinc-800 hover:border-zinc-400 hover:text-white transition-colors"
     >
-      ← Game Selection
+      {mode === 'survival' ? '← Lobby' : '← Game Selection'}
     </button>
   )
 }

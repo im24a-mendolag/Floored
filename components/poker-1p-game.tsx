@@ -198,7 +198,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
       {
         result: HAND_LABELS[s.handRank],
       },
-      { gameMultiplier: outcome === 'win' && s.multiplier > 0 ? s.multiplier : undefined },
+      { gameMultiplier: outcome === 'win' && s.multiplier > 0 ? s.multiplier : undefined, freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }
@@ -348,9 +348,6 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
             </div>
           </div>
 
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>

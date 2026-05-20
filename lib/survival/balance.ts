@@ -1,14 +1,14 @@
 import type { Difficulty, GameName } from '@/store/types'
 
 /** Dev/testing: grant every shop upgrade when a survival run starts. Set false before release. */
-export const GRANT_ALL_UPGRADES = false
+export const GRANT_ALL_UPGRADES = true
 
 /** Dev/testing: bankroll and sparks when a survival run starts (and idle reset). */
 export const STARTING_BANKROLL = 1000
 export const STARTING_SPARKS = 15
 
 /** Dev/testing: starting reroll tickets granted in inventory for a run */
-export const STARTING_REROLL_TICKETS = 3
+export const STARTING_REROLL_TICKETS = 99
 /** How many reroll tickets are awarded automatically when advancing to the next floor */
 export const REROLL_TICKETS_PER_FLOOR = 3
 

@@ -113,7 +113,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
         result: outcome === 'loss' ? 'Bust' : String(next.step),
         resultSpecification: outcome === 'loss' ? undefined : 'Step',
       },
-      { gameMultiplier: outcome === 'win' && !partial ? next.multiplier : undefined },
+      { gameMultiplier: outcome === 'win' && !partial ? next.multiplier : undefined, freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }
@@ -337,9 +337,6 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
                 <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
                 <button type="button" onClick={handleNext} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
               </div>
-            )}
-            {minBet > 1 && isBetting && (
-              <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
             )}
           </div>
         </div>

@@ -240,6 +240,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
           historySubtitle: `Bet ${betName} · Landed ${result.resultMultiplier}× · ${resultColor}`,
           gameMultiplier: result.outcome === 'win' ? result.payoutMultiplier : undefined,
           payoutBoostMult: resolved.payoutBoostMult,
+          freeBet: resolved.firstBetWasFree,
         },
       )
       setPendingResult(built)
@@ -488,9 +489,6 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
                 {isSettled ? 'Next →' : spinning ? 'Spinning…' : 'Spin →'}
               </button>
             </div>
-            {minBet > 1 && isBetting && (
-              <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-            )}
           </div>
         </div>
       </div>

@@ -127,7 +127,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
         betSpecification: DIFFICULTY_LABELS[next.difficulty],
         result,
       },
-      { gameMultiplier: outcome === 'win' ? next.multiplier : undefined },
+      { gameMultiplier: outcome === 'win' ? next.multiplier : undefined, freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }
@@ -344,9 +344,6 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
             </div>
           </div>
 
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>

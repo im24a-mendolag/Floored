@@ -166,7 +166,7 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
         result: won ? `${PAYOUT_MULTIPLIER}×` : CHICKENS[settled.winner!]!.name,
         resultSpecification: won ? 'Win' : undefined,
       },
-      { gameMultiplier: won ? PAYOUT_MULTIPLIER : undefined },
+      { gameMultiplier: won ? PAYOUT_MULTIPLIER : undefined, freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }
@@ -381,9 +381,6 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
             </div>
           </div>
 
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>
