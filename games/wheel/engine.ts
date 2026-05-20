@@ -9,16 +9,16 @@ export const WHEEL_SEGMENTS: WheelSegment[] = [
 
 const TOTAL_SLOTS = WHEEL_SEGMENTS.reduce((s, seg) => s + seg.count, 0) // 12
 
-// Bresenham-mixed 12-slice layout (30° per slice, mid = slice_index × 30 + 15):
-// R(15°) B(45°) R(75°) G(105°) R(135°) B(165°) Gold(195°) R(225°) R(255°) G(285°) B(315°) R(345°)
+// No-adjacent layout (30° per slice, mid = slice_index × 30 + 15):
+// R(15°) B(45°) R(75°) G(105°) R(135°) B(165°) R(195°) Gold(225°) R(255°) G(285°) R(315°) B(345°)
 // To land a slice's element_angle under the top pointer after CSS rotate(θ):
 //   screen_angle = (element_angle + θ) % 360  →  for screen_angle=0: θ = (360 - element_angle) % 360
 //   mid must equal (360 - representative_element_angle) % 360
 export const SEGMENT_DEGREES: Record<WheelColor, { start: number; end: number; mid: number }> = {
   red:   { start: 0, end: 360, mid: 225 }, // 360 - 135 (slice 4)
-  blue:  { start: 0, end: 360, mid: 195 }, // 360 - 165 (slice 5)
+  blue:  { start: 0, end: 360, mid: 315 }, // 360 - 045 (slice 1)
   green: { start: 0, end: 360, mid: 255 }, // 360 - 105 (slice 3)
-  gold:  { start: 0, end: 360, mid: 165 }, // 360 - 195 (slice 6)
+  gold:  { start: 0, end: 360, mid: 135 }, // 360 - 225 (slice 7)
 }
 
 function pickResultColor(): WheelColor {

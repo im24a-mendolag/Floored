@@ -4,9 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import type { GameName } from '@/store/types'
-import { calcShopPrice } from '@/lib/survival/balance'
-import { getLobbyTicketCount, LOBBY_REROLL_TICKET } from '@/lib/survival/lobby-ticket'
-import { Button } from '@/components/ui/button'
+import { getLobbyTicketCount } from '@/lib/survival/lobby-ticket'
 
 interface GameEntry {
   name: GameName
@@ -231,17 +229,9 @@ export function Lobby({ mode }: Props) {
   const [pendingGame, setPendingGame] = useState<GameName | null>(null)
   const floorGames = useSurvivalStore((s) => s.floorGames)
   const inventory = useSurvivalStore((s) => s.inventory)
-  const sparks = useSurvivalStore((s) => s.sparks)
-  const difficulty = useSurvivalStore((s) => s.difficulty)
-  const purchaseLobbyRerollTicket = useSurvivalStore((s) => s.purchaseLobbyRerollTicket)
   const rerollLobbyGame = useSurvivalStore((s) => s.rerollLobbyGame)
 
   const ticketCount = getLobbyTicketCount(inventory)
-  const ticketPrice =
-    mode === 'survival' && difficulty != null
-      ? calcShopPrice(LOBBY_REROLL_TICKET.baseCost, difficulty)
-      : 0
-  const canBuyTicket = mode === 'survival' && sparks >= ticketPrice
 
   const gameByName = new Map(GAMES.map((g) => [g.name, g]))
 
@@ -273,31 +263,6 @@ export function Lobby({ mode }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      {mode === 'survival' && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="flex flex-col gap-0.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-              Lobby Reroll Tickets
-            </p>
-            <p className="text-sm font-bold text-zinc-200 tabular-nums">
-              {ticketCount}
-              <span className="text-xs font-normal text-zinc-500 ml-1.5">
-                — use ↻ on a game to swap it
-              </span>
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canBuyTicket}
-            className="h-8 border-zinc-700 text-xs"
-            onClick={() => purchaseLobbyRerollTicket()}
-          >
-            Buy ticket ✦ {ticketPrice}
-          </Button>
-        </div>
-      )}
-
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
       {displayGames.map((g, i) => {
         const available = isAvailable(g)
@@ -388,6 +353,7 @@ export function Lobby({ mode }: Props) {
         )
       })}
       </div>
+
     </div>
   )
 }

@@ -75,11 +75,12 @@ interface PlinkoBoardProps {
   balls: PlinkoBall[]
   onBallComplete: (id: string) => void
   risk: PlinkoRisk
+  goldenBallIds?: string[]
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PlinkoBoard({ balls, onBallComplete, risk }: PlinkoBoardProps) {
+export function PlinkoBoard({ balls, onBallComplete, risk, goldenBallIds }: PlinkoBoardProps) {
   const glowId = `pg-${useId().replace(/:/g, '')}`
   const multipliers = getSlotMultipliers(risk)
 
@@ -145,6 +146,13 @@ export function PlinkoBoard({ balls, onBallComplete, risk }: PlinkoBoardProps) {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <filter id={`${glowId}-gold`} x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
 
       <rect width={VIEWBOX_WIDTH} height={VIEWBOX_HEIGHT} fill="#111113" />
@@ -186,16 +194,17 @@ export function PlinkoBoard({ balls, onBallComplete, risk }: PlinkoBoardProps) {
         const cols = Array.from({ length: ROWS + 1 }, (_, r) => ballColAtRow(ball.path.decisions, r))
         const pos = getBallPos(cols, ball.startedAt, animNow)
         if (!pos) return null
+        const isGolden = goldenBallIds?.includes(ball.id) ?? false
         return (
           <circle
             key={ball.id}
             cx={pos.x}
             cy={pos.y}
             r={BALL_R}
-            fill="#f4f4f5"
-            stroke="#93c5fd"
+            fill={isGolden ? '#fbbf24' : '#f4f4f5'}
+            stroke={isGolden ? '#f59e0b' : '#93c5fd'}
             strokeWidth={1.5}
-            filter={`url(#${glowId})`}
+            filter={`url(#${glowId}${isGolden ? '-gold' : ''})`}
           />
         )
       })}

@@ -1,3 +1,4 @@
+import { BET_LINE_SEP } from '@/lib/game-result-labels'
 import type { BetMap, RouletteColor, RouletteBetType, RouletteState } from './types'
 
 const RED_NUMBERS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36])
@@ -55,6 +56,26 @@ export function getLabelForTarget(target: string): string {
   const parsed = parseInt(target, 10)
   if (!isNaN(parsed)) return parsed === 0 ? 'Zero' : `No. ${parsed}`
   return BET_LABELS[target as RouletteBetType] ?? target
+}
+
+/** Bet spec after amount: `Red`, `Black 6`, `1–18`. */
+export function getOutcomeLabelForTarget(target: string): string {
+  const parsed = parseInt(target, 10)
+  if (!isNaN(parsed)) {
+    if (parsed === 0) return 'Zero'
+    const color = getNumberColor(parsed)
+    const colorName = color === 'red' ? 'Red' : 'Black'
+    return `${colorName} ${parsed}`
+  }
+  return BET_LABELS[target as RouletteBetType] ?? target
+}
+
+/** Result column: `36 · Red`, `0 · Zero`. */
+export function formatRouletteResultLabel(result: number, resultColor: RouletteColor): string {
+  if (result === 0) return 'Zero'
+  const colorName =
+    resultColor === 'red' ? 'Red' : resultColor === 'black' ? 'Black' : 'Green'
+  return `${result}${BET_LINE_SEP}${colorName}`
 }
 
 export function initRoulette(): RouletteState {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,7 +11,9 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -20,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -64,13 +67,7 @@ interface SlotsGameProps {
   onResolve: GameResolveFn<SlotsResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  multiplierHint?: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 type ReelTuple = [SlotsSymbol | null, SlotsSymbol | null, SlotsSymbol | null]
 type BoolTuple  = [boolean, boolean, boolean]
@@ -111,7 +108,8 @@ function Reel({ symbol, spinning, landed }: { symbol: SlotsSymbol | null; spinni
 }
 
 export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) {
-  const { floorMinBet, jackpotMeter, runActive, resetJackpotMeter } = useSurvivalStore()
+  const router = useRouter()
+  const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
@@ -123,7 +121,6 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
     slotsShieldLevel,
   )
   const minBet = mode === 'survival' ? floorMinBet : 1
-  const jackpotReady = mode === 'survival' && runActive && jackpotMeter >= 100
 
   const [round, setRound] = useState<SlotsState>(initSlots())
   const [currentBet, setCurrentBet] = useState(0)
@@ -171,7 +168,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
 
     const shieldActive = shieldProc.rollForBet()
 
-    const result = blessed ? winGame(bet) : cursed ? loseGame(bet) : spinSlots(bet, jackpotReady)
+    const result = blessed ? winGame(bet) : cursed ? loseGame(bet) : spinSlots(bet)
 
     // Reel 0 lands
     const t1 = setTimeout(() => {
@@ -204,8 +201,6 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
       setIsSpinning(false)
       setRound(result)
 
-      if (jackpotReady) resetJackpotMeter()
-
       let payout = getSlotsResultPayout(result)
       let finalOutcome: 'win' | 'loss' | 'push' =
         result.outcome === 'win' ? 'win' : 'loss'
@@ -224,31 +219,17 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
       const r = result.reels!
       const line = `${PAYTABLE_GLYPH[r[0]]} ${PAYTABLE_GLYPH[r[1]]} ${PAYTABLE_GLYPH[r[2]]}`
       const isWin = finalOutcome === 'win'
-      const titlePrefix = result.isJackpotSpin ? 'Jackpot' : line
       const built = buildPendingResult(
         { outcome: finalOutcome, betAmount: result.betAmount, payout: resolved.payout },
-        isWin || finalOutcome === 'push'
-          ? `${formatChips(result.betAmount)} bet · ${titlePrefix} · ${result.payoutMultiplier}×`
-          : `${formatChips(result.betAmount)} bet · No match`,
         {
-          winLabel: 'Total winnings',
-          lossLabel: finalOutcome === 'push' ? 'Push (shield)' : 'No winnings',
+          result: isWin || finalOutcome === 'push' ? line : 'No match',
+        },
+        {
           gameMultiplier: isWin && result.payoutMultiplier > 0 ? result.payoutMultiplier : undefined,
           payoutBoostMult: resolved.payoutBoostMult,
         },
       )
-      const partial = isWin && payout > 0 && payout < result.betAmount
-      setPendingResult({
-        tone: payout > 0 ? 'win' : 'loss',
-        label: built.label,
-        outcomeLabel: result.isJackpotSpin
-          ? 'Jackpot'
-          : partial
-            ? 'Partial return'
-            : built.outcomeLabel,
-        multiplierHint: built.multiplierHint,
-        entry: built.entry,
-      })
+      setPendingResult(built)
       shieldProc.resetPerk()
     }, SPIN_DURATION + STAGGER * 2 + LAND_FLASH)
 
@@ -297,27 +278,6 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
         <div className="flex min-h-0 flex-1 w-full max-w-sm flex-col">
           <div className="min-h-0 flex-1 shrink" aria-hidden />
           <div className="flex w-full flex-col items-center gap-4 shrink-0">
-            <div
-              className={`w-full h-[2.75rem] shrink-0 flex flex-col justify-center ${
-                mode !== 'survival' || !runActive ? 'invisible pointer-events-none' : ''
-              }`}
-            >
-              <div className="flex items-center justify-between text-xs text-white/40 mb-1.5">
-                <span className="uppercase tracking-wider">Jackpot Meter</span>
-                <span
-                  className={`font-semibold ${jackpotReady ? 'text-yellow-400 animate-pulse' : 'text-white/60'}`}
-                >
-                  {jackpotReady ? 'READY — Next spin is 100×!' : `${jackpotMeter}%`}
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${jackpotReady ? 'bg-yellow-400' : 'bg-gradient-to-r from-purple-600 to-yellow-400'}`}
-                  style={{ width: `${jackpotMeter}%` }}
-                />
-              </div>
-            </div>
-
             <div className="flex h-[8.5rem] shrink-0 items-center justify-center gap-3">
               <Reel symbol={displayedReels[0]} spinning={spinningReels[0]} landed={landedReels[0]} />
               <div className="relative">
@@ -383,14 +343,14 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
-                multiplierHint={pendingResult.multiplierHint}
               />
             )}
             {!isBetting && !isSpinning && !(isSettled && pendingResult) && (
@@ -398,19 +358,20 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : handleSpin}
-              disabled={!isSettled && (!canSpin || isSpinning)}
-              className={`min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg ${
-                jackpotReady && isBetting
-                  ? 'bg-yellow-400 hover:bg-yellow-300 text-black animate-pulse'
-                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900'
-              }`}
-            >
-              {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : jackpotReady ? '★ Spin ★' : 'Spin →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNext : handleSpin}
+                disabled={!isSettled && (!canSpin || isSpinning)}
+                className="min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900"
+              >
+                {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : 'Spin →'}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isBetting && (

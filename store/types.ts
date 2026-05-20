@@ -116,7 +116,6 @@ export interface SurvivalStore {
   slotsUsed: number
   floorMinBet: number
   diceConfig: DiceConfig
-  jackpotMeter: number
   difficulty: Difficulty | null
   modifiers: Modifier[]
   history: GameResult[]
@@ -163,6 +162,8 @@ export interface SurvivalStore {
   missionRerollCount: number
   /** Lobby slot rerolls used this floor (seed variance). */
   lobbyRerollCount: number
+  /** Per shop-offer slot rerolls via lobby ticket this floor. */
+  shopOfferTicketRerolls: number[]
   /** Player chose to continue past floor 10. */
   endlessMode: boolean
   /** Player is cursed — all games are rigged to lose. */
@@ -191,13 +192,16 @@ export interface SurvivalStore {
   purchaseUpgrade: (id: string, price: number) => boolean
   purchaseLobbyRerollTicket: () => boolean
   rerollLobbyGame: (slotIndex: number) => boolean
+  rerollShopOfferWithTicket: (slotIndex: number) => boolean
   rerollShop: () => boolean
   rerollMissions: () => boolean
+  rerollMissionsWithTicket: () => boolean
+  rerollMissionWithTicket: (index: number) => boolean
+  rerollMission: (index: number) => boolean
   appendFloorHistory: (record: FloorRecord) => void
   recordResult: (result: GameResult) => void
   recordResultPayout: (result: GameResult) => void
   deductBet: (amount: number) => void
-  resetJackpotMeter: () => void
   setCursed: (val: boolean) => void
   setBlessed: (val: boolean) => void
 }

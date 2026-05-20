@@ -2,6 +2,11 @@
 
 import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import {
+  GameLastBetPanel,
+  GameOutcomeColumns,
+  hasOutcomeEntry,
+} from '@/components/game-dock-parts'
 import { cn } from '@/lib/utils'
 
 export type MatchHistoryTone = 'win' | 'push' | 'loss' | 'partial' | 'neutral'
@@ -12,6 +17,10 @@ export interface MatchHistoryEntry {
   title: string
   subtitle: string
   tone: MatchHistoryTone
+  betSummary?: string
+  resultSummary?: string
+  profitLabel?: string
+  profitTone?: 'win' | 'loss'
 }
 
 function formatTime(d: Date) {
@@ -39,17 +48,40 @@ function toneTitle(t: MatchHistoryTone) {
   return 'text-zinc-300'
 }
 
-/** ~17rem cap, matches previous panel */
-const PANEL_W = 272
+/** Wider panel for three-column outcome rows */
+const PANEL_W = 320
 const GAP = 8
+
+function HistoryEntryCard({ entry }: { entry: MatchHistoryEntry }) {
+  if (hasOutcomeEntry(entry)) {
+    return (
+      <div className={cn('rounded-lg border px-3 py-2.5 text-left', toneBorder(entry.tone))}>
+        <p className="text-[10px] text-zinc-500 tabular-nums mb-2">{formatTime(entry.at)}</p>
+        <GameOutcomeColumns
+          betSummary={entry.betSummary!}
+          resultSummary={entry.resultSummary!}
+          profitLabel={entry.profitLabel!}
+          profitTone={entry.profitTone ?? 'loss'}
+          size="history"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn('rounded-lg border px-2.5 py-2 text-left', toneBorder(entry.tone))}>
+      <p className="text-[10px] text-zinc-500 tabular-nums">{formatTime(entry.at)}</p>
+      <p className={cn('text-base font-black', toneTitle(entry.tone))}>{entry.title}</p>
+      <p className="mt-0.5 text-xs leading-snug text-zinc-500">{entry.subtitle}</p>
+    </div>
+  )
+}
 
 interface GameFieldWithHistoryProps {
   entries: MatchHistoryEntry[]
   gameLabel: string
   emptyHint?: string
-  /** Playing field shell (e.g. GAME_BOARD_ARENA) — layout size unchanged when history opens */
   className?: string
-  /** Inner board wrapper: padding, flex-col, centering, etc. */
   boardClassName?: string
   children: ReactNode
 }
@@ -71,6 +103,7 @@ export function GameFieldWithHistory({
   const toggle = useCallback(() => setOpen((o) => !o), [])
   const hasPlays = entries.length > 0
   const latest = entries[0]
+  const showOutcomeLastBet = latest && hasOutcomeEntry(latest)
 
   const fieldRef = useRef<HTMLDivElement>(null)
   const [panelBox, setPanelBox] = useState<{
@@ -136,7 +169,7 @@ export function GameFieldWithHistory({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex shrink-0 items-center justify-between border-b border-zinc-800 px-3 py-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Full history</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Match history</span>
             <button
               type="button"
               onClick={close}
@@ -147,11 +180,7 @@ export function GameFieldWithHistory({
           </div>
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 py-2">
             {entries.map((e) => (
-              <div key={e.id} className={cn('rounded-lg border px-2.5 py-2 text-left', toneBorder(e.tone))}>
-                <p className="text-[10px] text-zinc-500 tabular-nums">{formatTime(e.at)}</p>
-                <p className={cn('text-base font-black', toneTitle(e.tone))}>{e.title}</p>
-                <p className="mt-0.5 text-xs leading-snug text-zinc-500">{e.subtitle}</p>
-              </div>
+              <HistoryEntryCard key={e.id} entry={e} />
             ))}
           </div>
         </aside>
@@ -165,24 +194,37 @@ export function GameFieldWithHistory({
           {children}
 
           {hasPlays && latest ? (
-            <div className="pointer-events-auto absolute right-2 top-2 z-30 flex max-w-[min(13rem,46vw)] flex-col items-end">
-              <button
-                type="button"
-                onClick={toggle}
-                aria-expanded={open}
-                className={cn(
-                  'rounded-xl border border-zinc-700/90 bg-zinc-950/95 px-3 py-2 text-left shadow-lg backdrop-blur-sm',
-                  'hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500',
-                )}
-              >
-                <p className="text-[9px] uppercase tracking-wider text-zinc-600">{gameLabel} · last</p>
-                <p className={cn('truncate text-sm font-black leading-tight', toneTitle(latest.tone))}>
-                  {latest.title}
-                </p>
-                <p className="mt-0.5 truncate text-[11px] text-zinc-500">{latest.subtitle}</p>
-                <p className="mt-1 text-[10px] text-zinc-600">{open ? 'Hide full history' : 'Open full history'}</p>
-              </button>
-            </div>
+            showOutcomeLastBet ? (
+              <GameLastBetPanel
+                betSummary={latest.betSummary!}
+                resultSummary={latest.resultSummary!}
+                profitLabel={latest.profitLabel!}
+                profitTone={latest.profitTone ?? 'loss'}
+                historyOpen={open}
+                onToggleHistory={toggle}
+              />
+            ) : (
+              <div className="pointer-events-auto absolute right-2 top-2 z-30 flex max-w-[min(13rem,46vw)] flex-col items-end gap-0.5">
+                <span className="text-xs font-bold uppercase tracking-widest text-zinc-500 pr-0.5">
+                  History
+                </span>
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-expanded={open}
+                  className={cn(
+                    'rounded-xl border border-zinc-700/90 bg-zinc-950/95 px-3 py-2 text-left shadow-lg backdrop-blur-sm',
+                    'hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500',
+                  )}
+                >
+                  <p className={cn('truncate text-sm font-black leading-tight', toneTitle(latest.tone))}>
+                    {latest.title}
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-zinc-500">{latest.subtitle}</p>
+                  <p className="mt-1 text-[10px] text-zinc-600">{open ? 'Hide full history' : 'Open full history'}</p>
+                </button>
+              </div>
+            )
           ) : (
             <div className="pointer-events-none absolute right-2 top-2 z-20 max-w-[min(11rem,44vw)] text-right text-[10px] leading-snug text-zinc-600">
               {emptyHint}

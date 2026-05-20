@@ -91,8 +91,11 @@ export function Navbar() {
     </Link>
   )
 
+  const inSurvivalGame =
+    inSurvival && pathname != null && /^\/survival\/[^/]+$/.test(pathname)
+
   const showFinishQuota =
-    runActive && quotaMet && !floorComplete && !runDefeated
+    runActive && inSurvivalGame && quotaMet && !floorComplete && !runDefeated
 
   return (
     <>

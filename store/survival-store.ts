@@ -6,7 +6,19 @@ import type { SurvivalStore, Difficulty, GameResult, FloorRecord, DefeatReason }
 import { getFloorMinBet } from '@/utils/math'
 import { generateRunDiceConfig } from '@/games/run-dice/engine'
 import { generateFloor } from '@/lib/survival/floor-generator'
-import { MAX_FLOORS, SURVIVAL_GAME_POOL, FLOOR_DURATION_MS, calcShopRerollCost, calcMissionRerollCost, calcShopPrice, GRANT_ALL_UPGRADES } from '@/lib/survival/balance'
+import {
+  MAX_FLOORS,
+  SURVIVAL_GAME_POOL,
+  FLOOR_DURATION_MS,
+  calcShopRerollCost,
+  calcMissionRerollCost,
+  calcShopPrice,
+  GRANT_ALL_UPGRADES,
+  STARTING_BANKROLL,
+  STARTING_SPARKS,
+  STARTING_REROLL_TICKETS,
+  REROLL_TICKETS_PER_FLOOR,
+} from '@/lib/survival/balance'
 import { migratePersistedState } from '@/lib/survival/migrate'
 import { allPurchasedUpgradesForDev, getCatalogItem } from '@/lib/survival/upgrades-catalog'
 import {
@@ -17,7 +29,7 @@ import {
 import { canPurchaseUpgrade } from '@/lib/survival/upgrade-levels'
 import { normalizeUpgradeId } from '@/lib/survival/upgrades-catalog'
 import { generateMissionsForFloor } from '@/lib/survival/missions'
-import { canRerollMissions } from '@/lib/survival/mission-reroll'
+import { canRerollMissions, canRerollMission } from '@/lib/survival/mission-reroll'
 
 function generateSeed(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -43,7 +55,6 @@ const RUN_PERSIST_KEYS = [
   'currentFloor',
   'floorMinBet',
   'diceConfig',
-  'jackpotMeter',
   'difficulty',
   'modifiers',
   'history',
@@ -69,19 +80,22 @@ const RUN_PERSIST_KEYS = [
   'shopRerollCount',
   'missionRerollCount',
   'lobbyRerollCount',
+  'shopOfferTicketRerolls',
   'endlessMode',
   'cursed',
   'blessed',
 ] as const
 
+const EMPTY_SHOP_TICKET_REROLLS = [0, 0, 0] as const
+
 export const useSurvivalStore = create<SurvivalStore>()(
   persist(
     (set, get) => ({
       version: 4,
-      bankroll: 1000,
+      bankroll: STARTING_BANKROLL,
       setBankroll: (n) => set({ bankroll: n }),
 
-      sparks: 0,
+      sparks: STARTING_SPARKS,
       addSparks: (n) => set((s) => ({ sparks: s.sparks + n })),
       spendSparks: (n) => set((s) => ({ sparks: Math.max(0, s.sparks - n) })),
 
@@ -95,15 +109,14 @@ export const useSurvivalStore = create<SurvivalStore>()(
       floorMinBet: getFloorMinBet(1),
 
       diceConfig: { win: [], loss: [], neutral: [] },
-      jackpotMeter: 0,
       difficulty: null,
       modifiers: [],
       history: [],
-      peakBankroll: 1000,
+      peakBankroll: STARTING_BANKROLL,
       lastRun: null,
 
       quotaTarget: 0,
-      floorStartBankroll: 1000,
+      floorStartBankroll: STARTING_BANKROLL,
       floorGames: [],
       missions: [],
       completedMissionIds: [],
@@ -118,6 +131,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
       shopRerollCount: 0,
       missionRerollCount: 0,
       lobbyRerollCount: 0,
+      shopOfferTicketRerolls: [...EMPTY_SHOP_TICKET_REROLLS],
       endlessMode: false,
       cursed: false,
       blessed: false,
@@ -133,8 +147,8 @@ export const useSurvivalStore = create<SurvivalStore>()(
         })
         set({
           version: 4,
-          bankroll: 1_000_000,
-          sparks: 0,
+          bankroll: STARTING_BANKROLL,
+          sparks: STARTING_SPARKS,
           runActive: true,
           runSeed,
           gamesPlayed: 0,
@@ -143,19 +157,22 @@ export const useSurvivalStore = create<SurvivalStore>()(
           slotsUsed: 0,
           floorMinBet: getFloorMinBet(1),
           diceConfig: generateRunDiceConfig(),
-          jackpotMeter: 0,
           difficulty,
           modifiers: [],
           history: [],
-          peakBankroll: 1_000_000,
+          peakBankroll: STARTING_BANKROLL,
           lastRun: null,
           quotaTarget: floor1.quotaTarget,
-          floorStartBankroll: 1_000_000,
+          floorStartBankroll: STARTING_BANKROLL,
           floorGames: floor1.floorGames,
           missions: floor1.missions,
           completedMissionIds: [],
           purchasedUpgrades: GRANT_ALL_UPGRADES ? allPurchasedUpgradesForDev() : [],
-          inventory: GRANT_ALL_UPGRADES ? [{ id: 'reroll_floor_game', count: 99 }] : [],
+          inventory: GRANT_ALL_UPGRADES
+            ? [{ id: LOBBY_REROLL_TICKET_ID, count: 99 }]
+            : STARTING_REROLL_TICKETS > 0
+            ? [{ id: LOBBY_REROLL_TICKET_ID, count: STARTING_REROLL_TICKETS }]
+            : [],
           floorHistory: [],
           floorComplete: false,
           runDefeated: false,
@@ -165,6 +182,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           shopRerollCount: 0,
           missionRerollCount: 0,
           lobbyRerollCount: 0,
+          shopOfferTicketRerolls: [...EMPTY_SHOP_TICKET_REROLLS],
           endlessMode: false,
           cursed: false,
           blessed: false,
@@ -182,15 +200,14 @@ export const useSurvivalStore = create<SurvivalStore>()(
           currentFloor: 1,
           slotsUsed: 0,
           floorMinBet: getFloorMinBet(1),
-          jackpotMeter: 0,
           difficulty: null,
           modifiers: [],
           history: [],
-          peakBankroll: 1000,
-          bankroll: 1000,
-          sparks: 0,
+          peakBankroll: STARTING_BANKROLL,
+          bankroll: STARTING_BANKROLL,
+          sparks: STARTING_SPARKS,
           quotaTarget: 0,
-          floorStartBankroll: 1000,
+          floorStartBankroll: STARTING_BANKROLL,
           floorGames: [],
           missions: [],
           completedMissionIds: [],
@@ -205,6 +222,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           shopRerollCount: 0,
           missionRerollCount: 0,
           lobbyRerollCount: 0,
+          shopOfferTicketRerolls: [...EMPTY_SHOP_TICKET_REROLLS],
           endlessMode: false,
           cursed: false,
           blessed: false,
@@ -261,6 +279,15 @@ export const useSurvivalStore = create<SurvivalStore>()(
             shopRerollCount: 0,
             missionRerollCount: 0,
             lobbyRerollCount: 0,
+            shopOfferTicketRerolls: [...EMPTY_SHOP_TICKET_REROLLS],
+            // grant per-floor reroll tickets
+            inventory: (() => {
+              const existing = s.inventory.find((i) => i.id === LOBBY_REROLL_TICKET_ID)
+              if (!existing) return [...s.inventory, { id: LOBBY_REROLL_TICKET_ID, count: REROLL_TICKETS_PER_FLOOR }]
+              return s.inventory.map((i) =>
+                i.id === LOBBY_REROLL_TICKET_ID ? { ...i, count: i.count + REROLL_TICKETS_PER_FLOOR } : i,
+              )
+            })(),
             ...initialFloorTimerState(),
             quotaMet: s.bankroll >= nextFloorData.quotaTarget,
           }
@@ -295,6 +322,15 @@ export const useSurvivalStore = create<SurvivalStore>()(
             shopRerollCount: 0,
             missionRerollCount: 0,
             lobbyRerollCount: 0,
+            shopOfferTicketRerolls: [...EMPTY_SHOP_TICKET_REROLLS],
+            // grant per-floor reroll tickets
+            inventory: (() => {
+              const existing = s.inventory.find((i) => i.id === LOBBY_REROLL_TICKET_ID)
+              if (!existing) return [...s.inventory, { id: LOBBY_REROLL_TICKET_ID, count: REROLL_TICKETS_PER_FLOOR }]
+              return s.inventory.map((i) =>
+                i.id === LOBBY_REROLL_TICKET_ID ? { ...i, count: i.count + REROLL_TICKETS_PER_FLOOR } : i,
+              )
+            })(),
             ...initialFloorTimerState(),
             quotaMet: s.bankroll >= nextFloorData.quotaTarget,
           }
@@ -481,12 +517,41 @@ export const useSurvivalStore = create<SurvivalStore>()(
         return true
       },
 
+      rerollShopOfferWithTicket: (slotIndex) => {
+        const s = get()
+        if (!s.runActive || !s.runSeed || !s.difficulty) return false
+        const stack = s.inventory.find((i) => i.id === LOBBY_REROLL_TICKET_ID)
+        if (!stack || stack.count <= 0) return false
+        if (slotIndex < 0 || slotIndex >= EMPTY_SHOP_TICKET_REROLLS.length) return false
+
+        const nextInventory =
+          stack.count <= 1
+            ? s.inventory.filter((i) => i.id !== LOBBY_REROLL_TICKET_ID)
+            : s.inventory.map((i) =>
+                i.id === LOBBY_REROLL_TICKET_ID ? { ...i, count: i.count - 1 } : i,
+              )
+
+        const nextRerolls = [...s.shopOfferTicketRerolls]
+        while (nextRerolls.length < EMPTY_SHOP_TICKET_REROLLS.length) nextRerolls.push(0)
+        nextRerolls[slotIndex] = (nextRerolls[slotIndex] ?? 0) + 1
+
+        set({
+          inventory: nextInventory,
+          shopOfferTicketRerolls: nextRerolls,
+        })
+        return true
+      },
+
       rerollShop: () => {
         const s = get()
         if (!s.runActive || !s.difficulty) return false
         const cost = calcShopRerollCost(s.shopRerollCount, s.difficulty)
         if (s.sparks < cost) return false
-        set({ sparks: s.sparks - cost, shopRerollCount: s.shopRerollCount + 1 })
+        set({
+          sparks: s.sparks - cost,
+          shopRerollCount: s.shopRerollCount + 1,
+          shopOfferTicketRerolls: [...EMPTY_SHOP_TICKET_REROLLS],
+        })
         return true
       },
 
@@ -513,6 +578,102 @@ export const useSurvivalStore = create<SurvivalStore>()(
         return true
       },
 
+      rerollMissionsWithTicket: () => {
+        const s = get()
+        if (!s.runActive || !s.runSeed || !s.difficulty) return false
+        const stack = s.inventory.find((i) => i.id === LOBBY_REROLL_TICKET_ID)
+        if (!stack || stack.count <= 0) return false
+        if (!canRerollMissions(s.missions)) return false
+
+        const nextInventory =
+          stack.count <= 1
+            ? s.inventory.filter((i) => i.id !== LOBBY_REROLL_TICKET_ID)
+            : s.inventory.map((i) =>
+                i.id === LOBBY_REROLL_TICKET_ID ? { ...i, count: i.count - 1 } : i,
+              )
+
+        const nextCount = s.missionRerollCount + 1
+        const missions = generateMissionsForFloor(
+          s.runSeed,
+          s.currentFloor,
+          s.difficulty,
+          s.floorGames,
+          s.floorMinBet,
+          nextCount,
+        )
+
+        set({
+          inventory: nextInventory,
+          missionRerollCount: nextCount,
+          missions,
+        })
+        return true
+      },
+
+      // Reroll a single mission by replacing only the indexed mission with the next seeded set's slot.
+      rerollMission: (index: number) => {
+        const s = get()
+        if (!s.runActive || !s.runSeed || !s.difficulty) return false
+        if (index < 0 || index >= s.missions.length) return false
+        const m = s.missions[index]
+        if (!m || !canRerollMission(m)) return false
+        const cost = calcMissionRerollCost(s.missionRerollCount, s.difficulty)
+        if (s.sparks < cost) return false
+        const nextCount = s.missionRerollCount + 1
+        const newSet = generateMissionsForFloor(
+          s.runSeed,
+          s.currentFloor,
+          s.difficulty,
+          s.floorGames,
+          s.floorMinBet,
+          nextCount,
+        )
+        const nextMissions = [...s.missions]
+        if (newSet[index]) nextMissions[index] = newSet[index]
+        set({
+          sparks: s.sparks - cost,
+          missionRerollCount: nextCount,
+          missions: nextMissions,
+        })
+        return true
+      },
+
+      rerollMissionWithTicket: (index: number) => {
+        const s = get()
+        if (!s.runActive || !s.runSeed || !s.difficulty) return false
+        const stack = s.inventory.find((i) => i.id === LOBBY_REROLL_TICKET_ID)
+        if (!stack || stack.count <= 0) return false
+        if (index < 0 || index >= s.missions.length) return false
+        const m = s.missions[index]
+        if (!m || !canRerollMission(m)) return false
+
+        const nextInventory =
+          stack.count <= 1
+            ? s.inventory.filter((i) => i.id !== LOBBY_REROLL_TICKET_ID)
+            : s.inventory.map((i) =>
+                i.id === LOBBY_REROLL_TICKET_ID ? { ...i, count: i.count - 1 } : i,
+              )
+
+        const nextCount = s.missionRerollCount + 1
+        const newSet = generateMissionsForFloor(
+          s.runSeed,
+          s.currentFloor,
+          s.difficulty,
+          s.floorGames,
+          s.floorMinBet,
+          nextCount,
+        )
+        const nextMissions = [...s.missions]
+        if (newSet[index]) nextMissions[index] = newSet[index]
+
+        set({
+          inventory: nextInventory,
+          missionRerollCount: nextCount,
+          missions: nextMissions,
+        })
+        return true
+      },
+
       appendFloorHistory: (record: FloorRecord) =>
         set((s) => ({ floorHistory: [...s.floorHistory, record] })),
 
@@ -522,7 +683,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
           return {
             gamesPlayed: s.gamesPlayed + 1,
             streak: result.outcome === 'win' ? s.streak + 1 : 0,
-            jackpotMeter: Math.min(100, s.jackpotMeter + (result.game === 'slots' ? 5 : 1)),
             history: [...s.history, result],
             bankroll: newBankroll,
             peakBankroll: Math.max(s.peakBankroll, newBankroll),
@@ -540,7 +700,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
           return {
             gamesPlayed: s.gamesPlayed + 1,
             streak,
-            jackpotMeter: Math.min(100, s.jackpotMeter + (result.game === 'slots' ? 5 : 1)),
             history: [...s.history, result],
             bankroll: newBankroll,
             peakBankroll: Math.max(s.peakBankroll, newBankroll),
@@ -550,8 +709,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
 
       deductBet: (amount: number) =>
         set((s) => ({ bankroll: s.bankroll - amount })),
-
-      resetJackpotMeter: () => set({ jackpotMeter: 0 }),
 
       setCursed: (val: boolean) => set({ cursed: val }),
       setBlessed: (val: boolean) => set({ blessed: val }),

@@ -1,11 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
-import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M } from '@/components/game-layout'
+import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -13,9 +16,9 @@ import {
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
-import { formatChips, formatMultiplier } from '@/utils/format'
+import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { streetCupsEliminatedCup } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
@@ -167,14 +170,10 @@ interface StreetCupsGameProps {
   onResolve: GameResolveFn<StreetCupsResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet }   = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -227,7 +226,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
   const isSettled   = round.stage === 'settled'
 
   const canStart = currentBet >= minBet && currentBet <= bankroll
-  const showQuoteUntilNext = !isBetting
+  const showQuoteUntilNext = !isBetting && !isSettled
   const potentialWinnings =
     isPicking && round.betAmount > 0
       ? Math.round(round.betAmount * STREET_CUPS_WIN_MULTIPLIER)
@@ -344,18 +343,12 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
       const outcome = settled.outcome!
       const built = buildPendingResult(
         { outcome, betAmount: settled.betAmount, payout: displayPayout },
-        `${formatChips(settled.betAmount)} bet · ${outcome === 'win' ? `Win · ${formatMultiplier(STREET_CUPS_WIN_MULTIPLIER)}` : 'Loss'}`,
-        { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+        {
+          result: outcome === 'win' ? 'Win' : 'Loss',
+        },
+        { gameMultiplier: outcome === 'win' ? STREET_CUPS_WIN_MULTIPLIER : undefined },
       )
-      setPendingResult({
-        tone: outcome === 'win' ? 'win' : 'loss',
-        label: built.label,
-        outcomeLabel:
-          outcome === 'win'
-            ? `${formatMultiplier(STREET_CUPS_WIN_MULTIPLIER)} — Win`
-            : built.outcomeLabel,
-        entry: built.entry,
-      })
+      setPendingResult(built)
       setShowNext(true)
     }, 1600)
   }, [isPicking, round, onResolve, eliminatedCupId])
@@ -406,6 +399,11 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
 
   return (
     <div className={GAME_CARD_SHELL}>
+      <div className={GAME_STATUS_BAR}>
+        <span className="text-sm font-semibold tracking-widest uppercase text-zinc-600">Street Cups</span>
+        <span className="text-sm text-zinc-600 text-right max-w-[min(100%,28rem)]">{boardInstruction}</span>
+      </div>
+
       <GameFieldWithHistory
         className={GAME_BOARD_ARENA}
         boardClassName="relative flex min-h-0 flex-col items-center justify-end px-4 py-4"
@@ -422,10 +420,6 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
           betAmount={!isBetting ? round.betAmount : 0}
           visible={!isBetting && round.betAmount > 0}
         />
-
-        <div className="min-h-8 flex w-full max-w-sm items-center justify-center px-2 shrink-0 mb-2">
-          <p className="text-center text-xs text-zinc-500">{boardInstruction}</p>
-        </div>
 
         {/* Cup stage */}
         <div className="relative w-full" style={{ height: 180 }}>
@@ -468,7 +462,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isPicking && potentialWinnings > 0 && (
               <p className="text-sm text-zinc-400">
@@ -478,8 +472,9 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
             )}
             {isSettled && pendingResult && showNext && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -488,15 +483,20 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled && showNext ? handleNext : handleStart}
-              disabled={actionDisabled}
-              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-            >
-              {actionLabel}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && showNext && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled && showNext ? handleNext : handleStart}
+                disabled={actionDisabled}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                {actionLabel}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isBetting && (

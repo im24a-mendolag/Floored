@@ -1,11 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockSettledRow,
@@ -16,7 +19,7 @@ import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -50,12 +53,7 @@ interface CaseBattlesGameProps {
   onResolve: GameResolveFn<CaseBattlesResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 const RARITY_TEXT: Record<CaseRarity, string> = {
   common:    'text-zinc-300',
@@ -116,6 +114,7 @@ function ItemSlot({
 const FREEPLAY_BASE = 10
 
 export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattlesGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -140,7 +139,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   const isSetup = state.stage === 'setup'
   const isOpening = state.stage === 'opening'
   const isSettled = state.stage === 'settled'
-  const showQuoteUntilNext = isOpening || isSettled
+  const showQuoteUntilNext = isOpening
 
   useEffect(() => {
     if (isSetup && mode === 'survival' && caseXray && cases.length > 0) {
@@ -210,16 +209,11 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
           : 'Loss'
     const built = buildPendingResult(
       { outcome, betAmount: s.totalCost, payout: resolved.payout },
-      `${s.selectedCases.length} cases · ${formatChips(s.totalCost)} · ${resultLabel}`,
-      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      {
+        result: outcome === 'push' ? 'Push' : resultLabel,
+      },
     )
-    setPendingResult({
-      tone: built.tone === 'win' ? 'win' : 'loss',
-      label: built.label,
-      outcomeLabel:
-        outcome === 'push' ? 'Push' : outcome === 'win' ? 'Total winnings' : built.outcomeLabel,
-      entry: built.entry,
-    })
+    setPendingResult(built)
   }
 
   function handleBattle() {
@@ -268,7 +262,6 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
         <GameDockBackButton mode={mode} visible={isSetup} />
         <GameActiveBetBadge
           betAmount={!isSetup ? state.totalCost : 0}
-          betType={!isSetup && numCases > 0 ? `${numCases} case${numCases === 1 ? '' : 's'}` : undefined}
           visible={!isSetup && state.totalCost > 0}
         />
 
@@ -401,7 +394,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
             )}
           </div>
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isSetup && (
               <div className="flex items-center gap-2.5 flex-wrap justify-center">
                 <span className="text-zinc-500 text-base">Total cost</span>
@@ -429,8 +422,9 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -439,15 +433,20 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : handleBattle}
-              disabled={isOpening || (isSetup && !canBattle)}
-              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-            >
-              {isSettled ? 'Next →' : isOpening ? 'Opening…' : 'Battle →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNext : handleBattle}
+                disabled={isOpening || (isSetup && !canBattle)}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                {isSettled ? 'Next →' : isOpening ? 'Opening…' : 'Battle →'}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isSetup && (

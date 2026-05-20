@@ -98,9 +98,9 @@ const GAME_PERK_DEFS: Record<
     rarity: 'rare',
   },
   plinko: {
-    name: 'First Ball Shield',
-    description: 'When active, the first ball in a drop is refunded if it would lose money.',
-    effectKey: 'perk_plinko_first_ball',
+    name: 'Golden Ball',
+    description: 'When active, the dropped ball turns golden and pays out 2× its normal payout.',
+    effectKey: 'perk_plinko_golden_ball',
     baseCost: 18,
     rarity: 'rare',
   },

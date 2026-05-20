@@ -1,11 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -15,7 +18,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -55,14 +58,10 @@ interface ChickenRaceGameProps {
   onResolve: GameResolveFn<ChickenRaceResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRaceGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -162,15 +161,14 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
     })
     const built = buildPendingResult(
       { outcome, betAmount: settled.betAmount, payout: resolved.payout },
-      `${formatChips(settled.betAmount)} on ${CHICKENS[settled.pickedChicken!]!.name} · ${CHICKENS[settled.winner!]!.name} won`,
-      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      {
+        betSpecification: CHICKENS[settled.pickedChicken!]!.name,
+        result: won ? `${PAYOUT_MULTIPLIER}×` : CHICKENS[settled.winner!]!.name,
+        resultSpecification: won ? 'Win' : undefined,
+      },
+      { gameMultiplier: won ? PAYOUT_MULTIPLIER : undefined },
     )
-    setPendingResult({
-      tone: built.tone === 'win' ? 'win' : 'loss',
-      label: built.label,
-      outcomeLabel: won ? `${PAYOUT_MULTIPLIER}× — Win` : built.outcomeLabel,
-      entry: built.entry,
-    })
+    setPendingResult(built)
   }
 
   const handleNext = useCallback(() => {
@@ -346,7 +344,7 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isRacing && potentialWinnings > 0 && (
               <p className="text-sm text-zinc-400">
@@ -356,8 +354,9 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -366,15 +365,20 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : handleRace}
-              disabled={actionDisabled}
-              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-            >
-              {isSettled ? 'Next →' : 'Race →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNext : handleRace}
+                disabled={actionDisabled}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                {isSettled ? 'Next →' : 'Race →'}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isBetting && (

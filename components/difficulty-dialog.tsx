@@ -25,7 +25,12 @@ function formatMult(n: number): string {
   return n === 1 ? '1×' : `${n}×`
 }
 
-const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] = [
+const DIFFICULTIES: Array<{
+  value: Difficulty
+  label: string
+  description: string
+  disabled?: boolean
+}> = [
   {
     value: 'normal',
     label: 'Normal',
@@ -35,11 +40,13 @@ const DIFFICULTIES: { value: Difficulty; label: string; description: string }[] 
     value: 'hard',
     label: 'Hard',
     description: `${formatMult(DIFFICULTY_QUOTA_MULT.hard)} quota · ${formatMult(DIFFICULTY_SHOP_PRICE_MULT.hard)} shop prices`,
+    disabled: true,
   },
   {
     value: 'nightmare',
     label: 'Nightmare',
     description: `${formatMult(DIFFICULTY_QUOTA_MULT.nightmare)} quota · ${formatMult(DIFFICULTY_SHOP_PRICE_MULT.nightmare)} shop prices`,
+    disabled: true,
   },
 ]
 
@@ -74,12 +81,16 @@ export function DifficultyDialog({ open, onClose }: Props) {
               key={d.value}
               variant="outline"
               className="w-full h-auto py-3 flex-col items-center text-center"
-              onClick={() => handleSelect(d.value)}
+              onClick={() => !d.disabled && handleSelect(d.value)}
+              disabled={d.disabled}
             >
               <span className="font-semibold">{d.label}</span>
-              <span className="text-xs text-muted-foreground font-normal mt-0.5">
+              <span className="text-[10px] text-muted-foreground font-normal mt-0.5">
                 {d.description}
               </span>
+              {d.disabled && (
+                <span className="text-[10px] text-zinc-500 mt-1">Temporarily unavailable</span>
+              )}
             </Button>
           ))}
         </div>

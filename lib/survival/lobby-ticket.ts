@@ -6,7 +6,7 @@ export const LOBBY_REROLL_TICKET_ID = 'reroll_floor_game'
 export const LOBBY_REROLL_TICKET = {
   id: LOBBY_REROLL_TICKET_ID,
   name: 'Lobby Reroll Ticket',
-  description: 'Reroll one game on this floor’s lobby.',
+  description: 'Reroll one lobby game or one shop offer on this floor.',
   baseCost: 8,
 } as const
 

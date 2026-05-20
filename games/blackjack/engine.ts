@@ -191,10 +191,8 @@ export function hitBlackjack(state: BlackjackState): BlackjackState {
     message: 'You hit.',
   }
 
-  if (isBust(nextState.playerHand)) {
-    return settle(nextState, 'loss')
-  }
-
+  if (isBust(nextState.playerHand)) return settle(nextState, 'loss')
+  if (calculateHandValue(nextState.playerHand) === 21) return standBlackjack(nextState)
   return nextState
 }
 
@@ -255,15 +253,15 @@ function buildCursedDeck(): BlackjackCard[] {
 
   const playerFirst  = pool.find(c => ['5','6','7'].includes(c.rank))
   const playerSecond = pool.find(c => c !== playerFirst && ['7','8','9'].includes(c.rank))
-  const dealerStrong = pool.find(c => ![playerFirst, playerSecond].includes(c) && ['10','J','Q','K'].includes(c.rank))
-  const dealerMid    = pool.find(c => ![playerFirst, playerSecond, dealerStrong].includes(c) && ['7','8','9'].includes(c.rank))
+  // Dealer starts under 16 so their hand looks beatable; loseStand handles the rest.
+  const dealerFirst  = pool.find(c => ![playerFirst, playerSecond].includes(c) && ['6','7','8'].includes(c.rank))
+  const dealerSecond = pool.find(c => ![playerFirst, playerSecond, dealerFirst].includes(c) && ['5','6','7'].includes(c.rank))
 
-  if (!playerFirst || !playerSecond || !dealerStrong || !dealerMid) return pool
+  if (!playerFirst || !playerSecond || !dealerFirst || !dealerSecond) return pool
 
-  // Randomise which dealer card is face-up so the pattern isn't obvious.
   const [dealerFaceUp, dealerHole] = Math.random() < 0.5
-    ? [dealerStrong, dealerMid]
-    : [dealerMid, dealerStrong]
+    ? [dealerFirst, dealerSecond]
+    : [dealerSecond, dealerFirst]
 
   const reserved = new Set([playerFirst, playerSecond, dealerFaceUp, dealerHole])
   const remaining = shuffle(pool.filter(c => !reserved.has(c)))
@@ -300,7 +298,7 @@ export function loseHit(state: BlackjackState): BlackjackState {
   let deck = [...state.deck]
   const playerValue = calculateHandValue(state.playerHand)
 
-  if (playerValue > 11) {
+  if (playerValue > 12) {
     const tenIdx = deck.findIndex(c => ['10','J','Q','K'].includes(c.rank))
     if (tenIdx > 0) {
       ;[deck[0], deck[tenIdx]] = [deck[tenIdx]!, deck[0]!]
@@ -319,6 +317,7 @@ export function loseHit(state: BlackjackState): BlackjackState {
   }
 
   if (isBust(nextState.playerHand)) return settle(nextState, 'loss')
+  if (calculateHandValue(nextState.playerHand) === 21) return loseStand(nextState)
   return nextState
 }
 
@@ -340,7 +339,7 @@ export function loseDouble(state: BlackjackState): BlackjackState {
   let deck = [...state.deck]
   const playerValue = calculateHandValue(state.playerHand)
 
-  if (playerValue > 11) {
+  if (playerValue > 12) {
     const tenIdx = deck.findIndex(c => ['10','J','Q','K'].includes(c.rank))
     if (tenIdx > 0) {
       ;[deck[0], deck[tenIdx]] = [deck[tenIdx]!, deck[0]!]
@@ -372,14 +371,15 @@ function buildBlessedDeck(): BlackjackCard[] {
   const goodFirstRanks: BlackjackCard['rank'][] = ['A', '7', '8', '9', '10']
   const playerFirst  = pool.find(c => goodFirstRanks.includes(c.rank))
   const playerSecond = pool.find(c => c !== playerFirst && ['10','J','Q','K'].includes(c.rank))
-  const dealerWeak   = pool.find(c => ![playerFirst, playerSecond].includes(c) && ['5','6','7'].includes(c.rank))
-  const dealerLow    = pool.find(c => ![playerFirst, playerSecond, dealerWeak].includes(c) && ['2','3','4'].includes(c.rank))
+  // Min total 12 (7+5) ensures any ten-value draw busts the dealer.
+  const dealerFirst  = pool.find(c => ![playerFirst, playerSecond].includes(c) && ['7','8'].includes(c.rank))
+  const dealerSecond = pool.find(c => ![playerFirst, playerSecond, dealerFirst].includes(c) && ['5','6','7'].includes(c.rank))
 
-  if (!playerFirst || !playerSecond || !dealerWeak || !dealerLow) return pool
+  if (!playerFirst || !playerSecond || !dealerFirst || !dealerSecond) return pool
 
   const [dealerFaceUp, dealerHole] = Math.random() < 0.5
-    ? [dealerWeak, dealerLow]
-    : [dealerLow, dealerWeak]
+    ? [dealerFirst, dealerSecond]
+    : [dealerSecond, dealerFirst]
 
   const reserved = new Set([playerFirst, playerSecond, dealerFaceUp, dealerHole])
   const remaining = shuffle(pool.filter(c => !reserved.has(c)))
@@ -410,46 +410,60 @@ export function winGame(betAmount: number): BlackjackState {
   return initialState
 }
 
-/** Blessed hit: force a low card so the player cannot bust. */
+/** Blessed hit: always find a safe card; prefer one that lands exactly on 21 then auto-stands. */
 export function winHit(state: BlackjackState): BlackjackState {
   if (state.stage !== 'inProgress') return state
   const playerValue = calculateHandValue(state.playerHand)
   if (playerValue <= 11) return hitBlackjack(state)
 
   let deck = [...state.deck]
-  const safeIdx = deck.findIndex(c => ['A','2','3','4','5','6','7'].includes(c.rank))
+  const exactIdx = deck.findIndex(c => calculateHandValue([...state.playerHand, c]) === 21)
+  const safeIdx  = exactIdx >= 0
+    ? exactIdx
+    : deck.findIndex(c => calculateHandValue([...state.playerHand, c]) <= 21)
   if (safeIdx > 0) {
     ;[deck[0], deck[safeIdx]] = [deck[safeIdx]!, deck[0]!]
   }
+
   const [next, ...rest] = deck
   if (!next) return hitBlackjack(state)
-  return {
+
+  const nextState: BlackjackState = {
     ...state,
     deck: rest,
     playerHand: [...state.playerHand, next],
     canDouble: false,
     message: 'You hit.',
   }
+
+  if (isBust(nextState.playerHand)) return settle(nextState, 'loss')
+  if (calculateHandValue(nextState.playerHand) === 21) return winStand(nextState)
+  return nextState
 }
 
-/** Blessed stand: dealer draws into busting cards; always settles as a win. */
+/** Blessed stand: load tens to the front of the deck to push the dealer to bust, then evaluate honestly. */
 export function winStand(state: BlackjackState): BlackjackState {
   if (state.stage !== 'inProgress') return state
   const tens = state.deck.filter(c => ['10','J','Q','K'].includes(c.rank))
   const rest  = state.deck.filter(c => !['10','J','Q','K'].includes(c.rank))
   const deck  = [...tens, ...shuffle(rest)]
   const { dealerHand, deck: finalDeck } = playDealer(deck, state.dealerHand)
-  return settle(
-    { ...state, deck: finalDeck, dealerHand, message: 'Dealer plays.', canDouble: false },
-    'win',
-  )
+  const nextState = { ...state, deck: finalDeck, dealerHand, message: 'Dealer plays.', canDouble: false }
+
+  if (isBust(dealerHand)) return settle(nextState, 'win')
+
+  const playerValue = calculateHandValue(state.playerHand)
+  const dealerValue = calculateHandValue(dealerHand)
+  if (playerValue > dealerValue) return settle(nextState, 'win')
+  if (playerValue === dealerValue) return settle(nextState, 'push')
+  return settle(nextState, 'loss')
 }
 
 /** Blessed double-down: blessed hit then blessed stand on doubled bet. */
 export function winDouble(state: BlackjackState): BlackjackState {
   if (state.stage !== 'inProgress' || state.playerHand.length !== 2) return state
   const hit = winHit(state)
-  if (hit.stage === 'settled') return settle({ ...hit, betAmount: state.betAmount * 2 }, 'win')
+  if (hit.stage === 'settled') return { ...hit, betAmount: state.betAmount * 2 }
   return winStand({ ...hit, betAmount: state.betAmount * 2 })
 }
 

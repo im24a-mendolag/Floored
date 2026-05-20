@@ -6,7 +6,6 @@ import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { useOpeningTicketActive } from '@/hooks/use-opening-ticket'
 import { getOpeningTicketCapMultiplier } from '@/lib/survival/survival-perks'
 import { useSurvivalStore } from '@/store/survival-store'
-import { formatCurrentBetLine, formatOutcomeDisplayText } from '@/lib/game-result-labels'
 import { formatChips } from '@/utils/format'
 
 /** Standard chip denominations — copy across games via import. */
@@ -33,12 +32,6 @@ const CHIP_BTN =
 const FRAC_BTN =
   'h-12 px-3 rounded-full border-2 font-bold text-sm shadow-lg transition-all duration-100 active:scale-90 hover:scale-105 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:scale-100'
 
-const BET_SECTION_TITLE =
-  'text-xs sm:text-sm font-bold uppercase tracking-widest text-zinc-400 leading-tight'
-
-const OUTCOME_COL_LABEL =
-  'text-[11px] font-semibold uppercase tracking-wider text-zinc-500 leading-tight'
-
 export function GameDockBackButton({
   mode,
   visible,
@@ -58,6 +51,12 @@ export function GameDockBackButton({
     </button>
   )
 }
+
+const BET_SECTION_TITLE =
+  'text-xs sm:text-sm font-bold uppercase tracking-widest text-zinc-400 leading-tight'
+
+const OUTCOME_COL_LABEL =
+  'text-[11px] font-semibold uppercase tracking-wider text-zinc-500 leading-tight'
 
 export function hasOutcomeEntry(entry: {
   betSummary?: string
@@ -83,29 +82,27 @@ export function GameOutcomeColumns({
   size?: GameOutcomeColumnsSize
 }) {
   const profitColor = profitTone === 'win' ? 'text-emerald-400' : 'text-red-400'
-  const bet = formatOutcomeDisplayText(betSummary)
-  const result = formatOutcomeDisplayText(resultSummary)
 
   if (size === 'dock') {
     return (
-      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2">
-        <div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
+      <motion.div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2">
+        <motion.div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
           <p className={`${OUTCOME_COL_LABEL} mb-1 shrink-0`}>Your bet</p>
-          <p className="text-sm sm:text-base font-semibold text-zinc-100 leading-tight line-clamp-2">{bet}</p>
-        </div>
-        <div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
+          <p className="text-sm sm:text-base font-semibold text-zinc-100 leading-tight line-clamp-2">{betSummary}</p>
+        </motion.div>
+        <motion.div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
           <p className={`${OUTCOME_COL_LABEL} mb-1 shrink-0`}>Result</p>
-          <p className="text-sm sm:text-base font-semibold text-zinc-100 leading-tight truncate" title={result}>
-            {result}
+          <p className="text-sm sm:text-base font-semibold text-zinc-100 leading-tight truncate" title={resultSummary}>
+            {resultSummary}
           </p>
-        </div>
-        <div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
+        </motion.div>
+        <motion.div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
           <p className={`${OUTCOME_COL_LABEL} mb-1 shrink-0`}>Profit</p>
           <p className={`text-xl sm:text-2xl font-black tabular-nums leading-tight ${profitColor}`}>
             {profitLabel}
           </p>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     )
   }
 
@@ -119,22 +116,22 @@ export function GameOutcomeColumns({
       : `text-sm font-black tabular-nums leading-tight ${profitColor}`
 
   return (
-    <div className="grid grid-cols-3 gap-2">
-      <div className="min-w-0 text-center">
+    <motion.div className="grid grid-cols-3 gap-2">
+      <motion.div className="min-w-0 text-center">
         <p className={OUTCOME_COL_LABEL}>Your bet</p>
-        <p className={`${valueCls} line-clamp-2 mt-1`}>{bet}</p>
-      </div>
-      <div className="min-w-0 text-center">
+        <p className={`${valueCls} line-clamp-2 mt-1`}>{betSummary}</p>
+      </motion.div>
+      <motion.div className="min-w-0 text-center">
         <p className={OUTCOME_COL_LABEL}>Result</p>
-        <p className={`${valueCls} truncate mt-1`} title={result}>
-          {result}
+        <p className={`${valueCls} truncate mt-1`} title={resultSummary}>
+          {resultSummary}
         </p>
-      </div>
-      <div className="min-w-0 text-center">
+      </motion.div>
+      <motion.div className="min-w-0 text-center">
         <p className={OUTCOME_COL_LABEL}>Profit</p>
         <p className={`${profitCls} mt-1`}>{profitLabel}</p>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -149,11 +146,12 @@ export function GameCurrentBetBadge({
 }) {
   if (!visible || betAmount <= 0) return null
   return (
-    <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2.5 shadow-lg max-w-[min(13rem,48vw)]">
-      <p className={`${BET_SECTION_TITLE} mb-2`}>Current bet</p>
-      <p className="text-base font-bold text-white tabular-nums leading-tight truncate">
-        {formatCurrentBetLine(betAmount, betSpecification)}
-      </p>
+    <div className="absolute left-2 top-2 z-10 select-none pointer-events-none rounded-xl border border-zinc-800/90 bg-zinc-950/95 px-3 py-2 shadow-lg max-w-[min(12rem,45vw)]">
+      <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-600">Current bet</p>
+      <p className="text-sm font-bold text-white tabular-nums">{formatChips(betAmount)}</p>
+      {betSpecification && (
+        <p className="text-[10px] text-zinc-400 mt-0.5 truncate">{betSpecification}</p>
+      )}
     </div>
   )
 }
@@ -173,23 +171,34 @@ export function GameLastBetPanel({
   historyOpen: boolean
   onToggleHistory: () => void
 }) {
+  const profitColor = profitTone === 'win' ? 'text-emerald-400' : 'text-red-400'
+
   return (
-    <div className="pointer-events-auto absolute right-2 top-2 z-30 max-w-[min(17rem,56vw)]">
+    <div className="pointer-events-auto absolute right-2 top-2 z-30 max-w-[min(15rem,52vw)]">
       <button
         type="button"
         onClick={onToggleHistory}
         aria-expanded={historyOpen}
-        className="w-full rounded-xl border border-zinc-700/90 bg-zinc-950/95 px-3 py-2.5 text-left shadow-lg backdrop-blur-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500"
+        className="w-full rounded-xl border border-zinc-700/90 bg-zinc-950/95 px-2.5 py-2 text-left shadow-lg backdrop-blur-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500"
       >
-        <p className={`${BET_SECTION_TITLE} mb-2`}>Last bet</p>
-        <GameOutcomeColumns
-          betSummary={betSummary}
-          resultSummary={resultSummary}
-          profitLabel={profitLabel}
-          profitTone={profitTone}
-          size="compact"
-        />
-        <p className="mt-2 text-center text-[10px] text-zinc-600">
+        <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-600 mb-1.5">Last bet</p>
+        <div className="grid grid-cols-3 gap-1">
+          <div className="min-w-0 text-center">
+            <p className="text-[8px] font-semibold uppercase tracking-wider text-zinc-600">Your bet</p>
+            <p className="text-[10px] font-semibold text-zinc-200 leading-tight line-clamp-2 mt-0.5">{betSummary}</p>
+          </div>
+          <div className="min-w-0 text-center">
+            <p className="text-[8px] font-semibold uppercase tracking-wider text-zinc-600">Result</p>
+            <p className="text-[10px] font-semibold text-zinc-200 leading-tight truncate mt-0.5" title={resultSummary}>
+              {resultSummary}
+            </p>
+          </div>
+          <div className="min-w-0 text-center">
+            <p className="text-[8px] font-semibold uppercase tracking-wider text-zinc-600">Profit</p>
+            <p className={`text-xs font-black tabular-nums leading-tight mt-0.5 ${profitColor}`}>{profitLabel}</p>
+          </div>
+        </div>
+        <p className="mt-1.5 text-center text-[9px] text-zinc-600">
           {historyOpen ? 'Hide full history' : 'Open full history'}
         </p>
       </button>
@@ -265,15 +274,28 @@ export function GameDockSettledRow({
   profitLabel: string
   tone: 'win' | 'loss'
 }) {
+  const profitColor = tone === 'win' ? 'text-emerald-400' : 'text-red-400'
+
   return (
     <div className="flex w-full max-w-lg items-center justify-center px-1">
-      <GameOutcomeColumns
-        betSummary={betSummary}
-        resultSummary={resultSummary}
-        profitLabel={profitLabel}
-        profitTone={tone}
-        size="dock"
-      />
+      <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2">
+        <div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1 shrink-0">Your bet</p>
+          <p className="text-sm sm:text-base font-semibold text-zinc-100 leading-tight line-clamp-2">{betSummary}</p>
+        </div>
+        <div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1 shrink-0">Result</p>
+          <p className="text-sm sm:text-base font-semibold text-zinc-100 leading-tight truncate" title={resultSummary}>
+            {resultSummary}
+          </p>
+        </div>
+        <div className="flex min-h-[4.25rem] flex-col justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 px-2.5 py-2 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1 shrink-0">Profit</p>
+          <p className={`text-xl sm:text-2xl font-black tabular-nums leading-tight ${profitColor}`}>
+            {profitLabel}
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -351,7 +373,7 @@ export function GameDockChipRow({
               ))}
           <button
             type="button"
-            onClick={() => onAddChip(Math.max(Math.floor(bankroll / 4), minBet ?? 1))}
+            onClick={() => onAddChip(Math.floor(bankroll / 4))}
             disabled={currentBet >= bankroll || bankroll <= 0}
             className={`${FRAC_BTN} bg-blue-100 hover:bg-blue-50 border-blue-200 text-blue-900`}
           >
@@ -359,7 +381,7 @@ export function GameDockChipRow({
           </button>
           <button
             type="button"
-            onClick={() => onAddChip(Math.max(Math.floor(bankroll / 2), minBet ?? 1))}
+            onClick={() => onAddChip(Math.floor(bankroll / 2))}
             disabled={currentBet >= bankroll || bankroll <= 0}
             className={`${FRAC_BTN} bg-blue-50 hover:bg-white border-blue-100 text-blue-900`}
           >
@@ -382,3 +404,6 @@ export function GameDockChipRow({
 export function GameBoardHint({ children }: { children: ReactNode }) {
   return <p className="text-xs text-zinc-500 text-center px-2 max-w-md">{children}</p>
 }
+
+
+

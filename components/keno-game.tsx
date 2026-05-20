@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,7 +11,9 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -20,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { kenoHeatNumbers } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
@@ -65,14 +68,10 @@ interface KenoGameProps {
   onResolve: GameResolveFn<KenoResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -126,15 +125,13 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
     })
     const built = buildPendingResult(
       { outcome: next.outcome, betAmount: next.betAmount, payout: resolved.payout },
-      `${formatChips(next.betAmount)} bet · ${next.hits}/${next.picks.length} hits · ${formatMultiplier(next.multiplier)}`,
-      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      {
+        result: `${next.hits}/${next.picks.length}`,
+        resultSpecification: 'hits',
+      },
+      { gameMultiplier: next.multiplier > 0 ? next.multiplier : undefined },
     )
-    setPendingResult({
-      tone: built.tone === 'win' ? 'win' : 'loss',
-      label: built.label,
-      outcomeLabel: built.outcomeLabel,
-      entry: built.entry,
-    })
+    setPendingResult(built)
   }
 
   function handleStart() {
@@ -238,11 +235,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
             Heat: {heatNumbers.join(', ')} in this draw
           </PerkHint>
         )}
-        <GameActiveBetBadge
-          betAmount={round.betAmount}
-          betType={!isBetting ? `${round.picks.length} picks` : undefined}
-          visible={!isBetting}
-        />
+        <GameActiveBetBadge betAmount={round.betAmount} visible={!isBetting} />
 
         <div className="flex flex-col items-center w-full max-w-sm shrink-0 gap-2">
           <div
@@ -350,7 +343,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isDrawing && (
               <p className="text-sm text-zinc-400">
@@ -366,27 +359,33 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : isDrawing ? handleRevealAll : handleStart}
-              disabled={isBetting && !canStart}
-              className={[
-                'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
-                isDrawing
-                  ? 'bg-pink-600 hover:bg-pink-500 text-white'
-                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
-              ].join(' ')}
-            >
-              {isSettled ? 'Next →' : isDrawing ? 'Reveal All' : 'Play →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNext : isDrawing ? handleRevealAll : handleStart}
+                disabled={isBetting && !canStart}
+                className={[
+                  'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                  isDrawing
+                    ? 'bg-pink-600 hover:bg-pink-500 text-white'
+                    : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
+                ].join(' ')}
+              >
+                {isSettled ? 'Next →' : isDrawing ? 'Reveal All' : 'Play →'}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isBetting && (

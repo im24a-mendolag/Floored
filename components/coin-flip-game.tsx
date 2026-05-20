@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
   GameActiveBetBadge,
   GameDockBackButton,
@@ -15,7 +17,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -57,14 +59,10 @@ interface CoinFlipGameProps {
   onResolve: GameResolveFn<CoinFlipResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -99,8 +97,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   const cashoutAmount = isRiding ? Math.round(state.betAmount * state.multiplier) : 0
   const activeBet = !isBetting && state.betAmount > 0 ? state.betAmount : 0
   const pickLabel = (side: CoinSide | null) => (side === 'heads' ? 'Heads' : side === 'tails' ? 'Tails' : undefined)
-  /** Quote in chip row from flip start until Next (covers flip anim, riding, and settled). */
-  const showQuoteUntilNext = isFlipping || !isBetting
+  const showQuoteUntilNext = isFlipping || (!isBetting && !isSettled)
 
   function addChip(v: number) {
     setCurrentBet((p) => Math.min(p + v, bankroll))
@@ -135,16 +132,14 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     })
     const built = buildPendingResult(
       { outcome, betAmount: s.betAmount, payout: resolved.payout },
-      `${formatChips(s.betAmount)} · ${outcome === 'win' ? `${s.multiplier}× (${s.streak}× streak)` : 'Loss'}`,
-      { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      {
+        betSpecification: pickLabel(s.pick),
+        result: outcome === 'win' ? `${s.multiplier}×` : 'Loss',
+        resultSpecification: outcome === 'win' ? 'Win' : undefined,
+      },
+      { gameMultiplier: outcome === 'win' ? s.multiplier : undefined },
     )
-    setPendingResult({
-      tone: built.tone === 'win' ? 'win' : 'loss',
-      label: built.label,
-      outcomeLabel:
-        outcome === 'win' ? `${s.multiplier}× — ${s.streak}× streak` : built.outcomeLabel,
-      entry: built.entry,
-    })
+    setPendingResult(built)
   }
 
   function triggerFlip(next: CoinFlipState) {
@@ -304,7 +299,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && !showQuoteUntilNext && (
               <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />
             )}
@@ -316,8 +311,9 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -326,7 +322,10 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
             )}
           </div>
 
-          <div className="flex justify-center items-center gap-3">
+          <div className="shrink-0 w-full flex justify-center items-center gap-3">
+            {isSettled && (
+              <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+            )}
             <button
               type="button"
               onClick={isSettled ? handleNext : isRiding ? handleCashOut : handleFlip}

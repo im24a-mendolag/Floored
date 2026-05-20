@@ -122,11 +122,14 @@ export function initPoker(): PokerState {
 }
 
 export function dealHand(bet: number): PokerState {
-  const deck = shuffle(createDeck())
+  let hand: Card[]
+  do {
+    hand = shuffle(createDeck()).slice(0, 5)
+  } while (evaluateHand(hand) !== 'none')
   return {
     stage: 'selecting',
     betAmount: bet,
-    hand: deck.slice(0, 5),
+    hand,
     held: [false, false, false, false, false],
     handRank: 'none',
     multiplier: 0,
@@ -143,30 +146,41 @@ export function toggleHold(state: PokerState, index: number): PokerState {
   return { ...state, held }
 }
 
-/**
- * Cursed draw: deals a completely new 5-card hand guaranteed to be 'none'.
- * 5 different ranks (rules out all pairs/straights of-a-kind), not all same
- * suit (rules out flush), ranks picked to avoid straights. Held cards are
- * discarded — the outcome must be a loss regardless of what was held.
- */
-export function loseGame(state: PokerState): PokerState {
+function buildLosingHand(): Card[] {
   const suitCycle: Suit[] = ['♠', '♥', '♦', '♣', '♠']
-  let hand: Card[]
   for (;;) {
     const picked = shuffle([...RANKS]).slice(0, 5)
     const vals = picked.map(rankVal).sort((a, b) => a - b)
     const isStraight =
       vals[4]! - vals[0]! === 4 ||
       (vals[0] === 2 && vals[1] === 3 && vals[2] === 4 && vals[3] === 5 && vals[4] === 14)
-    if (!isStraight) {
-      hand = picked.map((rank, i) => ({ rank, suit: suitCycle[i]! }))
+    if (!isStraight) return picked.map((rank, i) => ({ rank, suit: suitCycle[i]! }))
+  }
+}
+
+/**
+ * Cursed draw: keeps held cards and replaces the rest, guaranteeing a 'none'
+ * hand. Falls back to a fully new hand if held cards make 'none' impossible.
+ */
+export function loseGame(state: PokerState): PokerState {
+  const usedKeys = new Set(state.hand.filter((_, i) => state.held[i]).map(c => `${c.rank}${c.suit}`))
+  const pool = createDeck().filter(c => !usedKeys.has(`${c.rank}${c.suit}`))
+
+  let hand: Card[] | null = null
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const poolCopy = shuffle([...pool])
+    let poolIdx = 0
+    const candidate: Card[] = state.hand.map((card, i) => state.held[i] ? card : poolCopy[poolIdx++]!)
+    if (evaluateHand(candidate) === 'none') {
+      hand = candidate
       break
     }
   }
+
   return {
     ...state,
     stage: 'settled',
-    hand,
+    hand: hand ?? buildLosingHand(),
     held: [false, false, false, false, false],
     handRank: 'none',
     multiplier: 0,

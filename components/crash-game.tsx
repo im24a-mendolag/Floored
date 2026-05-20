@@ -1,11 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { GAME_CARD_SHELL, GAME_BOARD_ARENA, GAME_CONTROL_DOCK_M, GAME_STATUS_BAR } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -15,7 +18,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { crashZoneBand } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
@@ -42,12 +45,7 @@ interface CrashGameProps {
   onResolve: GameResolveFn<CrashResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 function crashPendingResult(
   outcome: 'win' | 'loss',
@@ -55,21 +53,14 @@ function crashPendingResult(
   payout: number,
   multiplier: number,
 ): PendingResult {
-  const subtitle =
-    outcome === 'win'
-      ? `${formatChips(betAmount)} · Cashed at ${formatMultiplier(multiplier)}`
-      : `${formatChips(betAmount)} · Crashed at ${formatMultiplier(multiplier)}`
-  const built = buildPendingResult(
+  return buildPendingResult(
     { outcome, betAmount, payout },
-    subtitle,
-    { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+    {
+      result: formatMultiplier(multiplier),
+      resultSpecification: outcome === 'win' ? 'Cashed' : 'Crashed',
+    },
+    { gameMultiplier: multiplier },
   )
-  return {
-    tone: built.tone === 'win' ? 'win' : 'loss',
-    label: built.label,
-    outcomeLabel: built.outcomeLabel,
-    entry: built.entry,
-  }
 }
 
 // Inline growth formula so CrashCurve has no engine dependency
@@ -182,6 +173,7 @@ function CrashCurve({
 }
 
 export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -383,7 +375,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isInProgress && (
               <p className="text-sm text-zinc-400 tabular-nums">
@@ -395,8 +387,9 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -405,24 +398,29 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNextCrash : isInProgress ? handleCashOut : handleStart}
-              disabled={isBetting && !canStart}
-              className={[
-                'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
-                isInProgress
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
-              ].join(' ')}
-            >
-              {isSettled
-                ? 'Next →'
-                : isInProgress
-                  ? `Cash Out · ${formatMultiplier(displayMult)}`
-                  : 'Start →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNextCrash : isInProgress ? handleCashOut : handleStart}
+                disabled={isBetting && !canStart}
+                className={[
+                  'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                  isInProgress
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
+                ].join(' ')}
+              >
+                {isSettled
+                  ? 'Next →'
+                  : isInProgress
+                    ? `Cash Out · ${formatMultiplier(displayMult)}`
+                    : 'Start →'}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isBetting && (

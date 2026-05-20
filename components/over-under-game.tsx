@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,7 +11,9 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -20,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
@@ -57,15 +60,10 @@ interface OverUnderGameProps {
   onResolve: GameResolveFn<OverUnderResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  multiplierHint?: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -153,24 +151,19 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
         multiplier: settled.payoutMultiplier,
       })
 
-      const subtitle = `${formatChips(bet)} · Roll ${rollPos} · ${safeZone}% safe · ${formatMultiplier(settled.payoutMultiplier)}`
       const built = buildPendingResult(
         { outcome: finalOutcome, betAmount: bet, payout: resolved.payout },
-        subtitle,
         {
-          winLabel: 'Total winnings',
-          lossLabel: finalOutcome === 'push' ? 'Push (shield)' : 'No winnings',
+          betSpecification: `${settled.safeZone}% safe zone`,
+          result: String(rollPos),
+          resultSpecification: 'Roll',
+        },
+        {
           gameMultiplier: finalOutcome === 'win' ? settled.payoutMultiplier : undefined,
           payoutBoostMult: resolved.payoutBoostMult,
         },
       )
-      setPendingResult({
-        tone: built.tone === 'win' ? 'win' : 'loss',
-        label: built.label,
-        outcomeLabel: built.outcomeLabel,
-        multiplierHint: built.multiplierHint,
-        entry: built.entry,
-      })
+      setPendingResult(built)
       shieldProc.resetPerk()
     }, ROLL_ANIM_MS + 80)
 
@@ -316,7 +309,7 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isInProgress && potentialWinnings > 0 && (
               <p className="text-sm text-zinc-400">
@@ -326,10 +319,10 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
-                multiplierHint={pendingResult.multiplierHint}
               />
             )}
             {!isBetting && !isInProgress && !(isSettled && pendingResult) && (
@@ -337,15 +330,20 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNextRound : handleRoll}
-              disabled={isBetting && !canRoll}
-              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-            >
-              {isSettled ? 'Next →' : 'Roll →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNextRound : handleRoll}
+                disabled={isBetting && !canRoll}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                {isSettled ? 'Next →' : 'Roll →'}
+              </button>
+            </div>
           </div>
 
           {minBet > 1 && isBetting && (

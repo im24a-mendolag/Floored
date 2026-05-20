@@ -65,31 +65,18 @@ export function initSlots(): SlotsState {
     outcome: null,
     payoutMultiplier: 0,
     winType: null,
-    isJackpotSpin: false,
     message: 'Place your bet and spin.',
   }
 }
 
-export function spinSlots(betAmount: number, jackpotReady: boolean): SlotsState {
-  let reels: [SlotsSymbol, SlotsSymbol, SlotsSymbol]
-
-  if (jackpotReady) {
-    // Guaranteed jackpot — force three sevens
-    reels = ['seven', 'seven', 'seven']
-  } else {
-    reels = [spinReel(), spinReel(), spinReel()]
-  }
-
-  const { multiplier, winType } = jackpotReady
-    ? { multiplier: 100, winType: 'JACKPOT — THREE SEVENS' }
-    : resolveReels(reels)
+export function spinSlots(betAmount: number): SlotsState {
+  const reels: [SlotsSymbol, SlotsSymbol, SlotsSymbol] = [spinReel(), spinReel(), spinReel()]
+  const { multiplier, winType } = resolveReels(reels)
 
   const outcome: 'win' | 'loss' = multiplier > 0 ? 'win' : 'loss'
   const payout = Math.round(betAmount * multiplier)
 
-  const message = jackpotReady
-    ? 'JACKPOT! Three Sevens — 100×!'
-    : multiplier > 0
+  const message = multiplier > 0
     ? `${winType}! You win ${multiplier}×.`
     : 'No match. Better luck next spin.'
 
@@ -98,9 +85,8 @@ export function spinSlots(betAmount: number, jackpotReady: boolean): SlotsState 
     betAmount,
     reels,
     outcome,
-    payoutMultiplier: jackpotReady ? 100 : multiplier,
-    winType: jackpotReady ? 'JACKPOT' : winType,
-    isJackpotSpin: jackpotReady,
+    payoutMultiplier: multiplier,
+    winType,
     message,
   }
 }
@@ -126,7 +112,6 @@ export function winGame(betAmount: number): SlotsState {
     outcome: 'win',
     payoutMultiplier: multiplier,
     winType,
-    isJackpotSpin: false,
     message: `${winType}! You win ${multiplier}×.`,
   }
 }
@@ -146,7 +131,6 @@ export function loseGame(betAmount: number): SlotsState {
     outcome: 'loss',
     payoutMultiplier: 0,
     winType: null,
-    isJackpotSpin: false,
     message: 'No match. Better luck next spin.',
   }
 }

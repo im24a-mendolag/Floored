@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -10,7 +11,9 @@ import {
   GAME_STATUS_BAR,
 } from '@/components/game-layout'
 import {
+  GAME_DOCK_SETTLED_SLOT,
   GAME_DOCK_INNER,
+  GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockBetRow,
@@ -20,7 +23,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, formatBetSummary, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { rouletteEliminatedNumbers } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
@@ -32,10 +35,12 @@ import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
   BET_LABELS,
   EUROPEAN_WHEEL_ORDER,
-  getLabelForTarget,
+  getOutcomeLabelForTarget,
+  formatRouletteResultLabel,
   getNumberColor,
   getPayoutForTarget,
   initRoulette,
+  isNumberCoveredByTarget,
   loseGame,
   spinRoulette,
   spinRouletteWithResult,
@@ -85,12 +90,7 @@ interface RouletteGameProps {
   onResolve: GameResolveFn<RouletteResult>
 }
 
-interface PendingResult {
-  tone: 'win' | 'loss'
-  label: string
-  outcomeLabel: string
-  entry: MatchHistoryEntry
-}
+type PendingResult = GamePendingResult
 
 function betBtnStyle(type: RouletteBetType, isActive: boolean): string {
   const base = 'rounded-lg transition-all duration-150 flex flex-col items-center'
@@ -119,6 +119,7 @@ function betBtnStyle(type: RouletteBetType, isActive: boolean): string {
 }
 
 export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameProps) {
+  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -255,25 +256,28 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
         multiplier: total > 0 ? result.totalPayout / total : 0,
       })
 
-      const resultLabel = result.result === 0
-        ? 'Zero'
-        : `${result.result} ${result.resultColor}`
-      const betSummary =
-        total > 0 ? `${getLabelForTarget(spunTarget)} ${formatChips(total)}` : ''
-      const built = buildPendingResult(
-        { outcome, betAmount: result.totalBetAmount, payout: resolved.payout },
-        `${betSummary} · ${resultLabel}`,
-        { winLabel: 'Total winnings', lossLabel: 'No winnings' },
+      const resultLabel = formatRouletteResultLabel(
+        result.result ?? 0,
+        result.resultColor ?? 'green',
       )
+      const betLabel = getOutcomeLabelForTarget(spunTarget)
       const partial =
         outcome === 'loss' && result.totalPayout > 0 && result.totalPayout < result.totalBetAmount
-      setPendingResult({
-        tone: built.tone === 'win' ? 'win' : 'loss',
-        label: built.label,
-        outcomeLabel:
-          outcome === 'push' ? 'Push' : partial ? 'Partial return' : built.outcomeLabel,
-        entry: built.entry,
-      })
+      const outcomeWord = outcome === 'win' ? 'Win!' : outcome === 'push' ? 'Push' : partial ? 'Partial return' : 'Miss'
+      const built = buildPendingResult(
+        { outcome, betAmount: result.totalBetAmount, payout: resolved.payout },
+        {
+          betSpecification: betLabel,
+          result: resultLabel,
+        },
+        {
+          historySubtitle:
+            total > 0
+              ? `${formatBetSummary(total, betLabel)} → ${resultLabel} · ${outcomeWord}`
+              : `${resultLabel} · ${outcomeWord}`,
+        },
+      )
+      setPendingResult(built)
     }, SPIN_MS)
   }
 
@@ -322,8 +326,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
         )}
         <GameActiveBetBadge
           betAmount={activeBet}
-          betType={activeBet > 0 && lastTarget ? getLabelForTarget(lastTarget) : undefined}
-          extra={activeBet > 0 && lastTarget ? `${getPayoutForTarget(lastTarget)}×` : undefined}
+          betType={activeBet > 0 && lastTarget ? getOutcomeLabelForTarget(lastTarget) : undefined}
           visible={activeBet > 0 && !isBetting}
         />
 
@@ -366,7 +369,9 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
 
             <div className={`flex flex-col gap-0.5 shrink-0 ${!isBetting ? 'pointer-events-none' : ''}`}>
               {(() => {
-                const isActive = currentTarget === '0'
+                const isDirectlyActive = currentTarget === '0'
+                const isGroupActive = isBetting && currentTarget !== null && !isDirectlyActive && isNumberCoveredByTarget(0, currentTarget)
+                const isActive = isDirectlyActive || isGroupActive
                 const isResult = isSettled && round.result === 0
                 const isSpinningTile = spinningPosition === '0'
                 return (
@@ -394,7 +399,9 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
                 <div key={ri} className="flex gap-0.5">
                   {row.map((n) => {
                     const nStr = String(n)
-                    const isActive = currentTarget === nStr
+                    const isDirectlyActive = currentTarget === nStr
+                    const isGroupActive = isBetting && currentTarget !== null && !isDirectlyActive && isNumberCoveredByTarget(n, currentTarget)
+                    const isActive = isDirectlyActive || isGroupActive
                     const isResult = isSettled && round.result === n
                     const isSpinningTile = spinningPosition === nStr
                     const color = getNumberColor(n)
@@ -481,18 +488,13 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
             minBet={minBet}
           />
 
-          <div className="h-10 flex flex-col items-center justify-center">
+          <div className={GAME_DOCK_SETTLED_SLOT}>
             {isBetting && (
               <>
                 <GameDockBetRow
                   currentBet={currentBet}
                   onClear={clearBet}
                 />
-                {currentBet > 0 && currentTarget && (
-                  <p className="text-zinc-400 text-xs font-medium -mt-0.5">
-                    {getLabelForTarget(currentTarget)} · {getPayoutForTarget(currentTarget)}×
-                  </p>
-                )}
               </>
             )}
             {spinning && potentialWinnings > 0 && (
@@ -503,8 +505,9 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
             )}
             {isSettled && pendingResult && (
               <GameDockSettledRow
-                outcomeLabel={pendingResult.outcomeLabel}
-                label={pendingResult.label}
+                betSummary={pendingResult.betSummary}
+                resultSummary={pendingResult.resultSummary}
+                profitLabel={pendingResult.profitLabel}
                 tone={pendingResult.tone}
               />
             )}
@@ -513,20 +516,30 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
             )}
           </div>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : handleSpin}
-              disabled={!isSettled && (!canSpin || spinning)}
-              className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-            >
-              {isSettled ? 'Next →' : spinning ? 'Spinning…' : 'Spin →'}
-            </button>
+          <div className={GAME_DOCK_ACTIONS}>
+            <div className="flex justify-center gap-2">
+              {isSettled && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/${mode}`)}
+                  className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base"
+                >
+                  ← Leave
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={isSettled ? handleNext : handleSpin}
+                disabled={!isSettled && (!canSpin || spinning)}
+                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                {isSettled ? 'Next →' : spinning ? 'Spinning…' : 'Spin →'}
+              </button>
+            </div>
+            {minBet > 1 && isBetting && (
+              <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
+            )}
           </div>
-
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>

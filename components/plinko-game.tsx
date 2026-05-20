@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -11,7 +12,7 @@ import {
 } from '@/components/game-layout'
 import {
   GAME_DOCK_INNER,
-  GameActiveBetBadge,
+  GameCurrentBetBadge,
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
@@ -19,7 +20,7 @@ import {
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
-import { buildPendingResult } from '@/lib/game-result-labels'
+import { buildPendingResult, formatPlinkoRiskLabel } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
@@ -37,7 +38,8 @@ import { PlinkoBoard, type PlinkoBall } from '@/components/plinko-board'
 interface PlinkoSession extends PlinkoBall {
   bet: number
   result: PlinkoPayoutResult
-  shielded: boolean
+  risk: PlinkoRisk
+  golden: boolean
 }
 
 interface PlinkoResult {
@@ -57,14 +59,15 @@ interface PlinkoGameProps {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
+  const router = useRouter()
   const { floorMinBet, pendingDefeatReason } = useSurvivalStore()
   const { cursed } = useCurse()
   const { blessed } = useBless()
-  const { plinkoFirstBall, plinkoFirstBallLevel } = useSurvivalPerks('plinko')
-  const shieldProc = usePerkProc(
-    mode === 'survival' && plinkoFirstBall,
-    'perk_plinko_first_ball',
-    plinkoFirstBallLevel,
+  const { plinkoGoldenBall, plinkoGoldenBallLevel } = useSurvivalPerks('plinko')
+  const goldenBallProc = usePerkProc(
+    mode === 'survival' && plinkoGoldenBall,
+    'perk_plinko_golden_ball',
+    plinkoGoldenBallLevel,
   )
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -73,9 +76,9 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const [sessions, setSessions] = useState<PlinkoSession[]>([])
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
-  const [lastResultMsg, setLastResultMsg] = useState<string | null>(null)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [quoteIdx, setQuoteIdx] = useState(0)
+  const [pendingAutoReBet, setPendingAutoReBet] = useState(false)
 
   // Refs so the ball-complete callback never needs to be recreated
   const sessionsRef = useRef<PlinkoSession[]>([])
@@ -91,8 +94,8 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   autoReBetRef.current = autoReBet
   const onResolveRef = useRef(onResolve)
   onResolveRef.current = onResolve
-  const shieldProcRef = useRef(shieldProc)
-  shieldProcRef.current = shieldProc
+  const goldenBallProcRef = useRef(goldenBallProc)
+  goldenBallProcRef.current = goldenBallProc
 
   const isDropping = sessions.length > 0
   const commitBet = currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
@@ -102,7 +105,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
   const statusMsg = isDropping
     ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'} in flight`
-    : lastResultMsg ?? 'Place chips and drop.'
+    : 'Place chips and drop.'
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
@@ -113,12 +116,12 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     if (bet < minBet || bet > bankrollRef.current - inFlightBetRef.current) return
     inFlightBetRef.current += bet
     onBet?.(bet)
+    const golden = mode === 'survival' ? goldenBallProc.rollForBet() : false
     const path = blessed ? winGamePath(risk) : cursed ? loseGamePath(risk) : generatePath()
     const result = computePayout(bet, path, risk)
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const startedAt = performance.now()
-    const shielded = mode === 'survival' ? shieldProc.rollForBet() : false
-    setSessions((prev) => [...prev, { id, path, startedAt, bet, result, shielded }])
+    setSessions((prev) => [...prev, { id, path, startedAt, bet, result, risk, golden }])
     setLastBet(bet)
     setCurrentBet(0)
     setQuoteIdx((prev) => pickQuote(prev))
@@ -132,34 +135,45 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     setSessions((prev) => prev.filter((s) => s.id !== id))
     inFlightBetRef.current = Math.max(0, inFlightBetRef.current - session.bet)
 
-    const shieldActive = session.shielded && session.result.outcome === 'loss'
-    const finalOutcome = shieldActive ? 'push' : session.result.outcome
-    const finalPayout = shieldActive ? session.bet : session.result.payout
+    const finalPayout = session.golden ? session.result.payout * 2 : session.result.payout
+    const finalMultiplier = session.golden ? session.result.multiplier * 2 : session.result.multiplier
+    const finalOutcome = finalPayout >= session.bet ? 'win' : 'loss'
 
     resolveGame(onResolveRef.current, {
       outcome: finalOutcome,
       betAmount: session.bet,
       payout: finalPayout,
-      multiplier: session.result.multiplier,
+      multiplier: finalMultiplier,
     })
 
-    if (session.shielded) shieldProcRef.current.resetPerk()
+    goldenBallProcRef.current.resetPerk()
 
     const built = buildPendingResult(
       { outcome: finalOutcome, betAmount: session.bet, payout: finalPayout },
-      `${formatChips(session.bet)} · ${session.result.multiplier}×`,
-      { winLabel: 'Total winnings', lossLabel: shieldActive ? 'Push (shield)' : 'No winnings' },
+      {
+        betSpecification: formatPlinkoRiskLabel(session.risk),
+        result: `${finalMultiplier}×`,
+        resultSpecification: formatPlinkoRiskLabel(session.risk),
+      },
+      { gameMultiplier: session.result.multiplier },
     )
-    setLastResultMsg(`Hit ${session.result.multiplier}× · ${built.entry.title}`)
     setMatchHistory((h) => [built.entry, ...h].slice(0, 80))
 
-    // autoReBet when the last in-flight ball just landed
+    // Signal autoReBet — deferred to useEffect so bankroll is post-resolve
     if (autoReBetRef.current && sessionsRef.current.length === 1) {
-      setCurrentBet(Math.min(lastBetRef.current, bankrollRef.current))
+      setPendingAutoReBet(true)
     }
   }, []) // stable — all values read via refs
 
+  // Deferred autoReBet: runs after resolve updates the bankroll prop
+  useEffect(() => {
+    if (!pendingAutoReBet) return
+    setPendingAutoReBet(false)
+    if (autoReBet) setCurrentBet(Math.min(lastBet, bankroll))
+  }, [pendingAutoReBet, autoReBet, lastBet, bankroll])
+
   const balls: PlinkoBall[] = sessions.map(({ id, path, startedAt }) => ({ id, path, startedAt }))
+  const goldenBallIds = sessions.filter((s) => s.golden).map((s) => s.id)
 
   return (
     <div className={GAME_CARD_SHELL}>
@@ -176,14 +190,14 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         emptyHint="No drops yet — results appear after each ball lands."
       >
         <GameDockBackButton mode={mode} visible={!isDropping} />
-        {mode === 'survival' && shieldProc.perkActive && isDropping && (
+        {mode === 'survival' && goldenBallProc.perkActive && isDropping && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-            First Ball Shield — loss refunded to a push
+            Golden Ball — 2× payout
           </PerkHint>
         )}
-        <GameActiveBetBadge
+        <GameCurrentBetBadge
           betAmount={sessions.reduce((s, x) => s + x.bet, 0)}
-          betType={isDropping ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'}` : undefined}
+          betSpecification={isDropping ? formatPlinkoRiskLabel(risk) : undefined}
           visible={isDropping}
         />
 
@@ -209,7 +223,12 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
             </div>
           </div>
           <div className="flex-1 min-h-0">
-            <PlinkoBoard balls={balls} onBallComplete={handleBallComplete} risk={risk} />
+            <PlinkoBoard
+              balls={balls}
+              onBallComplete={handleBallComplete}
+              risk={risk}
+              goldenBallIds={goldenBallIds}
+            />
           </div>
         </div>
       </GameFieldWithHistory>
@@ -226,19 +245,19 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
             minBet={minBet}
           />
 
-          <div className="h-10 flex items-center justify-center">
-            <GameDockBetRow currentBet={currentBet > 0 ? currentBet : isDropping ? lastBet : 0} onClear={() => setCurrentBet(0)} />
+          <div className="h-10 flex items-center justify-center w-full">
+            <GameDockBetRow
+              currentBet={currentBet > 0 ? currentBet : isDropping ? lastBet : 0}
+              onClear={() => setCurrentBet(0)}
+            />
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-2">
             {showSurvivalContinue ? (
-              <button
-                type="button"
-                onClick={() => survivalAfterNext(mode)}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Continue →
-              </button>
+              <>
+                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+                <button type="button" onClick={() => survivalAfterNext(mode)} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Continue →</button>
+              </>
             ) : (
               <button
                 type="button"
