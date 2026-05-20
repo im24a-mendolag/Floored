@@ -7,7 +7,7 @@ export const PROC_PERK_BASE_CHANCES: Record<string, number> = {
   perk_street_cups_truth: 0.30,
   perk_roulette_tracker: 0.30,
   perk_keno_heat: 0.30,
-  perk_plinko_first_ball: 0.30,
+  perk_plinko_golden_ball: 0.30,
   perk_poker_hold_bias: 0.30,
   perk_over_under_shield: 0.30,
   perk_wheel_scout: 0.30,

@@ -38,8 +38,8 @@ import { PlinkoBoard, type PlinkoBall } from '@/components/plinko-board'
 interface PlinkoSession extends PlinkoBall {
   bet: number
   result: PlinkoPayoutResult
-  shielded: boolean
   risk: PlinkoRisk
+  golden: boolean
 }
 
 interface PlinkoResult {
@@ -63,11 +63,11 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const { floorMinBet, pendingDefeatReason } = useSurvivalStore()
   const { cursed } = useCurse()
   const { blessed } = useBless()
-  const { plinkoFirstBall, plinkoFirstBallLevel } = useSurvivalPerks('plinko')
-  const shieldProc = usePerkProc(
-    mode === 'survival' && plinkoFirstBall,
-    'perk_plinko_first_ball',
-    plinkoFirstBallLevel,
+  const { plinkoGoldenBall, plinkoGoldenBallLevel } = useSurvivalPerks('plinko')
+  const goldenBallProc = usePerkProc(
+    mode === 'survival' && plinkoGoldenBall,
+    'perk_plinko_golden_ball',
+    plinkoGoldenBallLevel,
   )
   const { autoReBet } = useSettingsStore()
   const minBet = mode === 'survival' ? floorMinBet : 1
@@ -94,8 +94,8 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   autoReBetRef.current = autoReBet
   const onResolveRef = useRef(onResolve)
   onResolveRef.current = onResolve
-  const shieldProcRef = useRef(shieldProc)
-  shieldProcRef.current = shieldProc
+  const goldenBallProcRef = useRef(goldenBallProc)
+  goldenBallProcRef.current = goldenBallProc
 
   const isDropping = sessions.length > 0
   const commitBet = currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
@@ -116,12 +116,12 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     if (bet < minBet || bet > bankrollRef.current - inFlightBetRef.current) return
     inFlightBetRef.current += bet
     onBet?.(bet)
+    const golden = mode === 'survival' ? goldenBallProc.rollForBet() : false
     const path = blessed ? winGamePath(risk) : cursed ? loseGamePath(risk) : generatePath()
     const result = computePayout(bet, path, risk)
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const startedAt = performance.now()
-    const shielded = mode === 'survival' ? shieldProc.rollForBet() : false
-    setSessions((prev) => [...prev, { id, path, startedAt, bet, result, shielded, risk }])
+    setSessions((prev) => [...prev, { id, path, startedAt, bet, result, risk, golden }])
     setLastBet(bet)
     setCurrentBet(0)
     setQuoteIdx((prev) => pickQuote(prev))
@@ -135,24 +135,24 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     setSessions((prev) => prev.filter((s) => s.id !== id))
     inFlightBetRef.current = Math.max(0, inFlightBetRef.current - session.bet)
 
-    const shieldActive = session.shielded && session.result.outcome === 'loss'
-    const finalOutcome = shieldActive ? 'push' : session.result.outcome
-    const finalPayout = shieldActive ? session.bet : session.result.payout
+    const finalPayout = session.golden ? session.result.payout * 2 : session.result.payout
+    const finalMultiplier = session.golden ? session.result.multiplier * 2 : session.result.multiplier
+    const finalOutcome = finalPayout >= session.bet ? 'win' : 'loss'
 
     resolveGame(onResolveRef.current, {
       outcome: finalOutcome,
       betAmount: session.bet,
       payout: finalPayout,
-      multiplier: session.result.multiplier,
+      multiplier: finalMultiplier,
     })
 
-    if (session.shielded) shieldProcRef.current.resetPerk()
+    goldenBallProcRef.current.resetPerk()
 
     const built = buildPendingResult(
       { outcome: finalOutcome, betAmount: session.bet, payout: finalPayout },
       {
         betSpecification: formatPlinkoRiskLabel(session.risk),
-        result: `${session.result.multiplier}×`,
+        result: `${finalMultiplier}×`,
         resultSpecification: formatPlinkoRiskLabel(session.risk),
       },
       { gameMultiplier: session.result.multiplier },
@@ -173,6 +173,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   }, [pendingAutoReBet, autoReBet, lastBet, bankroll])
 
   const balls: PlinkoBall[] = sessions.map(({ id, path, startedAt }) => ({ id, path, startedAt }))
+  const goldenBallIds = sessions.filter((s) => s.golden).map((s) => s.id)
 
   return (
     <div className={GAME_CARD_SHELL}>
@@ -189,9 +190,9 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         emptyHint="No drops yet — results appear after each ball lands."
       >
         <GameDockBackButton mode={mode} visible={!isDropping} />
-        {mode === 'survival' && shieldProc.perkActive && isDropping && (
+        {mode === 'survival' && goldenBallProc.perkActive && isDropping && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-            First Ball Shield — loss refunded to a push
+            Golden Ball — 2× payout
           </PerkHint>
         )}
         <GameCurrentBetBadge
@@ -222,7 +223,12 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
             </div>
           </div>
           <div className="flex-1 min-h-0">
-            <PlinkoBoard balls={balls} onBallComplete={handleBallComplete} risk={risk} />
+            <PlinkoBoard
+              balls={balls}
+              onBallComplete={handleBallComplete}
+              risk={risk}
+              goldenBallIds={goldenBallIds}
+            />
           </div>
         </div>
       </GameFieldWithHistory>

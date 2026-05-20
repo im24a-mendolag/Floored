@@ -74,7 +74,7 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
             {failed && !m.completed ? ' — failed' : ''}
           </span>
           <div className="flex h-7 w-7 items-center justify-center">
-            {canRerollThis && ticketCount > 0 && idx != null ? (
+            {!compact && canRerollThis && ticketCount > 0 && idx != null ? (
               <button
                 type="button"
                 onClick={() => rerollMissionWithTicket(idx)}
@@ -89,7 +89,7 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
           </div>
         </div>
         {!m.completed && !failed && (
-          <div className="mt-2 h-2 rounded-full bg-zinc-800 overflow-hidden">
+          <div className={`${compact ? 'mt-1 h-1' : 'mt-2 h-2'} rounded-full bg-zinc-800 overflow-hidden`}>
             <div
               className="h-full bg-amber-500/80 rounded-full transition-all"
               style={{ width: `${pct}%` }}
