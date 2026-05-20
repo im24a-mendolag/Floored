@@ -142,10 +142,10 @@ export interface SurvivalStore {
   /** Historical record of completed floors. */
   floorHistory: FloorRecord[]
 
-  /** True after the floor timer expires with quota met — advance / victory flow. */
+  /** True after all bets are used with quota met, or player chose to finish early. */
   floorComplete: boolean
-  /** How the floor was completed: 'early' = player chose, 'timer' = time ran out. */
-  floorCompleteReason: 'early' | 'timer' | null
+  /** How the floor was completed: 'early' = player chose, 'bet-limit' = all bets used. */
+  floorCompleteReason: 'early' | 'bet-limit' | null
   /** Pending defeat — shown after the player clicks Next in the current game. */
   pendingDefeatReason: DefeatReason | null
   /** True once defeat overlay is active. */
@@ -153,11 +153,8 @@ export interface SurvivalStore {
   defeatReason: DefeatReason | null
   /** True once bankroll reaches quotaTarget (does not end the floor). */
   quotaMet: boolean
-  /** Milliseconds left on the current floor timer. */
-  floorTimeRemainingMs: number
-  floorTimerPaused: boolean
-  /** Epoch ms when floorTimeRemainingMs was last synced. */
-  floorTimerSyncedAt: number
+  /** Number of bets placed this floor (floor ends at FLOOR_BET_LIMIT). */
+  floorBetsPlaced: number
   /** Opening Ticket — free first bet per floor consumed. */
   firstBetInsuranceUsed: boolean
   /** Rerolls used on shop offers this floor (escalating spark cost). */
@@ -196,9 +193,6 @@ export interface SurvivalStore {
   advanceFloor: () => void
   continueToEndless: () => void
   dismissFloorComplete: () => void
-  syncFloorTimer: () => number
-  toggleFloorTimerPause: () => void
-  completeFloorFromTimer: () => void
   finishQuotaEarly: () => void
   queueDefeat: (reason: DefeatReason) => void
   confirmPendingDefeat: () => void

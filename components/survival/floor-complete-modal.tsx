@@ -131,10 +131,10 @@ export function FloorCompleteModal() {
             {isFinalFloorChoice
               ? 'Claim your victory or push into endless mode — quotas and min bets keep scaling.'
               : isEarly
-                ? 'You still have time left. Keep playing to build your bankroll, or advance now.'
+                ? 'You still have bets remaining. Keep playing to build your bankroll, or advance now.'
                 : endlessMode
                   ? 'Endless run — collect sparks and keep climbing.'
-                  : "Time's up — quota met. Collect sparks, then pick your next game on the lobby."}
+                  : 'All 10 bets used — quota met. Collect sparks, then pick your next game on the lobby.'}
           </DialogDescription>
         </DialogHeader>
 

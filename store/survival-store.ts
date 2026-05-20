@@ -15,8 +15,8 @@ import { generateRunDiceConfig } from '@/games/run-dice/engine'
 import { generateFloor } from '@/lib/survival/floor-generator'
 import {
   MAX_FLOORS,
+  FLOOR_BET_LIMIT,
   SURVIVAL_GAME_POOL,
-  FLOOR_DURATION_MS,
   calcShopRerollCost,
   calcMissionRerollCost,
   calcShopPrice,
@@ -61,11 +61,9 @@ function generateSeed(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-function initialFloorTimerState() {
+function initialFloorBetState() {
   return {
-    floorTimeRemainingMs: FLOOR_DURATION_MS,
-    floorTimerPaused: false,
-    floorTimerSyncedAt: Date.now(),
+    floorBetsPlaced: 0,
     quotaMet: false,
   }
 }
@@ -100,9 +98,7 @@ const RUN_PERSIST_KEYS = [
   'defeatReason',
   'pendingDefeatReason',
   'quotaMet',
-  'floorTimeRemainingMs',
-  'floorTimerPaused',
-  'floorTimerSyncedAt',
+  'floorBetsPlaced',
   'firstBetInsuranceUsed',
   'shopRerollCount',
   'shopPurchaseCount',
@@ -208,7 +204,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
       endlessMode: false,
       cursed: false,
       blessed: false,
-      ...initialFloorTimerState(),
+      ...initialFloorBetState(),
 
       startRun: (difficulty: Difficulty) => {
         const runSeed = generateSeed()
@@ -270,7 +266,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           endlessMode: false,
           cursed: false,
           blessed: false,
-          ...initialFloorTimerState(),
+          ...initialFloorBetState(),
         })
       },
 
@@ -318,7 +314,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           endlessMode: false,
           cursed: false,
           blessed: false,
-          ...initialFloorTimerState(),
+          ...initialFloorBetState(),
         }),
 
       endRun: (opts) =>
@@ -423,7 +419,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
                 i.id === LOBBY_REROLL_TICKET_ID ? { ...i, count: i.count + REROLL_TICKETS_PER_FLOOR } : i,
               )
             })(),
-            ...initialFloorTimerState(),
+            ...initialFloorBetState(),
             quotaMet: s.bankroll >= nextFloorData.quotaTarget,
           }
         }),
@@ -495,7 +491,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
                 i.id === LOBBY_REROLL_TICKET_ID ? { ...i, count: i.count + REROLL_TICKETS_PER_FLOOR } : i,
               )
             })(),
-            ...initialFloorTimerState(),
+            ...initialFloorBetState(),
             quotaMet: s.bankroll >= nextFloorData.quotaTarget,
           }
         }),
@@ -503,69 +499,14 @@ export const useSurvivalStore = create<SurvivalStore>()(
       dismissFloorComplete: () => set({
         floorComplete: false,
         floorCompleteReason: null,
-        floorTimerPaused: false,
-        floorTimerSyncedAt: Date.now(),
       }),
-
-      syncFloorTimer: () => {
-        const s = get()
-        if (s.floorTimerPaused || s.floorComplete || s.runDefeated) return s.floorTimeRemainingMs
-        const elapsed = Date.now() - s.floorTimerSyncedAt
-        const remaining = Math.max(0, s.floorTimeRemainingMs - elapsed)
-        set({ floorTimeRemainingMs: remaining, floorTimerSyncedAt: Date.now() })
-        return remaining
-      },
-
-      toggleFloorTimerPause: () =>
-        set((s) => {
-          if (s.floorComplete || s.runDefeated) return s
-          if (!s.floorTimerPaused) {
-            const elapsed = Date.now() - s.floorTimerSyncedAt
-            const remaining = Math.max(0, s.floorTimeRemainingMs - elapsed)
-            return {
-              floorTimerPaused: true,
-              floorTimeRemainingMs: remaining,
-            }
-          }
-          return {
-            floorTimerPaused: false,
-            floorTimerSyncedAt: Date.now(),
-          }
-        }),
-
-      completeFloorFromTimer: () =>
-        set((s) => {
-          if (s.floorComplete || s.runDefeated) return s
-          const elapsed = s.floorTimerPaused ? 0 : Date.now() - s.floorTimerSyncedAt
-          const remaining = Math.max(0, s.floorTimeRemainingMs - elapsed)
-
-          if (s.bankroll >= s.quotaTarget) {
-            return {
-              floorComplete: true,
-              floorCompleteReason: 'timer' as const,
-              floorTimeRemainingMs: remaining,
-              floorTimerPaused: true,
-            }
-          }
-
-          return {
-            runDefeated: true,
-            defeatReason: 'quota' as DefeatReason,
-            floorTimeRemainingMs: 0,
-            floorTimerPaused: true,
-          }
-        }),
 
       finishQuotaEarly: () =>
         set((s) => {
           if (s.floorComplete || s.runDefeated || s.bankroll < s.quotaTarget) return s
-          const elapsed = s.floorTimerPaused ? 0 : Date.now() - s.floorTimerSyncedAt
-          const remaining = Math.max(0, s.floorTimeRemainingMs - elapsed)
           return {
             floorComplete: true,
             floorCompleteReason: 'early' as const,
-            floorTimeRemainingMs: remaining,
-            floorTimerPaused: true,
           }
         }),
 
@@ -579,7 +520,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
             runDefeated: true,
             defeatReason: s.pendingDefeatReason,
             pendingDefeatReason: null,
-            floorTimerPaused: true,
           }
         }),
 
@@ -588,7 +528,6 @@ export const useSurvivalStore = create<SurvivalStore>()(
           runDefeated: true,
           defeatReason: reason,
           pendingDefeatReason: null,
-          floorTimerPaused: true,
         }),
 
       confirmDefeat: () => {
@@ -901,32 +840,52 @@ export const useSurvivalStore = create<SurvivalStore>()(
 
       recordResult: (result: GameResult) =>
         set((s) => {
+          if (s.floorComplete || s.runDefeated) return s
           const newBankroll = s.bankroll - result.betAmount + result.payout
-          return {
+          const quotaMet = s.quotaMet || newBankroll >= s.quotaTarget
+          const nextBetsPlaced = s.floorBetsPlaced + 1
+          const base = {
             gamesPlayed: s.gamesPlayed + 1,
             streak: result.outcome === 'win' ? s.streak + 1 : 0,
             history: [...s.history, result],
             bankroll: newBankroll,
             peakBankroll: Math.max(s.peakBankroll, newBankroll),
+            quotaMet,
+            floorBetsPlaced: nextBetsPlaced,
           }
+          if (nextBetsPlaced >= FLOOR_BET_LIMIT) {
+            if (newBankroll >= s.quotaTarget) {
+              return { ...base, floorComplete: true, floorCompleteReason: 'bet-limit' as const }
+            }
+            return { ...base, runDefeated: true, defeatReason: 'quota' as DefeatReason }
+          }
+          return base
         }),
 
       recordResultPayout: (result: GameResult) =>
         set((s) => {
+          if (s.floorComplete || s.runDefeated) return s
           const newBankroll = s.bankroll + result.payout
           const quotaMet = s.quotaMet || newBankroll >= s.quotaTarget
-
           const streak =
             result.outcome === 'win' ? s.streak + 1 : result.outcome === 'loss' ? 0 : s.streak
-
-          return {
+          const nextBetsPlaced = s.floorBetsPlaced + 1
+          const base = {
             gamesPlayed: s.gamesPlayed + 1,
             streak,
             history: [...s.history, result],
             bankroll: newBankroll,
             peakBankroll: Math.max(s.peakBankroll, newBankroll),
             quotaMet,
+            floorBetsPlaced: nextBetsPlaced,
           }
+          if (nextBetsPlaced >= FLOOR_BET_LIMIT) {
+            if (newBankroll >= s.quotaTarget) {
+              return { ...base, floorComplete: true, floorCompleteReason: 'bet-limit' as const }
+            }
+            return { ...base, runDefeated: true, defeatReason: 'quota' as DefeatReason }
+          }
+          return base
         }),
 
       deductBet: (amount: number) =>

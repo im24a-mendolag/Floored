@@ -13,6 +13,7 @@ export const STARTING_REROLL_TICKETS = 3
 export const REROLL_TICKETS_PER_FLOOR = 3
 
 export const MAX_FLOORS = 10
+export const FLOOR_BET_LIMIT = 10
 
 /**
  * Games with an existing app/survival/<game>/page.tsx route.
@@ -41,8 +42,6 @@ export const SURVIVAL_GAME_POOL: GameName[] = [
   'coin-flip',
 ]
 
-/** Default time allowed per floor before auto-advancing to shop. */
-export const FLOOR_DURATION_MS = 5 * 60 * 1000
 export const DIFFICULTY_QUOTA_MULT: Record<Difficulty, number> = {
   normal: 1.0,
   hard: 1.5,

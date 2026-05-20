@@ -1,5 +1,5 @@
 import type { Difficulty, PurchasedUpgrade } from '@/store/types'
-import { SURVIVAL_GAME_POOL, calcQuotaTarget, FLOOR_DURATION_MS } from './balance'
+import { SURVIVAL_GAME_POOL, calcQuotaTarget } from './balance'
 import { generateFloor } from './floor-generator'
 import { missionOfferedKeysFromMissions } from './missions'
 import { lobbyGamesOfferedFromFloor } from './lobby-ticket'
@@ -120,14 +120,7 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
           : null,
       endlessMode: typeof s.endlessMode === 'boolean' ? s.endlessMode : false,
       quotaMet: typeof s.quotaMet === 'boolean' ? s.quotaMet : bankroll >= quotaTargetVal,
-      floorTimeRemainingMs: hadStaleQuotaComplete
-        ? FLOOR_DURATION_MS
-        : typeof s.floorTimeRemainingMs === 'number'
-          ? s.floorTimeRemainingMs
-          : FLOOR_DURATION_MS,
-      floorTimerPaused: typeof s.floorTimerPaused === 'boolean' ? s.floorTimerPaused : false,
-      floorTimerSyncedAt:
-        typeof s.floorTimerSyncedAt === 'number' ? s.floorTimerSyncedAt : Date.now(),
+      floorBetsPlaced: 0,
     }
   }
 
@@ -196,5 +189,6 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
       ? (base.missionTicketRerolledSlots as number[])
       : [],
     lobbyGamesOffered,
+    floorBetsPlaced: typeof base.floorBetsPlaced === 'number' ? base.floorBetsPlaced : 0,
   }
 }

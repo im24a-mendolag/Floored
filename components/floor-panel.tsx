@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips } from '@/utils/format'
+import { FLOOR_BET_LIMIT } from '@/lib/survival/balance'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
@@ -18,7 +19,7 @@ import {
 export function FloorPanel() {
   const router = useRouter()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const { currentFloor, floorMinBet, bankroll, quotaTarget, floorStartBankroll, floorComplete, runDefeated, sparks, endlessMode, abandonRun } = useSurvivalStore()
+  const { currentFloor, floorMinBet, bankroll, quotaTarget, floorStartBankroll, floorComplete, runDefeated, floorBetsPlaced, endlessMode, abandonRun } = useSurvivalStore()
 
   const netProgress = bankroll - floorStartBankroll
   const netTarget = quotaTarget - floorStartBankroll
@@ -37,17 +38,9 @@ export function FloorPanel() {
     <Card className="w-full">
       <CardContent className="py-3 px-4 flex flex-col gap-2">
         <div className="flex items-center gap-3">
-          {/* Min bet — small, left-anchored */}
-          <div className="shrink-0">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Min Bet</span>
-            <div className="text-xs font-semibold text-muted-foreground leading-tight">
-              {formatChips(floorMinBet)}
-            </div>
-          </div>
-
-          {/* Floor + Quota + Sparks — big, centred */}
-          <div className="flex flex-1 items-center justify-center gap-6">
-            <div className="text-center">
+          {/* Left: Floor + Min Bet */}
+          <div className="shrink-0 flex items-center gap-4">
+            <div>
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Floor</span>
               <div className="text-2xl font-black leading-tight">
                 {currentFloor}
@@ -56,7 +49,16 @@ export function FloorPanel() {
                 </span>
               </div>
             </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Min Bet</span>
+              <div className="text-2xl font-black text-muted-foreground leading-tight">
+                {formatChips(floorMinBet)}
+              </div>
+            </div>
+          </div>
 
+          {/* Center: Quota + Bet counter */}
+          <div className="flex flex-1 items-center justify-center gap-6">
             <div className="text-center">
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Bankroll</span>
               <div className="text-2xl font-black tabular-nums leading-tight">
@@ -68,15 +70,18 @@ export function FloorPanel() {
             </div>
 
             <div className="text-center">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Sparks</span>
-              <div className="text-2xl font-black tabular-nums leading-tight text-amber-300">{formatChips(sparks)}</div>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Bets</span>
+              <div className="text-2xl font-black tabular-nums leading-tight">
+                {floorBetsPlaced}
+                <span className="text-sm font-normal text-muted-foreground"> / {FLOOR_BET_LIMIT}</span>
+              </div>
             </div>
           </div>
 
-          {/* Abandon — right-anchored */}
+          {/* Right: Abandon */}
           <button
             onClick={() => setConfirmOpen(true)}
-            className="shrink-0 text-xs text-red-400 border border-red-900/50 rounded px-2.5 py-1 hover:bg-red-950/40 transition-colors"
+            className="shrink-0 text-sm font-semibold text-red-400 border border-red-900/50 rounded-lg px-4 py-2 hover:bg-red-950/40 transition-colors"
           >
             Abandon
           </button>
@@ -91,12 +96,12 @@ export function FloorPanel() {
           </div>
           {quotaReached && !floorComplete && (
             <p className="text-xs text-amber-400 font-semibold text-center mt-1">
-              Quota met — finish early from the navbar or keep playing until the timer ends
+              Quota met — finish early from the navbar or keep betting until your limit runs out
             </p>
           )}
           {floorComplete && (
             <p className="text-xs text-amber-400 font-semibold text-center mt-1">
-              Time&apos;s up — quota met, collect your rewards
+              Bets used — quota met, collect your rewards
             </p>
           )}
           {runDefeated && (

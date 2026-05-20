@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useSurvivalStore } from '@/store/survival-store'
 import { DifficultyDialog } from '@/components/difficulty-dialog'
-import { FLOOR_DURATION_MS } from '@/lib/survival/balance'
-
-const FLOOR_TIME_MINUTES = FLOOR_DURATION_MS / 60_000
+import { FLOOR_BET_LIMIT } from '@/lib/survival/balance'
 
 const FELT = {
   backgroundImage:
@@ -53,14 +51,14 @@ export function ModeSelect() {
                 Survival
               </p>
               <p className="text-white/40 text-xs mt-1.5">
-                Hit each floor&apos;s bankroll quota within the time limit — or the run ends.
+                Hit each floor&apos;s bankroll quota within {FLOOR_BET_LIMIT} bets — or the run ends.
               </p>
             </div>
 
             <ul className="space-y-1.5">
               {[
                 '1,000 starting chips',
-                `${FLOOR_TIME_MINUTES} minutes per floor`,
+                `${FLOOR_BET_LIMIT} bets per floor`,
                 'Floor min bet rises each level',
                 'Earn Sparks for upgrades',
               ].map((text) => (
