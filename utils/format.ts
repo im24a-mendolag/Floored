@@ -1,10 +1,31 @@
+const CHIP_SUFFIXES: [number, string][] = [
+  [1e63, 'Vg'],   // vigintillion
+  [1e60, 'Nod'],  // novemdecillion
+  [1e57, 'Ocd'],  // octodecillion
+  [1e54, 'Spd'],  // septendecillion
+  [1e51, 'Sxd'],  // sexdecillion
+  [1e48, 'Qid'],  // quindecillion
+  [1e45, 'Qad'],  // quattuordecillion
+  [1e42, 'Td'],   // tredecillion
+  [1e39, 'Dd'],   // duodecillion
+  [1e36, 'Ud'],   // undecillion
+  [1e33, 'Dc'],   // decillion
+  [1e30, 'No'],   // nonillion
+  [1e27, 'Oc'],   // octillion
+  [1e24, 'Sp'],   // septillion
+  [1e21, 'Sx'],   // sextillion
+  [1e18, 'Qi'],   // quintillion
+  [1e15, 'Qa'],   // quadrillion
+  [1e12, 'T'],    // trillion
+  [1e9,  'B'],    // billion
+  [1e6,  'M'],    // million
+  [1e3,  'K'],    // thousand
+]
+
 export function formatChips(n: number): string {
-  if (n >= 1_000_000_000_000_000_000) return `${(n / 1_000_000_000_000_000_000).toFixed(1)}Qi`
-  if (n >= 1_000_000_000_000_000) return `${(n / 1_000_000_000_000_000).toFixed(1)}Qa`
-  if (n >= 1_000_000_000_000) return `${(n / 1_000_000_000_000).toFixed(1)}T`
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  for (const [threshold, suffix] of CHIP_SUFFIXES) {
+    if (n >= threshold) return `${(n / threshold).toFixed(1)}${suffix}`
+  }
   return n.toString()
 }
 
