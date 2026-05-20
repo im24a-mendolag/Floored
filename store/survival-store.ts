@@ -97,6 +97,8 @@ export const useSurvivalStore = create<SurvivalStore>()(
       sparks: STARTING_SPARKS,
       addSparks: (n) => set((s) => ({ sparks: s.sparks + n })),
       spendSparks: (n) => set((s) => ({ sparks: Math.max(0, s.sparks - n) })),
+      setSparks: (n) => set({ sparks: Math.max(0, n) }),
+      devSetPurchasedUpgrades: (upgrades) => set({ purchasedUpgrades: upgrades }),
 
       runActive: false,
       runSeed: null,

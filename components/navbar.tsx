@@ -1,18 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import { useFreeplayStore } from '@/store/freeplay-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useSurvivalStore } from '@/store/survival-store'
-import { formatChips } from '@/utils/format'
+import { formatChips, parseChips } from '@/utils/format'
 import {
   useFloorTimer,
   useFloorTimeRemainingMs,
   formatFloorTime,
 } from '@/hooks/use-floor-timer'
 import { FloorPauseModal } from '@/components/survival/floor-pause-modal'
+import { allPurchasedUpgradesForDev } from '@/lib/survival/upgrades-catalog'
 
 const HUD_PILL =
   'px-2.5 py-1.5 rounded-lg bg-zinc-900/80 border border-zinc-700/60 tabular-nums text-sm font-bold text-zinc-200'
@@ -20,7 +21,7 @@ const HUD_PILL =
 export function Navbar() {
   const pathname = usePathname()
   const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
-  const { autoReBet, setAutoReBet, forceTie, setForceTie, showAllGames, setShowAllGames } = useSettingsStore()
+  const { autoReBet, setAutoReBet, forceTie, setForceTie, showAllGames, setShowAllGames, devModeUnlocked, setDevModeUnlocked } = useSettingsStore()
   const cursed = useSurvivalStore((s) => s.cursed)
   const setCursed = useSurvivalStore((s) => s.setCursed)
   const blessed = useSurvivalStore((s) => s.blessed)
@@ -32,11 +33,30 @@ export function Navbar() {
   const quotaMet = useSurvivalStore((s) => s.quotaMet)
   const quotaTarget = useSurvivalStore((s) => s.quotaTarget)
   const bankroll = useSurvivalStore((s) => s.bankroll)
+  const sparks = useSurvivalStore((s) => s.sparks)
+  const setBankroll = useSurvivalStore((s) => s.setBankroll)
+  const setSparks = useSurvivalStore((s) => s.setSparks)
+  const devSetPurchasedUpgrades = useSurvivalStore((s) => s.devSetPurchasedUpgrades)
   const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
   const toggleFloorTimerPause = useSurvivalStore((s) => s.toggleFloorTimerPause)
   const finishQuotaEarly = useSurvivalStore((s) => s.finishQuotaEarly)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [devPassword, setDevPassword] = useState('')
+  const [devPasswordError, setDevPasswordError] = useState(false)
+  const [devBankroll, setDevBankroll] = useState('')
+  const [devSparks, setDevSparks] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const handleDevUnlock = useCallback(() => {
+    if (devPassword.toLowerCase() === 'geek') {
+      setDevModeUnlocked(true)
+      setDevPassword('')
+      setDevPasswordError(false)
+    } else {
+      setDevPasswordError(true)
+      setTimeout(() => setDevPasswordError(false), 1000)
+    }
+  }, [devPassword, setDevModeUnlocked])
 
   useFloorTimer()
   const floorTimeRemainingMs = useFloorTimeRemainingMs()
@@ -208,51 +228,128 @@ export function Navbar() {
                         />
                       </div>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setForceTie(!forceTie)}
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors"
-                    >
-                      <span className="text-sm text-white/80">Force tie <span className="text-white/30 text-xs">(HiLo test)</span></span>
-                      <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${forceTie ? 'bg-yellow-500' : 'bg-white/20'}`}>
-                        <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${forceTie ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
+                    <div className="border-t border-white/10 mt-1 pt-1">
+                      <div className="flex items-center justify-between px-3 py-1.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-yellow-500/70">Dev Mode</p>
+                        {devModeUnlocked && (
+                          <button
+                            type="button"
+                            onClick={() => { setDevModeUnlocked(false); setForceTie(false); setShowAllGames(false); setCursed(false); setBlessed(false) }}
+                            className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
+                          >
+                            Lock
+                          </button>
+                        )}
                       </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAllGames(!showAllGames)}
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors"
-                    >
-                      <span className="text-sm text-white/80">All games <span className="text-white/30 text-xs">(survival test)</span></span>
-                      <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${showAllGames ? 'bg-yellow-500' : 'bg-white/20'}`}>
-                        <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${showAllGames ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
-                      </div>
-                    </button>
-                    <div className="flex w-full flex-col gap-1.5 px-3 py-2">
-                      <span className="text-sm text-white/80">Mode <span className="text-white/30 text-xs">(test)</span></span>
-                      <div className="flex rounded-lg overflow-hidden border border-white/10 w-full">
-                        <button
-                          type="button"
-                          onClick={() => { setCursed(true); setBlessed(false) }}
-                          className={`flex-1 py-1 text-xs font-semibold transition-colors ${cursed ? 'bg-purple-600 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
-                        >
-                          Cursed
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setCursed(false); setBlessed(false) }}
-                          className={`flex-1 py-1 text-xs font-semibold transition-colors border-x border-white/10 ${!cursed && !blessed ? 'bg-white/20 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
-                        >
-                          Normal
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setCursed(false); setBlessed(true) }}
-                          className={`flex-1 py-1 text-xs font-semibold transition-colors ${blessed ? 'bg-emerald-600 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
-                        >
-                          Blessed
-                        </button>
-                      </div>
+
+                      {devModeUnlocked ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setForceTie(!forceTie)}
+                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors"
+                          >
+                            <span className="text-sm text-white/80">Force tie <span className="text-white/30 text-xs">(HiLo)</span></span>
+                            <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${forceTie ? 'bg-yellow-500' : 'bg-white/20'}`}>
+                              <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${forceTie ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAllGames(!showAllGames)}
+                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors"
+                          >
+                            <span className="text-sm text-white/80">All games <span className="text-white/30 text-xs">(survival)</span></span>
+                            <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${showAllGames ? 'bg-yellow-500' : 'bg-white/20'}`}>
+                              <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${showAllGames ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
+                            </div>
+                          </button>
+                          <div className="flex w-full items-center justify-between gap-3 px-3 py-2">
+                            <span className="text-sm text-white/80">Game mode</span>
+                            <div className="relative flex h-5 w-16 shrink-0 rounded-full border border-white/10 bg-white/5 overflow-hidden">
+                              <div
+                                className={`absolute top-0 h-full w-1/3 rounded-full transition-all duration-200 ${
+                                  cursed ? 'translate-x-0 bg-purple-600' : !blessed ? 'translate-x-full bg-white/20' : 'translate-x-[200%] bg-emerald-600'
+                                }`}
+                              />
+                              <button type="button" onClick={() => { setCursed(true); setBlessed(false) }} className={`relative z-10 flex-1 text-[10px] font-black transition-colors ${cursed ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>C</button>
+                              <button type="button" onClick={() => { setCursed(false); setBlessed(false) }} className={`relative z-10 flex-1 text-[10px] font-black transition-colors ${!cursed && !blessed ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>N</button>
+                              <button type="button" onClick={() => { setCursed(false); setBlessed(true) }} className={`relative z-10 flex-1 text-[10px] font-black transition-colors ${blessed ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>B</button>
+                            </div>
+                          </div>
+
+                          {/* Bankroll setter */}
+                          <div className="flex items-center gap-1.5 px-3 py-1.5">
+                            <span className="text-sm text-white/80 shrink-0">Bankroll</span>
+                            <input
+                              type="text"
+                              value={devBankroll}
+                              onChange={(e) => setDevBankroll(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { const n = parseChips(devBankroll); if (n !== null && n > 0) { setBankroll(n); setDevBankroll('') } } }}
+                              placeholder={formatChips(bankroll)}
+                              className="min-w-0 flex-1 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-white placeholder-white/20 outline-none focus:border-white/30"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => { const n = parseChips(devBankroll); if (n !== null && n > 0) { setBankroll(n); setDevBankroll('') } }}
+                              className="shrink-0 px-2 py-0.5 text-xs font-semibold bg-white/10 hover:bg-white/20 text-white/70 rounded transition-colors"
+                            >Set</button>
+                          </div>
+
+                          {/* Sparks setter */}
+                          <div className="flex items-center gap-1.5 px-3 py-1.5">
+                            <span className="text-sm text-white/80 shrink-0">Sparks</span>
+                            <input
+                              type="text"
+                              value={devSparks}
+                              onChange={(e) => setDevSparks(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { const n = parseChips(devSparks); if (n !== null && n >= 0) { setSparks(n); setDevSparks('') } } }}
+                              placeholder={formatChips(sparks)}
+                              className="min-w-0 flex-1 bg-white/5 border border-white/10 rounded px-2 py-0.5 text-xs text-white placeholder-white/20 outline-none focus:border-white/30"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => { const n = parseChips(devSparks); if (n !== null && n >= 0) { setSparks(n); setDevSparks('') } }}
+                              className="shrink-0 px-2 py-0.5 text-xs font-semibold bg-white/10 hover:bg-white/20 text-white/70 rounded transition-colors"
+                            >Set</button>
+                          </div>
+
+                          {/* Upgrades */}
+                          <div className="flex items-center gap-1.5 px-3 py-1.5">
+                            <span className="text-sm text-white/80 shrink-0">Upgrades</span>
+                            <button
+                              type="button"
+                              onClick={() => devSetPurchasedUpgrades(allPurchasedUpgradesForDev())}
+                              className="flex-1 py-0.5 text-xs font-semibold bg-emerald-900/60 hover:bg-emerald-800/60 border border-emerald-700/40 text-emerald-300 rounded transition-colors"
+                            >Grant All</button>
+                            <button
+                              type="button"
+                              onClick={() => devSetPurchasedUpgrades([])}
+                              className="flex-1 py-0.5 text-xs font-semibold bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 rounded transition-colors"
+                            >Clear</button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="px-3 pb-2">
+                          <div className="flex gap-1.5">
+                            <input
+                              type="password"
+                              value={devPassword}
+                              onChange={(e) => setDevPassword(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleDevUnlock()}
+                              placeholder="Password"
+                              className={`min-w-0 flex-1 bg-white/5 border rounded px-2 py-1 text-xs text-white placeholder-white/20 outline-none focus:border-white/30 transition-colors ${devPasswordError ? 'border-red-500' : 'border-white/10'}`}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleDevUnlock}
+                              className="shrink-0 px-2 py-1 text-xs font-semibold bg-white/10 hover:bg-white/20 text-white/70 rounded transition-colors"
+                            >
+                              Unlock
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

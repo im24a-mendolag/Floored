@@ -4,7 +4,7 @@ import type { Difficulty, GameName } from '@/store/types'
 export const GRANT_ALL_UPGRADES = true
 
 /** Dev/testing: bankroll and sparks when a survival run starts (and idle reset). */
-export const STARTING_BANKROLL = 1000000000
+export const STARTING_BANKROLL = 1000000000000000000000000000000000000
 export const STARTING_SPARKS = 15
 
 /** Dev/testing: starting reroll tickets granted in inventory for a run */

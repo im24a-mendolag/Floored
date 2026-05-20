@@ -10,6 +10,8 @@ interface SettingsStore {
   setForceTie: (v: boolean) => void
   showAllGames: boolean
   setShowAllGames: (v: boolean) => void
+  devModeUnlocked: boolean
+  setDevModeUnlocked: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -21,6 +23,8 @@ export const useSettingsStore = create<SettingsStore>()(
       setForceTie: (v) => set({ forceTie: v }),
       showAllGames: false,
       setShowAllGames: (v) => set({ showAllGames: v }),
+      devModeUnlocked: false,
+      setDevModeUnlocked: (v) => set({ devModeUnlocked: v }),
     }),
     { name: 'floored-settings' }
   )
