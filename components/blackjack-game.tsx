@@ -16,7 +16,6 @@ import {
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
-import { formatChips } from '@/utils/format'
 import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'

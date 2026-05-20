@@ -18,7 +18,6 @@ import {
   GameDockChipRow,
 } from '@/components/game-dock-parts'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
-import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult, formatPlinkoRiskLabel } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
