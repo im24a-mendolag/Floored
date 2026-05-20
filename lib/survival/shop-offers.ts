@@ -1,7 +1,6 @@
 import { createRng, seedFromString } from '@/utils/rng'
 import { calcShopPrice } from './balance'
-import { UPGRADES_CATALOG, type CatalogItem } from './upgrades-catalog'
-import { isUpgradeOfferable } from './upgrade-levels'
+import { UPGRADES_CATALOG, type CatalogItem, isUpgradeOfferable } from './upgrades-catalog'
 import type { Difficulty, GameName } from '@/store/types'
 
 export interface ShopOffer {

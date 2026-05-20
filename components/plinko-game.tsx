@@ -135,8 +135,9 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     setSessions((prev) => prev.filter((s) => s.id !== id))
     inFlightBetRef.current = Math.max(0, inFlightBetRef.current - session.bet)
 
-    const finalPayout = session.golden ? session.result.payout * 2 : session.result.payout
-    const finalMultiplier = session.golden ? session.result.multiplier * 2 : session.result.multiplier
+    const goldenApplies = session.golden && session.result.multiplier > 1
+    const finalPayout = goldenApplies ? session.result.payout * 2 : session.result.payout
+    const finalMultiplier = goldenApplies ? session.result.multiplier * 2 : session.result.multiplier
     const finalOutcome = finalPayout >= session.bet ? 'win' : 'loss'
 
     const resolved = resolveGame(onResolveRef.current, {

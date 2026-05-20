@@ -26,8 +26,7 @@ import {
   LOBBY_REROLL_TICKET_ID,
   rerollLobbySlot,
 } from '@/lib/survival/lobby-ticket'
-import { canPurchaseUpgrade } from '@/lib/survival/upgrade-levels'
-import { normalizeUpgradeId } from '@/lib/survival/upgrades-catalog'
+import { canPurchaseUpgrade, normalizeUpgradeId } from '@/lib/survival/upgrades-catalog'
 import { generateMissionsForFloor } from '@/lib/survival/missions'
 import { canRerollMissions, canRerollMission } from '@/lib/survival/mission-reroll'
 

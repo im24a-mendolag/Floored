@@ -8,6 +8,8 @@ interface SettingsStore {
   setAutoReBet: (v: boolean) => void
   forceTie: boolean
   setForceTie: (v: boolean) => void
+  showAllGames: boolean
+  setShowAllGames: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -17,6 +19,8 @@ export const useSettingsStore = create<SettingsStore>()(
       setAutoReBet: (v) => set({ autoReBet: v }),
       forceTie: false,
       setForceTie: (v) => set({ forceTie: v }),
+      showAllGames: false,
+      setShowAllGames: (v) => set({ showAllGames: v }),
     }),
     { name: 'floored-settings' }
   )

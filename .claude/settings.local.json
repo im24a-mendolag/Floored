@@ -54,7 +54,14 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(git pull *)",
       "Bash(echo \"Exit: $?\")",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('Next:', p.dependencies?.next\\); console.log\\('React:', p.dependencies?.react\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")",
+      "Bash(npx --yes madge --circular --extensions ts,tsx --warning)",
+      "Bash(node -e ' *)",
+      "Bash(pnpm info *)",
+      "Bash(npm info *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('next:', p.dependencies.next\\); console.log\\('react:', p.dependencies.react\\)\")"
     ]
   }
 }

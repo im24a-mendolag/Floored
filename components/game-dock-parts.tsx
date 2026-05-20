@@ -316,7 +316,7 @@ export function GameDockChipRow({
         <GameDockRandomQuote quoteIdx={quoteIdx} />
       ) : (
         <>
-          {openingTicketActive && useSurvivalChips && minBet && (
+          {openingTicketActive && useSurvivalChips && minBet ? (
             <button
               type="button"
               onClick={() => onAddChip(openingTicketCap - currentBet)}
@@ -325,54 +325,57 @@ export function GameDockChipRow({
             >
               Opening Ticket
             </button>
+          ) : (
+            <>
+              {useSurvivalChips
+                ? survivalChips!.map((chip) => (
+                    <button
+                      key={chip.value}
+                      type="button"
+                      onClick={() => onAddChip(chip.value)}
+                      disabled={chip.value > bankroll - currentBet}
+                      className={`${FRAC_BTN} bg-amber-950 hover:bg-amber-900 border-amber-800 text-amber-300`}
+                    >
+                      {chip.label}
+                    </button>
+                  ))
+                : GAME_CHIPS.map((chip) => (
+                    <button
+                      key={chip.value}
+                      type="button"
+                      onClick={() => onAddChip(chip.value)}
+                      disabled={chip.value > bankroll - currentBet}
+                      className={`${CHIP_BTN} ${chip.cls}`}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+              <button
+                type="button"
+                onClick={() => onAddChip(Math.max(Math.floor(bankroll / 4), minBet ?? 1))}
+                disabled={currentBet >= bankroll || bankroll <= 0}
+                className={`${FRAC_BTN} bg-blue-100 hover:bg-blue-50 border-blue-200 text-blue-900`}
+              >
+                ¼
+              </button>
+              <button
+                type="button"
+                onClick={() => onAddChip(Math.max(Math.floor(bankroll / 2), minBet ?? 1))}
+                disabled={currentBet >= bankroll || bankroll <= 0}
+                className={`${FRAC_BTN} bg-blue-50 hover:bg-white border-blue-100 text-blue-900`}
+              >
+                ½
+              </button>
+              <button
+                type="button"
+                onClick={() => onAddChip(bankroll)}
+                disabled={currentBet >= bankroll || bankroll <= 0}
+                className={`${FRAC_BTN} bg-white hover:bg-zinc-50 border-zinc-200 text-zinc-900`}
+              >
+                All In
+              </button>
+            </>
           )}
-          {useSurvivalChips
-            ? survivalChips!.map((chip) => (
-                <button
-                  key={chip.value}
-                  type="button"
-                  onClick={() => onAddChip(chip.value)}
-                  disabled={chip.value > bankroll - currentBet}
-                  className={`${FRAC_BTN} bg-amber-950 hover:bg-amber-900 border-amber-800 text-amber-300`}
-                >
-                  {chip.label}
-                </button>
-              ))
-            : GAME_CHIPS.map((chip) => (
-                <button
-                  key={chip.value}
-                  type="button"
-                  onClick={() => onAddChip(chip.value)}
-                  disabled={chip.value > bankroll - currentBet}
-                  className={`${CHIP_BTN} ${chip.cls}`}
-                >
-                  {chip.label}
-                </button>
-              ))}
-          <button
-            type="button"
-            onClick={() => onAddChip(Math.max(Math.floor(bankroll / 4), minBet ?? 1))}
-            disabled={currentBet >= bankroll || bankroll <= 0}
-            className={`${FRAC_BTN} bg-blue-100 hover:bg-blue-50 border-blue-200 text-blue-900`}
-          >
-            ¼
-          </button>
-          <button
-            type="button"
-            onClick={() => onAddChip(Math.max(Math.floor(bankroll / 2), minBet ?? 1))}
-            disabled={currentBet >= bankroll || bankroll <= 0}
-            className={`${FRAC_BTN} bg-blue-50 hover:bg-white border-blue-100 text-blue-900`}
-          >
-            ½
-          </button>
-          <button
-            type="button"
-            onClick={() => onAddChip(bankroll)}
-            disabled={currentBet >= bankroll || bankroll <= 0}
-            className={`${FRAC_BTN} bg-white hover:bg-zinc-50 border-zinc-200 text-zinc-900`}
-          >
-            All In
-          </button>
         </>
       )}
     </div>

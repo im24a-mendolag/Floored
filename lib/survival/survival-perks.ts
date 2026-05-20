@@ -5,8 +5,8 @@ import {
   COIN_BIAS_CHANCE_BY_LEVEL,
   CRASH_ZONE_PAD_BY_LEVEL,
   OPENING_TICKET_CAP_BY_LEVEL,
-  getMaxOwnedLevelForEffect,
 } from './upgrade-levels'
+import { getMaxOwnedLevelForEffect } from './upgrades-catalog'
 
 export function hasEffect(purchasedUpgrades: PurchasedUpgrade[], effectKey: string, game?: GameName): boolean {
   if (game) {
