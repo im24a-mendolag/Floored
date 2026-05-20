@@ -18,5 +18,7 @@ export interface HiLoState {
   streak: number
   /** Current cash-out multiplier based on streak. */
   multiplier: number
+  /** True when the last card was a tie (push). */
+  isTie: boolean
   message: string
 }
