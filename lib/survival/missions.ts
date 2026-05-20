@@ -95,18 +95,18 @@ export const MISSION_DEFINITIONS: Array<{
     baseReward: 6,
     description: 'Win 4 rounds on this floor (losses are fine).',
   },
-  // big_win — net chips won in a single round
+  // big_win — net profit in a single round, target is a minBet multiplier (resolved at floor gen time)
   {
     type: 'big_win',
-    target: 100,
+    target: 10,
     baseReward: 5,
-    description: 'Net at least 100 chips in a single round.',
+    description: 'Net at least 10× the floor minimum bet in a single round.',
   },
   {
     type: 'big_win',
-    target: 300,
+    target: 30,
     baseReward: 8,
-    description: 'Net at least 300 chips in a single round.',
+    description: 'Net at least 30× the floor minimum bet in a single round.',
   },
 ]
 
@@ -166,15 +166,17 @@ export function generateMissionsForFloor(
       def.type === 'play_game'
         ? floorGames[Math.floor(rng() * floorGames.length)]
         : undefined
+    // big_win target is stored as a minBet multiplier — resolve to actual chips at gen time
+    const target = def.type === 'big_win' ? def.target * floorMinBet : def.target
     picked.push({
-      id: `${floor}-${def.type}-${def.target}-${i}-${game ?? 'any'}`,
+      id: `${floor}-${def.type}-${target}-${i}-${game ?? 'any'}`,
       type: def.type,
-      target: def.target,
+      target,
       progress: 0,
       rewardSparks: rewardForFloor(def.baseReward, floor, difficulty),
       completed: false,
+      minBet: floorMinBet,
       ...(game ? { game } : {}),
-      ...(def.type === 'play_game' ? { minBet: floorMinBet } : {}),
     })
   }
 

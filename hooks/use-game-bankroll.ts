@@ -154,7 +154,7 @@ export function useSurvivalGameBankroll(game: GameName) {
       applyMissionResults(updatedMissions)
 
       const finalBankroll = useSurvivalStore.getState().bankroll
-      if (finalBankroll <= 0) useSurvivalStore.getState().queueDefeat('bust')
+      if (finalBankroll < after.floorMinBet) useSurvivalStore.getState().queueDefeat('bust')
 
       return {
         ...result,

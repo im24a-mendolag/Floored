@@ -31,33 +31,41 @@ function markComplete(m: FloorMission): FloorMission {
 export function evaluateMissionOnGame(m: FloorMission, event: MissionGameEvent): FloorMission {
   if (m.completed || m.failed) return m
   const type = m.type as MissionType
+  const minBet = m.minBet ?? 0
 
   switch (type) {
     case 'win_streak': {
-      const progress = event.outcome === 'win' ? event.streak : 0
-      const next = { ...m, progress: clampProgress(progress, m.target) }
-      return next.progress >= m.target ? markComplete(next) : next
+      // Ignore games below min bet so tiny bets can't farm or break streaks
+      if (event.betAmount < minBet) return m
+      if (event.outcome === 'loss') return { ...m, progress: 0 }
+      if (event.outcome !== 'win') return m
+      const progress = clampProgress(m.progress + 1, m.target)
+      const next = { ...m, progress }
+      return progress >= m.target ? markComplete(next) : next
     }
     case 'play_game': {
       if (m.game && event.game !== m.game) return m
-      const requiredMin = m.minBet ?? 0
-      if (event.betAmount < requiredMin) return m
+      if (event.betAmount < minBet) return m
       const progress = clampProgress(m.progress + 1, m.target)
       const next = { ...m, progress }
       return progress >= m.target ? markComplete(next) : next
     }
     case 'min_multiplier': {
       if (event.outcome !== 'win') return m
+      if (event.betAmount < minBet) return m
       const mult = event.multiplier ?? (event.payout > event.betAmount ? event.payout / event.betAmount : 0)
       if (mult < m.target) return m
       return markComplete({ ...m, progress: m.target })
     }
     case 'games_played': {
-      const progress = clampProgress(event.gamesPlayedThisFloor, m.target)
+      if (event.betAmount < minBet) return m
+      const progress = clampProgress(m.progress + 1, m.target)
       const next = { ...m, progress }
       return progress >= m.target ? markComplete(next) : next
     }
     case 'flawless': {
+      // Any qualifying loss fails flawless; tiny bets don't count as losses
+      if (event.betAmount < minBet) return m
       if (event.outcome === 'loss') {
         return { ...m, failed: true, progress: 0 }
       }
@@ -65,12 +73,14 @@ export function evaluateMissionOnGame(m: FloorMission, event: MissionGameEvent):
     }
     case 'win_count': {
       if (event.outcome !== 'win') return m
+      if (event.betAmount < minBet) return m
       const progress = clampProgress(m.progress + 1, m.target)
       const next = { ...m, progress }
       return progress >= m.target ? markComplete(next) : next
     }
     case 'big_win': {
       if (event.outcome !== 'win') return m
+      if (event.betAmount < minBet) return m
       const net = event.payout - event.betAmount
       if (net < m.target) return m
       return markComplete({ ...m, progress: m.target })

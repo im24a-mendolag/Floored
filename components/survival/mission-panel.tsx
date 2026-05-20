@@ -7,22 +7,22 @@ import { canRerollMission } from '@/lib/survival/mission-reroll'
 import { formatChips } from '@/utils/format'
 
 function missionLabel(m: FloorMission): string {
+  const minTag = m.minBet != null ? ` at ${formatChips(m.minBet)}+` : ''
   switch (m.type) {
     case 'win_streak':
-      return `Win ${m.target} in a row`
+      return `Win ${m.target} in a row${minTag}`
     case 'play_game': {
       const game = m.game?.split('-').join(' ') ?? 'a game'
-      const min = m.minBet != null ? ` at ${formatChips(m.minBet)}+` : ''
-      return `Play ${game}${min}`
+      return `Play ${game}${minTag}`
     }
     case 'min_multiplier':
-      return `Win with ${m.target}×+ multiplier`
+      return `Win with ${m.target}×+ multiplier${minTag}`
     case 'games_played':
-      return `Play ${m.target} games this floor`
+      return `Play ${m.target} games${minTag}`
     case 'flawless':
-      return 'No losses this floor'
+      return `No losses this floor${minTag}`
     case 'win_count':
-      return `Win ${m.target} rounds this floor`
+      return `Win ${m.target} rounds${minTag}`
     case 'big_win':
       return `Net ${formatChips(m.target)}+ in one round`
     default:

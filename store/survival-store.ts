@@ -27,7 +27,7 @@ import {
   rerollLobbySlot,
 } from '@/lib/survival/lobby-ticket'
 import { canPurchaseUpgrade, normalizeUpgradeId } from '@/lib/survival/upgrades-catalog'
-import { generateMissionsForFloor } from '@/lib/survival/missions'
+import { generateMissionsForFloor, type MissionType } from '@/lib/survival/missions'
 import { canRerollMissions, canRerollMission } from '@/lib/survival/mission-reroll'
 
 function generateSeed(): string {
@@ -626,7 +626,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           s.floorGames,
           s.floorMinBet,
           nextCount,
-          { index, type: m.type, target: m.target },
+          { index, type: m.type as MissionType, target: m.target },
         )
         const nextMissions = [...s.missions]
         if (newSet[index]) nextMissions[index] = newSet[index]
@@ -662,7 +662,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           s.floorGames,
           s.floorMinBet,
           nextCount,
-          { index, type: m.type, target: m.target },
+          { index, type: m.type as MissionType, target: m.target },
         )
         const nextMissions = [...s.missions]
         if (newSet[index]) nextMissions[index] = newSet[index]
