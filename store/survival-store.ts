@@ -627,6 +627,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           s.floorGames,
           s.floorMinBet,
           nextCount,
+          { index, type: m.type, target: m.target },
         )
         const nextMissions = [...s.missions]
         if (newSet[index]) nextMissions[index] = newSet[index]
@@ -662,6 +663,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           s.floorGames,
           s.floorMinBet,
           nextCount,
+          { index, type: m.type, target: m.target },
         )
         const nextMissions = [...s.missions]
         if (newSet[index]) nextMissions[index] = newSet[index]

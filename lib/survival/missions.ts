@@ -144,6 +144,7 @@ export function generateMissionsForFloor(
   floorGames: GameName[],
   floorMinBet: number,
   rerollCount = 0,
+  excludeAtIndex?: { index: number; type: MissionType; target: number },
 ): FloorMission[] {
   const rng = createRng(seedFromString(`${runSeed}:missions:${floor}:${rerollCount}`))
   const count = MISSIONS_PER_FLOOR
@@ -151,8 +152,15 @@ export function generateMissionsForFloor(
   const picked: FloorMission[] = []
 
   for (let i = 0; i < count && pool.length > 0; i++) {
-    const idx = Math.floor(rng() * pool.length)
-    const def = pool[idx]!
+    let slotPool = pool
+    if (excludeAtIndex && i === excludeAtIndex.index) {
+      const filtered = pool.filter(
+        (p) => !(p.type === excludeAtIndex.type && p.target === excludeAtIndex.target),
+      )
+      if (filtered.length > 0) slotPool = filtered
+    }
+    const idx = Math.floor(rng() * slotPool.length)
+    const def = slotPool[idx]!
     pool = removePickedFromPool(pool, def)
     const game =
       def.type === 'play_game'
