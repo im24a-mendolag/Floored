@@ -228,6 +228,14 @@ export function winGame(state: CaseBattleState, cases: CaseDef[]): CaseBattleSta
   }
 }
 
+export function rerollUserItem(state: CaseBattleState, slotIndex: number, cases: CaseDef[]): CaseBattleState {
+  if (slotIndex < 0 || slotIndex >= state.userItems.length) return state
+  const oc = state.userItems[slotIndex]!
+  const userItems = [...state.userItems]
+  userItems[slotIndex] = { ...oc, item: rollItem(cases[oc.caseId]!) }
+  return { ...state, userItems }
+}
+
 export function settleBattle(state: CaseBattleState): CaseBattleState {
   const userTotal = state.userItems.reduce((s, oc) => s + oc.item.value, 0)
   const botTotal  = state.botItems.reduce((s, oc) => s + oc.item.value, 0)

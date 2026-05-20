@@ -12,9 +12,8 @@ import {
   GameActiveBetBadge,
   GameDockBackButton,
   GameDockSettledRow,
-  OpeningTicketBetMarker,
 } from '@/components/game-dock-parts'
-import { useOpeningTicketActive } from '@/hooks/use-opening-ticket'
+import { PerkHint } from '@/components/survival/perk-hint'
 import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
@@ -23,6 +22,7 @@ import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-la
 import { resolveGame } from '@/lib/survival/game-resolve'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
+import { usePerkProc } from '@/hooks/use-perk-proc'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
 import {
@@ -31,6 +31,7 @@ import {
   initCaseBattle,
   loseGame,
   removeCase,
+  rerollUserItem,
   settleBattle,
   startBattle,
   winGame,
@@ -73,14 +74,16 @@ const RARITY_BORDER: Record<CaseRarity, string> = {
 
 // Slot rendering for opening/settled columns
 function ItemSlot({
-  caseEmoji, item, isRevealing, isRevealed,
+  caseEmoji, item, isRevealing, isRevealed, isRerolling = false,
 }: {
   caseEmoji: string
   item: { name: string; icon: string; value: number; rarity: CaseRarity }
   isRevealing: boolean
   isRevealed: boolean
+  isRerolling?: boolean
 }) {
-  const borderClass = isRevealing
+  const suspense = isRevealing || isRerolling
+  const borderClass = suspense
     ? 'border-yellow-500 case-item-suspense'
     : isRevealed
       ? RARITY_BORDER[item.rarity]
@@ -88,7 +91,7 @@ function ItemSlot({
 
   return (
     <div className={`rounded-xl border-2 px-3 py-2.5 min-h-[4.5rem] flex items-center ${borderClass}`}>
-      {isRevealed ? (
+      {isRevealed && !isRerolling ? (
         <div key="revealed" className="flex items-center gap-3 w-full case-item-reveal">
           <span className="text-3xl leading-none shrink-0">{item.icon}</span>
           <div className="flex-1 min-w-0">
@@ -98,7 +101,7 @@ function ItemSlot({
             <p className="text-zinc-300 font-black tabular-nums text-sm">{formatChips(item.value)}</p>
           </div>
         </div>
-      ) : isRevealing ? (
+      ) : suspense ? (
         <div key="revealing" className="flex items-center justify-center w-full">
           <span className="text-4xl">❓</span>
         </div>
@@ -120,13 +123,14 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
   const { blessed } = useBless()
-  const caseXray = useSurvivalPerks('case-battles').caseXray
-  const openingTicketActive = useOpeningTicketActive()
+  const { caseXray, caseXrayLevel } = useSurvivalPerks('case-battles')
+  const xrayProc = usePerkProc(mode === 'survival' && caseXray, 'perk_case_xray', caseXrayLevel)
   const minBet = mode === 'survival' ? floorMinBet : FREEPLAY_BASE
   const cases = getCases(minBet)
 
   const [state, setState] = useState<CaseBattleState>(initCaseBattle)
-  const [xrayCaseId, setXrayCaseId] = useState<number | null>(null)
+  const [rerollPending, setRerollPending] = useState(false)
+  const [rerollingIdx, setRerollingIdx] = useState(-1)
   const [infoCaseId, setInfoCaseId] = useState<number | null>(null)
   const [revealedCount, setRevealedCount] = useState(0)
   const [revealingIdx, setRevealingIdx] = useState(-1)
@@ -135,17 +139,13 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const xrayProcFiredRef = useRef(false)
 
   const isSetup = state.stage === 'setup'
   const isOpening = state.stage === 'opening'
   const isSettled = state.stage === 'settled'
-  const showQuoteUntilNext = isOpening
-
-  useEffect(() => {
-    if (isSetup && mode === 'survival' && caseXray && cases.length > 0) {
-      setXrayCaseId(Math.floor(Math.random() * cases.length))
-    }
-  }, [isSetup, mode, caseXray, cases.length])
+  const isRerollPending = isOpening && rerollPending
+  const showQuoteUntilNext = isOpening && !isRerollPending
 
   const canBattle = state.selectedCases.length > 0 && state.totalCost <= bankroll && state.totalCost >= minBet
   const numCases  = state.selectedCases.length
@@ -175,11 +175,16 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     }
 
     const tSettle = setTimeout(() => {
-      setState(prev => {
-        const settled = settleBattle(prev)
-        settleCaseBattle(settled)
-        return settled
-      })
+      if (xrayProcFiredRef.current) {
+        xrayProcFiredRef.current = false
+        setRerollPending(true)
+      } else {
+        setState(prev => {
+          const settled = settleBattle(prev)
+          settleCaseBattle(settled)
+          return settled
+        })
+      }
     }, (total - 1) * 800 + 600 + 500)
     timeoutsRef.current.push(tSettle)
 
@@ -189,32 +194,56 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   useEffect(() => () => clearTimeouts(), [])
 
   function settleCaseBattle(s: CaseBattleState) {
+    const pushPayout = Math.round((s.userTotal + s.botTotal) / 2)
     const payout = s.outcome === 'win'
       ? s.userTotal + s.botTotal
       : s.outcome === 'push'
-        ? s.totalCost
+        ? pushPayout
         : 0
     const mult = s.outcome === 'win' && s.totalCost > 0
       ? parseFloat(((s.userTotal + s.botTotal) / s.totalCost).toFixed(2))
-      : s.outcome === 'push'
-        ? 1
-        : 0
+      : s.outcome === 'push' && s.totalCost > 0
+        ? parseFloat((pushPayout / s.totalCost).toFixed(2))
+        : s.outcome === 'push'
+          ? 1
+          : 0
     const outcome = s.outcome!
     const resolved = resolveGame(onResolve, { outcome, betAmount: s.totalCost, payout, multiplier: mult })
     const resultLabel =
       outcome === 'win'
         ? `Won ${formatChips(payout)}`
-        : outcome === 'push'
-          ? 'Tie — bet returned'
-          : 'Loss'
+        : 'Loss'
     const built = buildPendingResult(
       { outcome, betAmount: s.totalCost, payout: resolved.payout },
       {
-        result: outcome === 'push' ? 'Push' : resultLabel,
+        result: outcome === 'push' ? `Tie · ${formatChips(pushPayout)} each` : resultLabel,
       },
       { freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
+  }
+
+  function handleReroll(slotIndex: number) {
+    setRerollPending(false)
+    setRerollingIdx(slotIndex)
+    setTimeout(() => {
+      setRerollingIdx(-1)
+      setState(prev => {
+        const withReroll = rerollUserItem(prev, slotIndex, cases)
+        const settled = settleBattle(withReroll)
+        settleCaseBattle(settled)
+        return settled
+      })
+    }, 700)
+  }
+
+  function handleSkipReroll() {
+    setRerollPending(false)
+    setState(prev => {
+      const settled = settleBattle(prev)
+      settleCaseBattle(settled)
+      return settled
+    })
   }
 
   function handleBattle() {
@@ -223,6 +252,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     setLastSelectedCases(state.selectedCases)
     setQuoteIdx((prev) => pickQuote(prev))
     clearTimeouts()
+    xrayProcFiredRef.current = !blessed && !cursed && xrayProc.rollForBet()
     setState((prev) => blessed ? winGame(prev, cases) : cursed ? loseGame(prev, cases) : startBattle(prev, cases))
     setPendingResult(null)
   }
@@ -261,6 +291,16 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
         gameLabel="Case Battles"
       >
         <GameDockBackButton mode={mode} visible={isSetup} />
+        {isSetup && (blessed || cursed) && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            {blessed ? 'Guaranteed win this battle' : 'Guaranteed loss this battle'}
+          </PerkHint>
+        )}
+        {isRerollPending && (
+          <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+            Tap one of your items to reroll it
+          </PerkHint>
+        )}
         <GameActiveBetBadge
           betAmount={!isSetup ? state.totalCost : 0}
           visible={!isSetup && state.totalCost > 0}
@@ -276,7 +316,6 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
               {cases.map(c => {
                 const count = caseCounts[c.id] ?? 0
                 const atMax = numCases >= 5 && count === 0
-                const isXray = xrayCaseId === c.id
                 return (
                   <div key={c.id} className="relative flex flex-col items-center gap-2">
                     <button
@@ -294,9 +333,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
                         'w-full h-20 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all duration-150 active:scale-95',
                         count > 0
                           ? 'border-yellow-500 bg-yellow-500/10 hover:bg-yellow-500/20 shadow-lg shadow-yellow-900/20'
-                          : isXray
-                            ? 'border-violet-500 bg-violet-950/40 hover:border-violet-400'
-                            : 'border-zinc-700 bg-zinc-800/60 hover:border-zinc-500 hover:bg-zinc-800',
+                          : 'border-zinc-700 bg-zinc-800/60 hover:border-zinc-500 hover:bg-zinc-800',
                         atMax ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer',
                       ].join(' ')}
                     >
@@ -307,7 +344,6 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
                     </button>
                     <p className="text-xs text-center font-semibold leading-tight text-zinc-400">
                       {c.name.replace(' Case', '')}
-                      {isXray && <span className="block text-[10px] text-violet-300">X-Ray: rare+</span>}
                     </p>
                     <p className="text-xs font-bold text-zinc-200 tabular-nums">{formatChips(c.price)}</p>
                     {count > 0 ? (
@@ -337,13 +373,24 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
                 You {isSettled && state.outcome === 'win' ? '🏆' : isSettled && state.outcome === 'push' ? '🤝' : ''}
               </p>
               {state.userItems.map((oc, i) => (
-                <ItemSlot
+                <div
                   key={i}
-                  caseEmoji={cases[oc.caseId]?.emoji ?? '📦'}
-                  item={oc.item}
-                  isRevealing={i === revealingIdx}
-                  isRevealed={i < revealedCount}
-                />
+                  className={isRerollPending ? 'relative cursor-pointer group' : ''}
+                  onClick={isRerollPending ? () => handleReroll(i) : undefined}
+                >
+                  <ItemSlot
+                    caseEmoji={cases[oc.caseId]?.emoji ?? '📦'}
+                    item={oc.item}
+                    isRevealing={i === revealingIdx}
+                    isRevealed={i < revealedCount}
+                    isRerolling={i === rerollingIdx}
+                  />
+                  {isRerollPending && (
+                    <div className="absolute inset-0 rounded-xl border-2 border-emerald-500/70 bg-emerald-950/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-xs font-bold text-emerald-300">↺ Reroll</span>
+                    </div>
+                  )}
+                </div>
               ))}
               {(isSettled || (isOpening && revealedCount > 0)) && (
                 <div className="border-t-2 border-zinc-700 pt-1.5 mt-0.5">
@@ -382,24 +429,25 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
 
       <div className={GAME_CONTROL_DOCK_M}>
         <div className={GAME_DOCK_INNER}>
-          <div className="flex min-h-12 items-center justify-center">
-            {showQuoteUntilNext ? (
-              <GameDockRandomQuote quoteIdx={quoteIdx} />
-            ) : (
-              <div className="invisible pointer-events-none flex gap-2" aria-hidden>
-                <div className="w-12 h-12 rounded-full" />
-                <div className="w-12 h-12 rounded-full" />
-                <div className="w-12 h-12 rounded-full" />
-                <div className="w-12 h-12 rounded-full" />
-              </div>
-            )}
-          </div>
+          {!isSettled && (
+            <div className="flex min-h-12 items-center justify-center">
+              {showQuoteUntilNext ? (
+                <GameDockRandomQuote quoteIdx={quoteIdx} />
+              ) : (
+                <div className="invisible pointer-events-none flex gap-2" aria-hidden>
+                  <div className="w-12 h-12 rounded-full" />
+                  <div className="w-12 h-12 rounded-full" />
+                  <div className="w-12 h-12 rounded-full" />
+                  <div className="w-12 h-12 rounded-full" />
+                </div>
+              )}
+            </div>
+          )}
 
           <div className={GAME_DOCK_SETTLED_SLOT}>
             {isSetup && (
               <div className="flex items-center gap-2.5 flex-wrap justify-center">
                 <span className="text-zinc-500 text-base">Total cost</span>
-                {openingTicketActive && <OpeningTicketBetMarker />}
                 <span
                   className={`font-bold text-xl tabular-nums ${state.totalCost > bankroll ? 'text-red-400' : 'text-white'}`}
                 >
@@ -416,9 +464,14 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
                 )}
               </div>
             )}
-            {isOpening && (
+            {isOpening && !isRerollPending && (
               <p className="text-sm text-zinc-500">
                 Opening {Math.min(revealedCount + 1, numCases)} of {numCases}…
+              </p>
+            )}
+            {isRerollPending && (
+              <p className="text-sm font-semibold text-emerald-300 animate-pulse">
+                ✦ Perk active — tap one of your items to reroll
               </p>
             )}
             {isSettled && pendingResult && (
@@ -439,13 +492,16 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
               {isSettled && (
                 <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
               )}
+              {isRerollPending && (
+                <button type="button" onClick={handleSkipReroll} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">Skip</button>
+              )}
               <button
                 type="button"
                 onClick={isSettled ? handleNext : handleBattle}
-                disabled={isOpening || (isSetup && !canBattle)}
+                disabled={(isOpening && !isRerollPending) || (isSetup && !canBattle)}
                 className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
               >
-                {isSettled ? 'Next →' : isOpening ? 'Opening…' : 'Battle →'}
+                {isSettled ? 'Next →' : isRerollPending ? 'Rerolling…' : isOpening ? 'Opening…' : 'Battle →'}
               </button>
             </div>
           </div>

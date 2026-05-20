@@ -1,5 +1,6 @@
 /** Base per-bet activation chance at level 1 for proc perks. */
 export const PROC_PERK_BASE_CHANCES: Record<string, number> = {
+  perk_case_xray: 0.30,
   perk_mines_safe: 0.30,
   perk_dragon_blindspot: 0.30,
   perk_chicken_road_lane: 0.30,
