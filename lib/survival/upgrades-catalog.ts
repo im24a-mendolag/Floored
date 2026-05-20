@@ -3,7 +3,7 @@ import { LOBBY_REROLL_TICKET, LOBBY_REROLL_TICKET_ID } from './lobby-ticket'
 import { perkProcChancePercent } from './perk-proc'
 import {
   COIN_BIAS_CHANCE_BY_LEVEL,
-  CRASH_ZONE_PAD_BY_LEVEL,
+  CRASH_ZONE_THRESHOLD_BY_LEVEL,
   GAME_PAYOUT_MULT_BY_LEVEL,
   MAX_UPGRADE_LEVEL,
   OPENING_TICKET_CAP_BY_LEVEL,
@@ -64,6 +64,14 @@ const GAME_PERK_DEFS: Record<
     effectKey: 'perk_peek_dealer',
     baseCost: 24,
     rarity: 'epic',
+    descriptionForLevel: (level) => {
+      const parts = ['See the dealer hole card after your first two cards are dealt.']
+      if (level >= 2) parts.push('Hole card visible before you place your bet.')
+      if (level >= 3) parts.push('Dealer blackjack refunds your bet.')
+      if (level >= 4) parts.push('Double down anytime.')
+      if (level >= 5) parts.push('Blackjack pays 3×.')
+      return parts.join(' ')
+    },
   },
   hilo: {
     name: 'Hot Streak',
@@ -81,13 +89,13 @@ const GAME_PERK_DEFS: Record<
   },
   crash: {
     name: 'Crash Zone',
-    description: 'Shows a narrow band around the hidden crash point.',
+    description: 'Crashes below a threshold refund your bet if you have not cashed out.',
     effectKey: 'perk_crash_zone',
     baseCost: 22,
     rarity: 'rare',
     descriptionForLevel: (level) => {
-      const pct = Math.round((CRASH_ZONE_PAD_BY_LEVEL[level - 1] ?? 0.07) * 100)
-      return `Shows a ±${pct}% band around the hidden crash point.`
+      const threshold = CRASH_ZONE_THRESHOLD_BY_LEVEL[level] ?? 1
+      return `Crashes below ${threshold.toFixed(2)}× refund your bet.`
     },
   },
   mines: {
@@ -188,7 +196,7 @@ const GAME_PERK_DEFS: Record<
     baseCost: 20,
     rarity: 'rare',
     descriptionForLevel: (level) => {
-      const pct = Math.round((COIN_BIAS_CHANCE_BY_LEVEL[level - 1] ?? 0.60) * 100)
+      const pct = Math.round((COIN_BIAS_CHANCE_BY_LEVEL[level] ?? 0.60) * 100)
       return `Your chosen side wins ${pct}% of the time.`
     },
   },

@@ -10,119 +10,123 @@ export type MissionType =
   | 'win_count'
   | 'big_win'
 
-/** All mission templates that can appear on a floor (3 picked at random per floor). */
+export const HIGH_VARIANCE_GAME_IDS: GameName[] = [
+  'crash',
+  'mines',
+  'chicken-road',
+  'dragon-tower',
+  'chicken-race',
+  'keno',
+  'street-cups',
+]
+
+export const LOW_VARIANCE_GAME_IDS: GameName[] = [
+  'blackjack',
+  'roulette',
+  'plinko',
+  'over-under',
+  'run-dice',
+  'wheel',
+  'slots',
+  'hilo',
+  'coin-flip',
+  'poker-1p',
+  'case-battles',
+]
+
 export const MISSION_DEFINITIONS: Array<{
   type: MissionType
   target: number
+  minBetMult: number
   baseReward: number
-  description: string
 }> = [
-  // win_streak — only one variant will appear per floor
-  {
-    type: 'win_streak',
-    target: 2,
-    baseReward: 4,
-    description: 'Win 2 rounds in a row on this floor (a loss resets progress).',
-  },
-  {
-    type: 'win_streak',
-    target: 3,
-    baseReward: 6,
-    description: 'Win 3 rounds in a row on this floor (a loss resets progress).',
-  },
-  {
-    type: 'win_streak',
-    target: 4,
-    baseReward: 8,
-    description: 'Win 4 rounds in a row on this floor (a loss resets progress).',
-  },
-  {
-    type: 'win_streak',
-    target: 5,
-    baseReward: 10,
-    description: 'Win 5 rounds in a row on this floor (a loss resets progress).',
-  },
+  // win_streak
+  { type: 'win_streak', target: 2, minBetMult: 1, baseReward: 4 },
+  { type: 'win_streak', target: 2, minBetMult: 2, baseReward: 5 },
+  { type: 'win_streak', target: 2, minBetMult: 5, baseReward: 8 },
+  { type: 'win_streak', target: 3, minBetMult: 1, baseReward: 6 },
+  { type: 'win_streak', target: 3, minBetMult: 2, baseReward: 7 },
+  { type: 'win_streak', target: 3, minBetMult: 5, baseReward: 10 },
+  { type: 'win_streak', target: 4, minBetMult: 1, baseReward: 8 },
+  { type: 'win_streak', target: 4, minBetMult: 2, baseReward: 9 },
+  { type: 'win_streak', target: 5, minBetMult: 1, baseReward: 10 },
+  { type: 'win_streak', target: 5, minBetMult: 2, baseReward: 11 },
   // play_game
-  {
-    type: 'play_game',
-    target: 1,
-    baseReward: 5,
-    description: 'Play a specific floor lobby game once at the floor minimum bet or higher.',
-  },
+  { type: 'play_game', target: 1, minBetMult: 1, baseReward: 3 },
+  { type: 'play_game', target: 1, minBetMult: 2, baseReward: 4 },
+  { type: 'play_game', target: 1, minBetMult: 5, baseReward: 7 },
+  { type: 'play_game', target: 1, minBetMult: 10, baseReward: 10 },
+  { type: 'play_game', target: 2, minBetMult: 1, baseReward: 4 },
+  { type: 'play_game', target: 2, minBetMult: 2, baseReward: 5 },
+  { type: 'play_game', target: 2, minBetMult: 5, baseReward: 8 },
+  { type: 'play_game', target: 3, minBetMult: 1, baseReward: 5 },
+  { type: 'play_game', target: 3, minBetMult: 2, baseReward: 6 },
+  { type: 'play_game', target: 3, minBetMult: 5, baseReward: 9 },
+  { type: 'play_game', target: 4, minBetMult: 1, baseReward: 6 },
+  { type: 'play_game', target: 4, minBetMult: 2, baseReward: 7 },
+  { type: 'play_game', target: 4, minBetMult: 3, baseReward: 8 },
+  { type: 'play_game', target: 6, minBetMult: 1, baseReward: 8 },
+  { type: 'play_game', target: 6, minBetMult: 2, baseReward: 9 },
   // min_multiplier
-  {
-    type: 'min_multiplier',
-    target: 2,
-    baseReward: 5,
-    description: 'Win a round with a 2× or higher payout multiplier.',
-  },
-  {
-    type: 'min_multiplier',
-    target: 3,
-    baseReward: 8,
-    description: 'Win a round with a 3× or higher payout multiplier.',
-  },
+  { type: 'min_multiplier', target: 2, minBetMult: 1, baseReward: 5 },
+  { type: 'min_multiplier', target: 2, minBetMult: 2, baseReward: 6 },
+  { type: 'min_multiplier', target: 2, minBetMult: 5, baseReward: 9 },
+  { type: 'min_multiplier', target: 3, minBetMult: 1, baseReward: 8 },
+  { type: 'min_multiplier', target: 3, minBetMult: 2, baseReward: 9 },
+  { type: 'min_multiplier', target: 3, minBetMult: 5, baseReward: 12 },
   // games_played
-  {
-    type: 'games_played',
-    target: 4,
-    baseReward: 4,
-    description: 'Play 4 separate rounds on this floor.',
-  },
-  {
-    type: 'games_played',
-    target: 6,
-    baseReward: 6,
-    description: 'Play 6 separate rounds on this floor.',
-  },
+  { type: 'games_played', target: 3, minBetMult: 1, baseReward: 3 },
+  { type: 'games_played', target: 3, minBetMult: 2, baseReward: 4 },
+  { type: 'games_played', target: 5, minBetMult: 1, baseReward: 5 },
+  { type: 'games_played', target: 5, minBetMult: 2, baseReward: 6 },
+  { type: 'games_played', target: 5, minBetMult: 5, baseReward: 9 },
+  { type: 'games_played', target: 8, minBetMult: 1, baseReward: 7 },
+  { type: 'games_played', target: 8, minBetMult: 2, baseReward: 8 },
   // flawless
-  {
-    type: 'flawless',
-    target: 1,
-    baseReward: 8,
-    description: 'Complete the floor without losing a single bet.',
-  },
-  // win_count — total wins this floor (losses OK)
-  {
-    type: 'win_count',
-    target: 2,
-    baseReward: 4,
-    description: 'Win 2 rounds on this floor (losses are fine).',
-  },
-  {
-    type: 'win_count',
-    target: 4,
-    baseReward: 6,
-    description: 'Win 4 rounds on this floor (losses are fine).',
-  },
-  // big_win — net profit in a single round, target is a minBet multiplier (resolved at floor gen time)
-  {
-    type: 'big_win',
-    target: 10,
-    baseReward: 5,
-    description: 'Net at least 10× the floor minimum bet in a single round.',
-  },
-  {
-    type: 'big_win',
-    target: 30,
-    baseReward: 8,
-    description: 'Net at least 30× the floor minimum bet in a single round.',
-  },
+  { type: 'flawless', target: 1, minBetMult: 1, baseReward: 8 },
+  { type: 'flawless', target: 1, minBetMult: 2, baseReward: 9 },
+  { type: 'flawless', target: 1, minBetMult: 3, baseReward: 10 },
+  // win_count
+  { type: 'win_count', target: 2, minBetMult: 1, baseReward: 4 },
+  { type: 'win_count', target: 2, minBetMult: 2, baseReward: 5 },
+  { type: 'win_count', target: 2, minBetMult: 5, baseReward: 8 },
+  { type: 'win_count', target: 4, minBetMult: 1, baseReward: 6 },
+  { type: 'win_count', target: 4, minBetMult: 2, baseReward: 7 },
+  { type: 'win_count', target: 4, minBetMult: 5, baseReward: 10 },
+  // big_win (10× net profit only)
+  { type: 'big_win', target: 10, minBetMult: 1, baseReward: 5 },
+  { type: 'big_win', target: 10, minBetMult: 2, baseReward: 6 },
+  { type: 'big_win', target: 10, minBetMult: 3, baseReward: 7 },
 ]
 
 const MISSION_POOL: Array<{
   type: MissionType
   target: number
+  minBetMult: number
   baseReward: number
-}> = MISSION_DEFINITIONS.map(({ type, target, baseReward }) => ({ type, target, baseReward }))
+}> = [...MISSION_DEFINITIONS]
 
 function rewardForFloor(base: number, floor: number, difficulty: Difficulty): number {
   const mult = difficulty === 'nightmare' ? 1.4 : difficulty === 'hard' ? 1.2 : 1
   return Math.max(1, Math.floor(base * (1 + (floor - 1) * 0.1) * mult))
 }
 
-// Types with multiple variants — once one is picked, all variants are excluded.
-const EXCLUSIVE_TYPES: MissionType[] = ['win_streak', 'min_multiplier', 'games_played', 'win_count', 'big_win']
+const EXCLUSIVE_TYPES: MissionType[] = [
+  'win_streak',
+  'play_game',
+  'min_multiplier',
+  'games_played',
+  'flawless',
+  'win_count',
+  'big_win',
+]
+
+function missionPoolForFloor(floorGames: GameName[]): typeof MISSION_POOL {
+  const lowVarianceCount = floorGames.filter((g) => LOW_VARIANCE_GAME_IDS.includes(g)).length
+  const flawlessAllowed = lowVarianceCount >= 3
+  if (flawlessAllowed) return MISSION_POOL
+  return MISSION_POOL.filter((p) => p.type !== 'flawless')
+}
 
 function removePickedFromPool(
   pool: typeof MISSION_POOL,
@@ -131,7 +135,12 @@ function removePickedFromPool(
   if ((EXCLUSIVE_TYPES as string[]).includes(picked.type)) {
     return pool.filter((p) => p.type !== picked.type)
   }
-  return pool.filter((p) => p.type !== picked.type || p.target !== picked.target)
+  return pool.filter(
+    (p) =>
+      p.type !== picked.type ||
+      p.target !== picked.target ||
+      p.minBetMult !== picked.minBetMult,
+  )
 }
 
 /** Seeded mission count per floor. */
@@ -148,7 +157,7 @@ export function generateMissionsForFloor(
 ): FloorMission[] {
   const rng = createRng(seedFromString(`${runSeed}:missions:${floor}:${rerollCount}`))
   const count = MISSIONS_PER_FLOOR
-  let pool = [...MISSION_POOL]
+  let pool = [...missionPoolForFloor(floorGames)]
   const picked: FloorMission[] = []
 
   for (let i = 0; i < count && pool.length > 0; i++) {
@@ -166,16 +175,16 @@ export function generateMissionsForFloor(
       def.type === 'play_game'
         ? floorGames[Math.floor(rng() * floorGames.length)]
         : undefined
-    // big_win target is stored as a minBet multiplier — resolve to actual chips at gen time
     const target = def.type === 'big_win' ? def.target * floorMinBet : def.target
+    const minBet = floorMinBet * def.minBetMult
     picked.push({
-      id: `${floor}-${def.type}-${target}-${i}-${game ?? 'any'}`,
+      id: `${floor}-${def.type}-${target}-${def.minBetMult}-${i}-${game ?? 'any'}`,
       type: def.type,
       target,
       progress: 0,
       rewardSparks: rewardForFloor(def.baseReward, floor, difficulty),
       completed: false,
-      minBet: floorMinBet,
+      minBet,
       ...(game ? { game } : {}),
     })
   }
@@ -220,14 +229,15 @@ function buildMissionFromDef(
   game: GameName | undefined,
 ): FloorMission {
   const target = resolvedTarget(def, floorMinBet)
+  const minBet = floorMinBet * def.minBetMult
   return {
-    id: `${floor}-${def.type}-${target}-${slotIndex}-${game ?? 'any'}`,
+    id: `${floor}-${def.type}-${target}-${def.minBetMult}-${slotIndex}-${game ?? 'any'}`,
     type: def.type,
     target,
     progress: 0,
     rewardSparks: rewardForFloor(def.baseReward, floor, difficulty),
     completed: false,
-    minBet: floorMinBet,
+    minBet,
     ...(game ? { game } : {}),
   }
 }
@@ -244,7 +254,7 @@ export function pickMissionRerollForSlot(input: {
   offeredKeys: string[]
 }): FloorMission | null {
   const offered = new Set(input.offeredKeys)
-  const candidates = MISSION_POOL.filter(
+  const candidates = missionPoolForFloor(input.floorGames).filter(
     (def) => !isMissionDefAlreadyOffered(def, offered, input.floorMinBet),
   )
   if (candidates.length === 0) return null

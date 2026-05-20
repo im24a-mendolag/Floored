@@ -1,9 +1,10 @@
 import type { CoinSide } from '@/games/coin-flip/types'
 import type { GameName, PurchasedUpgrade } from '@/store/types'
 import { getCatalogItem, normalizeUpgradeId } from './upgrades-catalog'
+import { RAW_PAYOUT_MULT_CAP } from './balance'
 import {
   COIN_BIAS_CHANCE_BY_LEVEL,
-  CRASH_ZONE_PAD_BY_LEVEL,
+  CRASH_ZONE_THRESHOLD_BY_LEVEL,
   OPENING_TICKET_CAP_BY_LEVEL,
 } from './upgrade-levels'
 import { getMaxOwnedLevelForEffect } from './upgrades-catalog'
@@ -54,7 +55,7 @@ export function computePayoutMultiplier(purchasedUpgrades: PurchasedUpgrade[], g
       mult *= parsed
     }
   }
-  return mult
+  return Math.min(RAW_PAYOUT_MULT_CAP, mult)
 }
 
 export function applyPayoutBoost(amount: number, purchasedUpgrades: PurchasedUpgrade[], game: GameName): number {
@@ -103,7 +104,7 @@ export function survivalWagerCap(
 export function getCoinBiasChance(purchasedUpgrades: PurchasedUpgrade[], game: GameName): number {
   const level = getPerkLevel(purchasedUpgrades, game, 'perk_coin_bias')
   if (level <= 0) return 0.5
-  return COIN_BIAS_CHANCE_BY_LEVEL[level - 1] ?? 0.55
+  return COIN_BIAS_CHANCE_BY_LEVEL[level] ?? 0.55
 }
 
 export function hiloNextCardRange(deck: { value: number }[]): { min: number; max: number } | null {
@@ -120,13 +121,9 @@ export function pickChickenScoutEliminate(winnerId: number, chickenCount = 4): n
   return others[Math.floor(Math.random() * others.length)]!
 }
 
-export function crashZoneBand(crashAt: number, level = 1): { low: number; high: number } {
-  const padFraction = CRASH_ZONE_PAD_BY_LEVEL[Math.max(1, Math.min(5, level)) - 1] ?? 0.07
-  const pad = crashAt * padFraction
-  return {
-    low: Math.max(1.01, parseFloat((crashAt - pad).toFixed(2))),
-    high: parseFloat((crashAt + pad).toFixed(2)),
-  }
+/** Crash Zone push threshold for a perk level (×). */
+export function getCrashZoneThreshold(level: number): number {
+  return CRASH_ZONE_THRESHOLD_BY_LEVEL[Math.max(1, Math.min(5, level))] ?? 1
 }
 
 export function findFirstSafeMineTile(tiles: { id: number; hasMine: boolean; revealed: boolean }[]): number | null {

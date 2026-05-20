@@ -13,7 +13,8 @@ function missionLabel(m: FloorMission): string {
       return `Win ${m.target} in a row${minTag}`
     case 'play_game': {
       const game = m.game?.split('-').join(' ') ?? 'a game'
-      return `Play ${game}${minTag}`
+      const times = m.target === 1 ? '' : ` ${m.target} times`
+      return `Play ${game}${times}${minTag}`
     }
     case 'min_multiplier':
       return `Win with ${m.target}×+ multiplier${minTag}`

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { Button } from '@/components/ui/button'
+import { FLOOR_BET_LIMIT } from '@/lib/survival/balance'
 import { formatChips } from '@/utils/format'
 import type { DefeatReason } from '@/store/types'
 
@@ -10,12 +11,12 @@ function defeatCopy(reason: DefeatReason, quotaTarget: number) {
   if (reason === 'bust') {
     return {
       title: 'Out of chips',
-      description: 'Your bankroll hit zero. This run is over.',
+      description: 'Your bankroll fell below the floor minimum bet. This run is over.',
     }
   }
   return {
     title: 'Quota missed',
-    description: `Time ran out before you reached ${formatChips(quotaTarget)}. This run is over.`,
+    description: `You used all ${FLOOR_BET_LIMIT} bets on this floor without reaching ${formatChips(quotaTarget)}. This run is over.`,
   }
 }
 

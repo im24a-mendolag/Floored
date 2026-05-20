@@ -207,9 +207,9 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
     unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     setState(initPoker())
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
-    survivalAfterNext(mode)
   }, [pendingResult, autoReBet, lastBet, bankroll, mode])
 
   const heldCount = state.held.filter(Boolean).length

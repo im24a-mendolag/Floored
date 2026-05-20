@@ -840,7 +840,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
 
       recordResult: (result: GameResult) =>
         set((s) => {
-          if (s.floorComplete || s.runDefeated) return s
+          if (s.floorComplete || s.runDefeated || s.pendingDefeatReason) return s
           const newBankroll = s.bankroll - result.betAmount + result.payout
           const quotaMet = s.quotaMet || newBankroll >= s.quotaTarget
           const nextBetsPlaced = s.floorBetsPlaced + 1
@@ -857,33 +857,40 @@ export const useSurvivalStore = create<SurvivalStore>()(
             if (newBankroll >= s.quotaTarget) {
               return { ...base, floorComplete: true, floorCompleteReason: 'bet-limit' as const }
             }
-            return { ...base, runDefeated: true, defeatReason: 'quota' as DefeatReason }
+            return { ...base, pendingDefeatReason: 'quota' as DefeatReason }
           }
           return base
         }),
 
-      recordResultPayout: (result: GameResult) =>
+      recordResultPayout: (result: GameResult, options?: { settleFloorBet?: boolean; bankrollDelta?: number }) =>
         set((s) => {
-          if (s.floorComplete || s.runDefeated) return s
-          const newBankroll = s.bankroll + result.payout
+          if (s.floorComplete || s.runDefeated || s.pendingDefeatReason) return s
+          const settleFloorBet = options?.settleFloorBet !== false
+          const credit = options?.bankrollDelta ?? result.payout
+          const newBankroll = s.bankroll + credit
           const quotaMet = s.quotaMet || newBankroll >= s.quotaTarget
-          const streak =
-            result.outcome === 'win' ? s.streak + 1 : result.outcome === 'loss' ? 0 : s.streak
-          const nextBetsPlaced = s.floorBetsPlaced + 1
+          const streak = settleFloorBet
+            ? result.outcome === 'win'
+              ? s.streak + 1
+              : result.outcome === 'loss'
+                ? 0
+                : s.streak
+            : s.streak
+          const nextBetsPlaced = settleFloorBet ? s.floorBetsPlaced + 1 : s.floorBetsPlaced
           const base = {
-            gamesPlayed: s.gamesPlayed + 1,
+            gamesPlayed: settleFloorBet ? s.gamesPlayed + 1 : s.gamesPlayed,
             streak,
-            history: [...s.history, result],
+            history: settleFloorBet ? [...s.history, result] : s.history,
             bankroll: newBankroll,
             peakBankroll: Math.max(s.peakBankroll, newBankroll),
             quotaMet,
             floorBetsPlaced: nextBetsPlaced,
           }
-          if (nextBetsPlaced >= FLOOR_BET_LIMIT) {
+          if (settleFloorBet && nextBetsPlaced >= FLOOR_BET_LIMIT) {
             if (newBankroll >= s.quotaTarget) {
               return { ...base, floorComplete: true, floorCompleteReason: 'bet-limit' as const }
             }
-            return { ...base, runDefeated: true, defeatReason: 'quota' as DefeatReason }
+            return { ...base, pendingDefeatReason: 'quota' as DefeatReason }
           }
           return base
         }),

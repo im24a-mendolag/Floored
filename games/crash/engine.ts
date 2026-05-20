@@ -6,10 +6,11 @@ const GROWTH_RATE = 0.23
 
 const MIN_CRASH = 1.05
 const MAX_CRASH = 30.0
+const HOUSE_EDGE = 0.95
 
 function generateCrashPoint(): number {
-  const skewed = Math.pow(Math.random(), 2.5)
-  return parseFloat((MIN_CRASH + skewed * (MAX_CRASH - MIN_CRASH)).toFixed(2))
+  const u = Math.random()
+  return parseFloat(Math.min(MAX_CRASH, HOUSE_EDGE / u).toFixed(2))
 }
 
 export function computeMultiplier(elapsedMs: number): number {

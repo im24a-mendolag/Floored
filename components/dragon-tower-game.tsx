@@ -174,10 +174,10 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
     unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     blindspotProc.resetPerk()
     setState(initDragonTower())
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
-    survivalAfterNext(mode)
   }, [pendingResult, autoReBet, lastBet, bankroll, mode])
 
   const climbFloorLabel =

@@ -20,7 +20,7 @@ import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
-import { crashZoneBand } from '@/lib/survival/survival-perks'
+import { getCrashZoneThreshold } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
@@ -32,7 +32,7 @@ import { useBless } from '@/hooks/use-bless'
 import type { CrashState } from '@/games/crash/types'
 
 interface CrashResult {
-  outcome: 'win' | 'loss'
+  outcome: 'win' | 'loss' | 'push'
   betAmount: number
   payout: number
   multiplier: number
@@ -48,7 +48,7 @@ interface CrashGameProps {
 type PendingResult = GamePendingResult
 
 function crashPendingResult(
-  outcome: 'win' | 'loss',
+  outcome: 'win' | 'loss' | 'push',
   betAmount: number,
   payout: number,
   multiplier: number,
@@ -58,9 +58,10 @@ function crashPendingResult(
     { outcome, betAmount, payout },
     {
       result: formatMultiplier(multiplier),
-      resultSpecification: outcome === 'win' ? 'Cashed' : 'Crashed',
+      resultSpecification:
+        outcome === 'win' ? 'Cashed' : outcome === 'push' ? 'Protected' : 'Crashed',
     },
-    { gameMultiplier: multiplier, freeBet },
+    { gameMultiplier: outcome === 'win' ? multiplier : undefined, freeBet },
   )
 }
 
@@ -195,8 +196,8 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
   const isInProgress = round.stage === 'inProgress'
   const isSettled    = round.stage === 'settled'
   const canStart     = currentBet >= minBet && currentBet <= bankroll
-  const showCrashZone = mode === 'survival' && crashZone && isInProgress
-  const crashBand = showCrashZone ? crashZoneBand(round.crashAt, crashZoneLevel) : null
+  const crashZoneThreshold =
+    mode === 'survival' && crashZone ? getCrashZoneThreshold(crashZoneLevel) : null
 
   const handleNewRound = useCallback(() => {
     unlock()
@@ -220,28 +221,40 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
 
       if (m >= crashAt) {
         clearInterval(id)
+        const zonePush =
+          crashZoneThreshold != null && crashAt < crashZoneThreshold
+        const outcome: 'loss' | 'push' = zonePush ? 'push' : 'loss'
+        const payout = zonePush ? betAmount : 0
         setRound(prev => ({
           ...prev,
           stage: 'settled',
           currentMultiplier: crashAt,
           payoutMultiplier: 0,
           outcome: 'loss',
-          message: `Crashed at ${formatMultiplier(crashAt)}`,
+          message: zonePush
+            ? `Crash Zone — bet refunded at ${formatMultiplier(crashAt)}`
+            : `Crashed at ${formatMultiplier(crashAt)}`,
         }))
         const resolved = resolveGame(onResolve, {
-          outcome: 'loss',
+          outcome,
           betAmount,
-          payout: 0,
+          payout,
           multiplier: crashAt,
         })
         setPendingResult(
-          crashPendingResult('loss', betAmount, resolved.payout, resolved.multiplier ?? crashAt, resolved.firstBetWasFree),
+          crashPendingResult(
+            outcome,
+            betAmount,
+            resolved.payout,
+            resolved.multiplier ?? crashAt,
+            resolved.firstBetWasFree,
+          ),
         )
       }
     }, 50)
 
     return () => clearInterval(id)
-  }, [isInProgress, round.crashAt, round.betAmount, onResolve])
+  }, [isInProgress, round.crashAt, round.betAmount, onResolve, crashZoneThreshold])
 
   function addChip(value: number) {
     setCurrentBet(prev => Math.min(prev + value, bankroll))
@@ -285,8 +298,8 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
       setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
       setPendingResult(null)
     }
+    if (!survivalAfterNext(mode)) return
     handleNewRound()
-    survivalAfterNext(mode)
   }
 
   const displayMult = isInProgress ? computeMultiplier(elapsedMs) : round.currentMultiplier
@@ -314,9 +327,9 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
         gameLabel="Crash"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
-        {showCrashZone && crashBand && (
+        {crashZoneThreshold != null && isInProgress && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-            Crash zone ~{crashBand.low}×–{crashBand.high}×
+            Crash Zone — refund below {crashZoneThreshold.toFixed(2)}×
           </PerkHint>
         )}
         <GameActiveBetBadge betAmount={round.betAmount} visible={(isInProgress || isSettled) && round.betAmount > 0} />

@@ -12,6 +12,8 @@ export interface MissionGameEvent {
   floorStartBankroll: number
   streak: number
   gamesPlayedThisFloor: number
+  /** Plinko multi-ball: at least one ball in the drop lost (streak / flawless). */
+  subRoundLoss?: boolean
 }
 
 export interface MissionFloorCompleteEvent {
@@ -37,7 +39,7 @@ export function evaluateMissionOnGame(m: FloorMission, event: MissionGameEvent):
     case 'win_streak': {
       // Ignore games below min bet so tiny bets can't farm or break streaks
       if (event.betAmount < minBet) return m
-      if (event.outcome === 'loss') return { ...m, progress: 0 }
+      if (event.subRoundLoss || event.outcome === 'loss') return { ...m, progress: 0 }
       if (event.outcome !== 'win') return m
       const progress = clampProgress(m.progress + 1, m.target)
       const next = { ...m, progress }
@@ -66,7 +68,7 @@ export function evaluateMissionOnGame(m: FloorMission, event: MissionGameEvent):
     case 'flawless': {
       // Any qualifying loss fails flawless; tiny bets don't count as losses
       if (event.betAmount < minBet) return m
-      if (event.outcome === 'loss') {
+      if (event.subRoundLoss || event.outcome === 'loss') {
         return { ...m, failed: true, progress: 0 }
       }
       return m

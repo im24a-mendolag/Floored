@@ -271,8 +271,8 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
     if (pendingResult) {
       setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     }
+    if (!survivalAfterNext(mode)) return
     handleNewRound()
-    survivalAfterNext(mode)
   }
 
   useEffect(() => {

@@ -212,7 +212,10 @@ export interface SurvivalStore {
   rerollMission: (index: number) => boolean
   appendFloorHistory: (record: FloorRecord) => void
   recordResult: (result: GameResult) => void
-  recordResultPayout: (result: GameResult) => void
+  recordResultPayout: (
+    result: GameResult,
+    options?: { settleFloorBet?: boolean; bankrollDelta?: number },
+  ) => void
   deductBet: (amount: number) => void
   setCursed: (val: boolean) => void
   setBlessed: (val: boolean) => void

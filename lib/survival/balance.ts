@@ -5,12 +5,18 @@ export const GRANT_ALL_UPGRADES = false
 
 /** Dev/testing: bankroll and sparks when a survival run starts (and idle reset). */
 export const STARTING_BANKROLL = 1000
-export const STARTING_SPARKS = 15
+export const STARTING_SPARKS = 20
 
 /** Dev/testing: starting reroll tickets granted in inventory for a run */
 export const STARTING_REROLL_TICKETS = 3
 /** How many reroll tickets are awarded automatically when advancing to the next floor */
-export const REROLL_TICKETS_PER_FLOOR = 3
+export const REROLL_TICKETS_PER_FLOOR = 2
+
+/** Cap on combined game + run payout boost multiplier applied to wins. */
+export const RAW_PAYOUT_MULT_CAP = 1.5
+
+/** Max bonus sparks from exceeding floor quota. */
+export const OVER_QUOTA_SPARK_MAX = 10
 
 export const MAX_FLOORS = 10
 export const FLOOR_BET_LIMIT = 10

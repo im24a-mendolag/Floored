@@ -175,6 +175,7 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
     unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     const next = initChickenRace()
     if (autoReBet && lastBet <= bankroll && lastPicked !== null) {
       setState({ ...next, pickedChicken: lastPicked })
@@ -186,7 +187,6 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
     scoutProc.resetPerk()
     scoutPreviewRef.current = null
     setScoutEliminate(null)
-    survivalAfterNext(mode)
   }, [pendingResult, autoReBet, lastBet, lastPicked, bankroll, mode, scoutProc])
 
   useEffect(() => {

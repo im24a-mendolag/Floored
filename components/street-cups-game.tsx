@@ -360,6 +360,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     clearTimers()
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     setShowNext(false)
     setLiftedSlots(new Set())
     setCupSlots([0, 1, 2])
@@ -368,7 +369,6 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
     setRound(initStreetCups())
     setEliminatedCupId(null)
     if (autoReBet && lastBet >= minBet && lastBet <= bankroll) setCurrentBet(lastBet)
-    survivalAfterNext(mode)
   }
 
   /* Button label / state logic */

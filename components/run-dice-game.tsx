@@ -241,8 +241,8 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
       setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
       setPendingResult(null)
     }
+    if (!survivalAfterNext(mode)) return
     handleNewRound()
-    survivalAfterNext(mode)
   }
 
   function outcomeColor(val: number, cfg = gameConfig): string {

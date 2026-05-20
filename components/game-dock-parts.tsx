@@ -231,13 +231,15 @@ export function OpeningTicketBetMarker({ className = '' }: { className?: string 
 export function GameDockBetRow({
   currentBet,
   onClear,
+  label = 'Bet',
 }: {
   currentBet: number
   onClear: () => void
+  label?: string
 }) {
   return (
     <div className="flex items-center gap-2.5 flex-wrap justify-center">
-      <span className="text-zinc-500 text-base">Bet</span>
+      <span className="text-zinc-500 text-base">{label}</span>
       <span className="font-bold text-xl text-white tabular-nums">
         {currentBet > 0 ? formatChips(currentBet) : '—'}
       </span>

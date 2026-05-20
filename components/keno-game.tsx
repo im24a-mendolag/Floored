@@ -212,8 +212,8 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
 
   function handleNext() {
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
+    if (!survivalAfterNext(mode)) return
     handleNewRound()
-    survivalAfterNext(mode)
   }
 
   return (

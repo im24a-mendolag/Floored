@@ -190,11 +190,11 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     setState({ ...initCoinFlip(), pick: autoReBet ? lastPickRef.current : null })
     setSpinKeyframes({ from: '0deg', end: '1440deg' })
     setCoinAnim('idle')
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
-    survivalAfterNext(mode)
   }, [pendingResult, autoReBet, lastBet, bankroll, mode])
 
   const coinAnimClass = coinAnim === 'spinning' ? 'coin-spinning' : coinAnim === 'landing' ? 'coin-landing' : ''

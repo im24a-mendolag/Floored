@@ -32,6 +32,11 @@ import { useBless } from '@/hooks/use-bless'
 import type { PlinkoPayoutResult, PlinkoRisk } from '@/games/plinko/types'
 import { PlinkoBoard, type PlinkoBall } from '@/components/plinko-board'
 
+const MIN_BALLS = 1
+const MAX_BALLS = 10
+/** Offset each ball's animation start so multi-drops don't stack on one peg. */
+const BALL_STAGGER_MS = 120
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface PlinkoSession extends PlinkoBall {
@@ -46,6 +51,18 @@ interface PlinkoResult {
   betAmount: number
   payout: number
   multiplier: number
+  settleFloorBet?: boolean
+  payoutAlreadyCredited?: boolean
+  subRoundLoss?: boolean
+}
+
+interface PlinkoDropAccumulator {
+  totalBet: number
+  totalPayout: number
+  maxMultiplier: number
+  anyQualifyingLoss: boolean
+  ballCount: number
+  resolved: number
 }
 
 interface PlinkoGameProps {
@@ -72,6 +89,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [risk, setRisk] = useState<PlinkoRisk>('medium')
+  const [ballCount, setBallCount] = useState(MIN_BALLS)
   const [sessions, setSessions] = useState<PlinkoSession[]>([])
   const [currentBet, setCurrentBet] = useState(0)
   const [lastBet, setLastBet] = useState(0)
@@ -95,32 +113,76 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   onResolveRef.current = onResolve
   const goldenBallProcRef = useRef(goldenBallProc)
   goldenBallProcRef.current = goldenBallProc
+  const minBetRef = useRef(minBet)
+  minBetRef.current = minBet
+  const modeRef = useRef(mode)
+  modeRef.current = mode
+  const dropAccumulatorRef = useRef<PlinkoDropAccumulator | null>(null)
 
   const isDropping = sessions.length > 0
   const commitBet = currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
-  const canDrop = commitBet >= minBet && commitBet <= bankroll - inFlightBetRef.current && bankroll > 0
+  const perBallBet = commitBet >= minBet ? commitBet : minBet
+  const maxAffordableBalls = Math.max(
+    MIN_BALLS,
+    Math.floor((bankroll - inFlightBetRef.current) / perBallBet),
+  )
+  const maxBalls = Math.min(MAX_BALLS, maxAffordableBalls)
+  const totalCost = commitBet * ballCount
+  const canDrop =
+    !isDropping &&
+    commitBet >= minBet &&
+    totalCost >= minBet &&
+    totalCost <= bankroll - inFlightBetRef.current &&
+    bankroll > 0 &&
+    pendingDefeatReason == null
   const showSurvivalContinue =
-    mode === 'survival' && bankroll <= 0 && !isDropping && pendingDefeatReason != null
+    mode === 'survival' && !isDropping && pendingDefeatReason != null
 
   const statusMsg = isDropping
     ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'} in flight`
     : 'Place chips and drop.'
 
+  useEffect(() => {
+    setBallCount((c) => Math.min(Math.max(MIN_BALLS, c), maxBalls))
+  }, [maxBalls])
+
   function addChip(value: number) {
-    setCurrentBet((prev) => Math.min(prev + value, bankroll))
+    const cap = Math.max(minBet, Math.floor(bankroll / ballCount))
+    setCurrentBet((prev) => Math.min(prev + value, cap))
   }
 
   function handleDrop() {
     const bet = commitBet
-    if (bet < minBet || bet > bankrollRef.current - inFlightBetRef.current) return
-    inFlightBetRef.current += bet
-    onBet?.(bet)
-    const golden = mode === 'survival' ? goldenBallProc.rollForBet() : false
-    const path = blessed ? winGamePath(risk) : cursed ? loseGamePath(risk) : generatePath()
-    const result = computePayout(bet, path, risk)
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const startedAt = performance.now()
-    setSessions((prev) => [...prev, { id, path, startedAt, bet, result, risk, golden }])
+    const count = Math.min(ballCount, maxBalls)
+    const total = bet * count
+    if (bet < minBet || total < minBet || total > bankrollRef.current - inFlightBetRef.current) return
+    inFlightBetRef.current += total
+    onBet?.(total)
+    const goldenProc = mode === 'survival' ? goldenBallProc.rollForBet() : false
+    const goldenIndex = goldenProc ? Math.floor(Math.random() * count) : -1
+    const baseTime = performance.now()
+    const newSessions: PlinkoSession[] = Array.from({ length: count }, (_, i) => {
+      const path = blessed ? winGamePath(risk) : cursed ? loseGamePath(risk) : generatePath()
+      const result = computePayout(bet, path, risk)
+      return {
+        id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2)}`,
+        path,
+        startedAt: baseTime + i * BALL_STAGGER_MS,
+        bet,
+        result,
+        risk,
+        golden: i === goldenIndex,
+      }
+    })
+    dropAccumulatorRef.current = {
+      totalBet: total,
+      totalPayout: 0,
+      maxMultiplier: 0,
+      anyQualifyingLoss: false,
+      ballCount: count,
+      resolved: 0,
+    }
+    setSessions((prev) => [...prev, ...newSessions])
     setLastBet(bet)
     setCurrentBet(0)
     setQuoteIdx((prev) => pickQuote(prev))
@@ -139,14 +201,50 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     const finalMultiplier = goldenApplies ? session.result.multiplier * 2 : session.result.multiplier
     const finalOutcome = finalPayout >= session.bet ? 'win' : 'loss'
 
-    const resolved = resolveGame(onResolveRef.current, {
-      outcome: finalOutcome,
-      betAmount: session.bet,
-      payout: finalPayout,
-      multiplier: finalMultiplier,
-    })
+    const acc = dropAccumulatorRef.current
+    let resolved: PlinkoResult & { firstBetWasFree?: boolean; payoutBoostMult?: number }
 
-    goldenBallProcRef.current.resetPerk()
+    if (acc && modeRef.current === 'survival') {
+      acc.totalPayout += finalPayout
+      acc.maxMultiplier = Math.max(acc.maxMultiplier, finalMultiplier)
+      if (finalOutcome === 'loss' && session.bet >= minBetRef.current) {
+        acc.anyQualifyingLoss = true
+      }
+      acc.resolved += 1
+      const isLast = acc.resolved >= acc.ballCount
+
+      if (!isLast) {
+        resolved = resolveGame(onResolveRef.current, {
+          outcome: finalOutcome,
+          betAmount: session.bet,
+          payout: finalPayout,
+          multiplier: finalMultiplier,
+          settleFloorBet: false,
+        })
+      } else {
+        const netOutcome = acc.totalPayout >= acc.totalBet ? 'win' : 'loss'
+        resolved = resolveGame(onResolveRef.current, {
+          outcome: netOutcome,
+          betAmount: acc.totalBet,
+          payout: acc.totalPayout,
+          multiplier: acc.maxMultiplier,
+          settleFloorBet: true,
+          payoutAlreadyCredited: acc.ballCount > 1,
+          subRoundLoss: acc.anyQualifyingLoss,
+        })
+        dropAccumulatorRef.current = null
+      }
+    } else {
+      resolved = resolveGame(onResolveRef.current, {
+        outcome: finalOutcome,
+        betAmount: session.bet,
+        payout: finalPayout,
+        multiplier: finalMultiplier,
+      })
+      dropAccumulatorRef.current = null
+    }
+
+    if (session.golden) goldenBallProcRef.current.resetPerk()
 
     const built = buildPendingResult(
       { outcome: finalOutcome, betAmount: session.bet, payout: finalPayout },
@@ -233,25 +331,57 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
       </GameFieldWithHistory>
 
       <div className={GAME_CONTROL_DOCK_M}>
-        <div className={GAME_DOCK_INNER}>
-          <GameDockChipRow
-            visible
-            bankroll={bankroll}
-            currentBet={currentBet}
-            onAddChip={addChip}
-            quoteIdx={quoteIdx}
-            showQuote={false}
-            minBet={minBet}
-          />
-
-          <div className="h-10 flex items-center justify-center w-full">
-            <GameDockBetRow
-              currentBet={currentBet > 0 ? currentBet : isDropping ? lastBet : 0}
-              onClear={() => setCurrentBet(0)}
+        <div className={`${GAME_DOCK_INNER} min-h-0`}>
+          <div className="flex flex-1 min-h-0 w-full items-center justify-center">
+            <GameDockChipRow
+              visible={!isDropping}
+              bankroll={bankroll}
+              currentBet={currentBet}
+              onAddChip={addChip}
+              quoteIdx={quoteIdx}
+              showQuote={false}
+              minBet={minBet}
             />
           </div>
 
-          <div className="flex justify-center gap-2">
+          <div className="flex flex-1 min-h-0 w-full items-center justify-center">
+            <GameDockBetRow
+              label="Bet per Ball"
+              currentBet={currentBet > 0 ? currentBet : isDropping ? lastBet : 0}
+              onClear={() => {
+                if (!isDropping) setCurrentBet(0)
+              }}
+            />
+          </div>
+
+          <div className="flex flex-1 min-h-0 w-full items-center justify-center">
+            <div className="flex h-7 items-center gap-1.5 flex-wrap justify-center">
+              <span className="text-zinc-500 text-xs">Balls</span>
+              <button
+                type="button"
+                disabled={isDropping || ballCount <= MIN_BALLS}
+                onClick={() => setBallCount((c) => Math.max(MIN_BALLS, c - 1))}
+                className="w-7 h-7 rounded-md border border-zinc-700 hover:border-zinc-500 disabled:opacity-40 disabled:hover:border-zinc-700 text-zinc-300 hover:text-white font-bold text-sm leading-none transition-colors"
+                aria-label="Fewer balls"
+              >
+                −
+              </button>
+              <span className="font-bold text-sm text-white tabular-nums min-w-[1.25rem] text-center">
+                {ballCount}
+              </span>
+              <button
+                type="button"
+                disabled={isDropping || ballCount >= maxBalls}
+                onClick={() => setBallCount((c) => Math.min(maxBalls, c + 1))}
+                className="w-7 h-7 rounded-md border border-zinc-700 hover:border-zinc-500 disabled:opacity-40 disabled:hover:border-zinc-700 text-zinc-300 hover:text-white font-bold text-sm leading-none transition-colors"
+                aria-label="More balls"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-1 min-h-0 w-full items-center justify-center gap-2">
             {showSurvivalContinue ? (
               <>
                 <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
@@ -268,7 +398,6 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
               </button>
             )}
           </div>
-
         </div>
       </div>
     </div>

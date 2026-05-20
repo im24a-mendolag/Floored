@@ -248,8 +248,8 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
 
   function handleNext() {
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
+    if (!survivalAfterNext(mode)) return
     handleNewRound()
-    survivalAfterNext(mode)
   }
 
   return (

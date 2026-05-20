@@ -186,8 +186,8 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
     if (pendingResult) {
       setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     }
+    if (!survivalAfterNext(mode)) return
     handleNewRound()
-    survivalAfterNext(mode)
   }
 
   useEffect(() => () => { animTimers.current.forEach(clearTimeout) }, [])

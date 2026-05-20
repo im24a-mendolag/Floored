@@ -261,17 +261,16 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     unlock()
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     const fresh = initCaseBattle()
     if (autoReBet && lastSelectedCases.length > 0) {
       const cost = lastSelectedCases.reduce((s, id) => s + (cases[id]?.price ?? 0), 0)
       if (cost <= bankroll) {
         setState({ ...fresh, selectedCases: lastSelectedCases, totalCost: cost })
-        survivalAfterNext(mode)
         return
       }
     }
     setState(fresh)
-    survivalAfterNext(mode)
   }, [pendingResult, autoReBet, lastSelectedCases, bankroll, cases, mode])
 
   const caseCounts = cases.map(c => state.selectedCases.filter(id => id === c.id).length)

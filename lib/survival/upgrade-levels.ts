@@ -11,11 +11,11 @@ export const RUN_PAYOUT_MULT_BY_LEVEL = [1.05, 1.10, 1.15, 1.20, 1.25] as const
 /** Opening Ticket: free-bet cap as × floor minimum bet. */
 export const OPENING_TICKET_CAP_BY_LEVEL = [10, 12, 16, 22, 30] as const
 
-/** Weighted coin: win chance for the player's pick. */
-export const COIN_BIAS_CHANCE_BY_LEVEL = [0.58, 0.63, 0.67, 0.71, 0.75] as const
+/** Weighted coin: win chance for the player's pick. Index 0 unused; index = perk level (1–5). */
+export const COIN_BIAS_CHANCE_BY_LEVEL = [0, 0.54, 0.57, 0.6, 0.63, 0.65] as const
 
-/** Crash Zone: band padding as a fraction of crashAt, by level (tighter = stronger). */
-export const CRASH_ZONE_PAD_BY_LEVEL = [0.08, 0.07, 0.06, 0.05, 0.04] as const
+/** Crash Zone: early-crash push threshold (×). Index 0 unused; index = perk level (1–5). */
+export const CRASH_ZONE_THRESHOLD_BY_LEVEL = [0, 1.0, 1.05, 1.1, 1.2, 1.3] as const
 
 const LEGACY_UPGRADE_ID_MAP: Record<string, string> = {
   payout_boost_5: 'run_payout_boost_l1',

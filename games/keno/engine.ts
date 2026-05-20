@@ -6,12 +6,14 @@ export const MIN_PICKS = 1
 export const MAX_PICKS = 5
 
 /** Payout multiplier by total hits (1–5). */
+/** Payout multiplier by total hits (0–5). */
 export const HIT_MULTIPLIERS: Record<number, number> = {
+  0: 0,
   1: 0.5,
-  2: 1,
-  3: 3,
-  4: 5,
-  5: 10,
+  2: 2,
+  3: 5,
+  4: 15,
+  5: 100,
 }
 
 function shuffle<T>(arr: T[]): T[] {

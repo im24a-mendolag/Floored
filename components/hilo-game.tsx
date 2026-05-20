@@ -226,10 +226,10 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
     unlock()
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     setCurrentCardAnim('')
     setRound(initHiLo())
     if (autoReBet && lastBet >= minBet && lastBet <= bankroll) setCurrentBet(lastBet)
-    survivalAfterNext(mode)
   }
 
   /* Arrow indicator color */
