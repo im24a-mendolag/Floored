@@ -18,8 +18,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockGameOverButton,
+  GameDockLeaveButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
@@ -107,6 +110,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   const isBetting = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
   const isSettled = round.stage === 'settled'
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, { idle: isBetting || isSettled })
   const canStart = currentBet >= minBet && currentBet <= bankroll
 
   function addChip(value: number) {
@@ -199,7 +203,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
         entries={matchHistory}
         gameLabel="Mines"
       >
-        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameDockBackButton mode={mode} visible={isBetting && !showGameOver} />
         {minesProc.perkActive && isInProgress && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">One safe tile revealed</PerkHint>
         )}
@@ -325,22 +329,26 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
 
           <div className={GAME_DOCK_ACTIONS}>
             <div className="flex justify-center gap-2">
-              {isSettled && (
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              {showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <>
+                  {isSettled && <GameDockLeaveButton mode={mode} />}
+                  <button
+                    type="button"
+                    onClick={isSettled ? handleNext : isInProgress ? handleCashOut : handleStart}
+                    disabled={isBetting && !canStart}
+                    className={[
+                      'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                      isInProgress
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
+                    ].join(' ')}
+                  >
+                    {isSettled ? 'Next →' : isInProgress ? 'Cash Out' : 'Start →'}
+                  </button>
+                </>
               )}
-              <button
-                type="button"
-                onClick={isSettled ? handleNext : isInProgress ? handleCashOut : handleStart}
-                disabled={isBetting && !canStart}
-                className={[
-                  'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
-                  isInProgress
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
-                ].join(' ')}
-              >
-                {isSettled ? 'Next →' : isInProgress ? 'Cash Out' : 'Start →'}
-              </button>
             </div>
           </div>
 

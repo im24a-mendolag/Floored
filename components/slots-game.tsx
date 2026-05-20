@@ -18,8 +18,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockGameOverButton,
+  GameDockLeaveButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
@@ -138,6 +141,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
 
   const isBetting = !isSpinning && round.stage === 'betting'
   const isSettled = !isSpinning && round.stage === 'settled'
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, { idle: !isSpinning })
   const canSpin   = currentBet >= minBet && currentBet <= bankroll
 
   useEffect(() => {
@@ -264,7 +268,7 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
         entries={matchHistory}
         gameLabel="Slots"
       >
-        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameDockBackButton mode={mode} visible={isBetting && !showGameOver} />
         {mode === 'survival' && shieldProc.perkActive && isSpinning && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             First Spin Shield — loss refunded to a push
@@ -360,17 +364,21 @@ export function SlotsGame({ mode, bankroll, onBet, onResolve }: SlotsGameProps) 
 
           <div className={GAME_DOCK_ACTIONS}>
             <div className="flex justify-center gap-2">
-              {isSettled && (
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              {showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <>
+                  {isSettled && <GameDockLeaveButton mode={mode} />}
+                  <button
+                    type="button"
+                    onClick={isSettled ? handleNext : handleSpin}
+                    disabled={!isSettled && (!canSpin || isSpinning)}
+                    className="min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900"
+                  >
+                    {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : 'Spin →'}
+                  </button>
+                </>
               )}
-              <button
-                type="button"
-                onClick={isSettled ? handleNext : handleSpin}
-                disabled={!isSettled && (!canSpin || isSpinning)}
-                className="min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900"
-              >
-                {isSettled ? 'Next →' : isSpinning ? 'Spinning…' : 'Spin →'}
-              </button>
             </div>
           </div>
 

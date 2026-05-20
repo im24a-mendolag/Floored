@@ -18,8 +18,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockGameOverButton,
+  GameDockSettledActions,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
@@ -89,6 +92,9 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
   const isBetting = round.stage === 'betting'
   const isInProgress = round.stage === 'inProgress'
   const isSettled = round.stage === 'settled'
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, {
+    idle: isBetting || (isSettled && pendingResult != null),
+  })
   const canStart = currentBet >= minBet && currentBet <= bankroll
   const potentialWinnings =
     isInProgress && round.betAmount > 0 ? Math.round(round.betAmount * round.multiplier) : 0
@@ -177,7 +183,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
         entries={matchHistory}
         gameLabel="Chicken"
       >
-        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameDockBackButton mode={mode} visible={isBetting && !showGameOver} />
         {safeAdvancePending && isInProgress && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             Safe crossing — your next advance cannot fail
@@ -305,14 +311,18 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
 
           <div className={`${GAME_DOCK_ACTIONS} min-h-[2.75rem] justify-center gap-2`}>
             {isBetting && (
-              <button
-                type="button"
-                onClick={handleStart}
-                disabled={!canStart}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Start →
-              </button>
+              showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStart}
+                  disabled={!canStart}
+                  className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+                >
+                  Start →
+                </button>
+              )
             )}
             {isInProgress && (
               <div className="flex justify-center gap-2">
@@ -333,10 +343,12 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
               </div>
             )}
             {isSettled && pendingResult && (
-              <div className="flex justify-center gap-2">
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
-                <button type="button" onClick={handleNext} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
-              </div>
+              <GameDockSettledActions
+                mode={mode}
+                showGameOver={showGameOver}
+                onGameOver={handleGameOver}
+                onNext={handleNext}
+              />
             )}
           </div>
         </div>

@@ -13,8 +13,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockSettledActions,
+  GameDockGameOverButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
@@ -202,6 +205,9 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
   const isBetting     = round.stage === 'betting'
   const isInProgress  = round.stage === 'inProgress'
   const playerCanAct  = isInProgress && !settling
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, {
+    idle: isBetting || (round.stage === 'settled' && pendingResult != null),
+  })
   const previewDealerHand =
     isBetting && mode === 'survival' && peekDealerLevel >= 2 && bettingPreview
       ? bettingPreview.dealerHand
@@ -416,7 +422,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
         gameLabel="Blackjack"
       >
 
-        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameDockBackButton mode={mode} visible={isBetting && !showGameOver} />
         {showDealerHole && (isInProgress || (isBetting && peekDealerLevel >= 2 && bettingPreview)) && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">Hole card visible</PerkHint>
         )}
@@ -536,14 +542,18 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
 
           <div className={`${GAME_DOCK_ACTIONS} min-h-[2.75rem] justify-center`}>
             {isBetting && (
-              <button
-                type="button"
-                onClick={handleDeal}
-                disabled={!canDeal}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Deal →
-              </button>
+              showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleDeal}
+                  disabled={!canDeal}
+                  className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+                >
+                  Deal →
+                </button>
+              )
             )}
             {!isBetting && playerCanAct && (
               <div className="flex flex-wrap justify-center gap-2.5">
@@ -553,10 +563,12 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
               </div>
             )}
             {round.stage === 'settled' && pendingResult && (
-              <div className="flex justify-center gap-2">
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
-                <button type="button" onClick={handleNextHand} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
-              </div>
+              <GameDockSettledActions
+                mode={mode}
+                showGameOver={showGameOver}
+                onGameOver={handleGameOver}
+                onNext={handleNextHand}
+              />
             )}
           </div>
 

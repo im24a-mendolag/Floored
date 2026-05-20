@@ -15,7 +15,9 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockGameOverButton,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult, formatPlinkoRiskLabel } from '@/lib/game-result-labels'
@@ -23,7 +25,6 @@ import { resolveGame } from '@/lib/survival/game-resolve'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
-import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { computePayout, generatePath, loseGamePath, winGamePath } from '@/games/plinko/engine'
 import { useCurse } from '@/hooks/use-curse'
@@ -75,9 +76,7 @@ interface PlinkoGameProps {
 
 export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
   const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
-  const actualBankroll = useSurvivalStore((s) => s.bankroll)
   const pendingDefeatReason = useSurvivalStore((s) => s.pendingDefeatReason)
-  const queueDefeat = useSurvivalStore((s) => s.queueDefeat)
   const { cursed } = useCurse()
   const { blessed } = useBless()
   const { plinkoGoldenBall, plinkoGoldenBallLevel } = useSurvivalPerks('plinko')
@@ -121,6 +120,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   const dropAccumulatorRef = useRef<PlinkoDropAccumulator | null>(null)
 
   const isDropping = sessions.length > 0
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, { idle: !isDropping })
   const commitBet = currentBet >= minBet ? currentBet : lastBet >= minBet ? lastBet : 0
   const perBallBet = commitBet >= minBet ? commitBet : minBet
   const maxAffordableBalls = Math.max(
@@ -129,9 +129,6 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   )
   const maxBalls = Math.min(MAX_BALLS, maxAffordableBalls)
   const totalCost = commitBet * ballCount
-  const isBusted = mode === 'survival' && actualBankroll < floorMinBet
-  const showGameOver =
-    mode === 'survival' && !isDropping && (pendingDefeatReason != null || isBusted)
   const canDrop =
     !isDropping &&
     commitBet >= minBet &&
@@ -140,21 +137,6 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     bankroll > 0 &&
     pendingDefeatReason == null &&
     !showGameOver
-
-  useEffect(() => {
-    if (mode !== 'survival' || isDropping || pendingDefeatReason != null || actualBankroll >= floorMinBet) {
-      return
-    }
-    queueDefeat('bust')
-  }, [mode, isDropping, pendingDefeatReason, actualBankroll, floorMinBet, queueDefeat])
-
-  function handleGameOver() {
-    const state = useSurvivalStore.getState()
-    if (state.pendingDefeatReason == null && state.bankroll < state.floorMinBet) {
-      state.queueDefeat('bust')
-    }
-    survivalAfterNext(mode)
-  }
 
   const statusMsg = isDropping
     ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'} in flight`
@@ -304,7 +286,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         emptyHint="No drops yet — results appear after each ball lands."
         showLastBet
       >
-        <GameDockBackButton mode={mode} visible={!isDropping} />
+        <GameDockBackButton mode={mode} visible={!isDropping && !showGameOver} />
         {mode === 'survival' && goldenBallProc.perkActive && isDropping && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             Golden Ball — 2× payout
@@ -401,13 +383,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
 
           <div className="flex flex-1 min-h-0 w-full items-center justify-center gap-2">
             {showGameOver ? (
-              <button
-                type="button"
-                onClick={handleGameOver}
-                className="min-w-[10.5rem] px-7 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Game Over
-              </button>
+              <GameDockGameOverButton onClick={handleGameOver} />
             ) : (
               <button
                 type="button"

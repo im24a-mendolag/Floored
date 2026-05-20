@@ -39,6 +39,15 @@ const BET_SECTION_TITLE =
 const OUTCOME_COL_LABEL =
   'text-[11px] font-semibold uppercase tracking-wider text-zinc-500 leading-tight'
 
+export const GAME_DOCK_GAME_OVER_BTN =
+  'min-w-[10.5rem] px-7 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors text-base shadow-lg'
+
+export const GAME_DOCK_LEAVE_BTN =
+  'px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base'
+
+export const GAME_DOCK_PRIMARY_BTN =
+  'min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg'
+
 export function GameDockBackButton({
   mode,
   visible,
@@ -56,6 +65,60 @@ export function GameDockBackButton({
     >
       {mode === 'survival' ? '← Lobby' : '← Game Selection'}
     </button>
+  )
+}
+
+export function GameDockGameOverButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={GAME_DOCK_GAME_OVER_BTN}>
+      Game Over
+    </button>
+  )
+}
+
+export function GameDockLeaveButton({
+  mode,
+  className = GAME_DOCK_LEAVE_BTN,
+}: {
+  mode: 'freeplay' | 'survival'
+  className?: string
+}) {
+  const router = useRouter()
+  return (
+    <button type="button" onClick={() => router.push(`/${mode}`)} className={className}>
+      ← Leave
+    </button>
+  )
+}
+
+/** Settled row: Leave + Next in freeplay; Game Over when survival run is lost. */
+export function GameDockSettledActions({
+  mode,
+  showGameOver,
+  onGameOver,
+  onNext,
+  nextLabel = 'Next →',
+}: {
+  mode: 'freeplay' | 'survival'
+  showGameOver: boolean
+  onGameOver: () => void
+  onNext: () => void
+  nextLabel?: string
+}) {
+  if (showGameOver) {
+    return (
+      <div className="flex justify-center gap-2">
+        <GameDockGameOverButton onClick={onGameOver} />
+      </div>
+    )
+  }
+  return (
+    <div className="flex justify-center gap-2">
+      <GameDockLeaveButton mode={mode} />
+      <button type="button" onClick={onNext} className={GAME_DOCK_PRIMARY_BTN}>
+        {nextLabel}
+      </button>
+    </div>
   )
 }
 

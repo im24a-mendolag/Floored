@@ -18,8 +18,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockGameOverButton,
+  GameDockLeaveButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
@@ -98,6 +101,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
   const isBetting = round.stage === 'betting'
   const isDrawing = round.stage === 'drawing'
   const isSettled = round.stage === 'settled'
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, { idle: isBetting || isSettled })
   const canStart = currentBet >= minBet && currentBet <= bankroll && round.picks.length >= MIN_PICKS
   const hasRevealedStats = round.revealedDrawn.length > 0
   const totalWinnings = useMemo(() => getKenoPayout(round), [round])
@@ -229,7 +233,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
         entries={matchHistory}
         gameLabel="Keno"
       >
-        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameDockBackButton mode={mode} visible={isBetting && !showGameOver} />
         {heatNumbers.length > 0 && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             Heat: {heatNumbers.join(', ')} in this draw
@@ -369,22 +373,26 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
 
           <div className={GAME_DOCK_ACTIONS}>
             <div className="flex justify-center gap-2">
-              {isSettled && (
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              {showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <>
+                  {isSettled && <GameDockLeaveButton mode={mode} />}
+                  <button
+                    type="button"
+                    onClick={isSettled ? handleNext : isDrawing ? handleRevealAll : handleStart}
+                    disabled={isBetting && !canStart}
+                    className={[
+                      'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                      isDrawing
+                        ? 'bg-pink-600 hover:bg-pink-500 text-white'
+                        : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
+                    ].join(' ')}
+                  >
+                    {isSettled ? 'Next →' : isDrawing ? 'Reveal All' : 'Play →'}
+                  </button>
+                </>
               )}
-              <button
-                type="button"
-                onClick={isSettled ? handleNext : isDrawing ? handleRevealAll : handleStart}
-                disabled={isBetting && !canStart}
-                className={[
-                  'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
-                  isDrawing
-                    ? 'bg-pink-600 hover:bg-pink-500 text-white'
-                    : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
-                ].join(' ')}
-              >
-                {isSettled ? 'Next →' : isDrawing ? 'Reveal All' : 'Play →'}
-              </button>
             </div>
           </div>
 
