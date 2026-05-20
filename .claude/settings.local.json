@@ -61,7 +61,9 @@
       "Bash(node -e ' *)",
       "Bash(pnpm info *)",
       "Bash(npm info *)",
-      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('next:', p.dependencies.next\\); console.log\\('react:', p.dependencies.react\\)\")"
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('next:', p.dependencies.next\\); console.log\\('react:', p.dependencies.react\\)\")",
+      "Bash(git fetch *)",
+      "Bash(git merge *)"
     ]
   }
 }
