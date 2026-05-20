@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -75,8 +74,10 @@ interface PlinkoGameProps {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps) {
-  const router = useRouter()
-  const { floorMinBet, pendingDefeatReason } = useSurvivalStore()
+  const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
+  const actualBankroll = useSurvivalStore((s) => s.bankroll)
+  const pendingDefeatReason = useSurvivalStore((s) => s.pendingDefeatReason)
+  const queueDefeat = useSurvivalStore((s) => s.queueDefeat)
   const { cursed } = useCurse()
   const { blessed } = useBless()
   const { plinkoGoldenBall, plinkoGoldenBallLevel } = useSurvivalPerks('plinko')
@@ -128,15 +129,32 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
   )
   const maxBalls = Math.min(MAX_BALLS, maxAffordableBalls)
   const totalCost = commitBet * ballCount
+  const isBusted = mode === 'survival' && actualBankroll < floorMinBet
+  const showGameOver =
+    mode === 'survival' && !isDropping && (pendingDefeatReason != null || isBusted)
   const canDrop =
     !isDropping &&
     commitBet >= minBet &&
     totalCost >= minBet &&
     totalCost <= bankroll - inFlightBetRef.current &&
     bankroll > 0 &&
-    pendingDefeatReason == null
-  const showSurvivalContinue =
-    mode === 'survival' && !isDropping && pendingDefeatReason != null
+    pendingDefeatReason == null &&
+    !showGameOver
+
+  useEffect(() => {
+    if (mode !== 'survival' || isDropping || pendingDefeatReason != null || actualBankroll >= floorMinBet) {
+      return
+    }
+    queueDefeat('bust')
+  }, [mode, isDropping, pendingDefeatReason, actualBankroll, floorMinBet, queueDefeat])
+
+  function handleGameOver() {
+    const state = useSurvivalStore.getState()
+    if (state.pendingDefeatReason == null && state.bankroll < state.floorMinBet) {
+      state.queueDefeat('bust')
+    }
+    survivalAfterNext(mode)
+  }
 
   const statusMsg = isDropping
     ? `${sessions.length} ball${sessions.length === 1 ? '' : 's'} in flight`
@@ -382,11 +400,14 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
           </div>
 
           <div className="flex flex-1 min-h-0 w-full items-center justify-center gap-2">
-            {showSurvivalContinue ? (
-              <>
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
-                <button type="button" onClick={() => survivalAfterNext(mode)} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Continue →</button>
-              </>
+            {showGameOver ? (
+              <button
+                type="button"
+                onClick={handleGameOver}
+                className="min-w-[10.5rem] px-7 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors text-base shadow-lg"
+              >
+                Game Over
+              </button>
             ) : (
               <button
                 type="button"
