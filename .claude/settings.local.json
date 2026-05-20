@@ -53,7 +53,8 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\giova\\\\VsProjects\\\\Floored\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(git pull *)",
-      "Bash(echo \"Exit: $?\")"
+      "Bash(echo \"Exit: $?\")",
+      "Bash(git checkout *)"
     ]
   }
 }

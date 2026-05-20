@@ -6,6 +6,8 @@ import { persist } from 'zustand/middleware'
 interface SettingsStore {
   autoReBet: boolean
   setAutoReBet: (v: boolean) => void
+  forceTie: boolean
+  setForceTie: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -13,6 +15,8 @@ export const useSettingsStore = create<SettingsStore>()(
     (set) => ({
       autoReBet: true,
       setAutoReBet: (v) => set({ autoReBet: v }),
+      forceTie: false,
+      setForceTie: (v) => set({ forceTie: v }),
     }),
     { name: 'floored-settings' }
   )
