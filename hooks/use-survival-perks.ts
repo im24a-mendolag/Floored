@@ -48,6 +48,7 @@ export function useSurvivalPerks(game: GameName) {
     streetCupsTruth: hasGamePerk(purchasedUpgrades, game, 'perk_street_cups_truth'),
     streetCupsTruthLevel: perkLevel('perk_street_cups_truth'),
     caseXray: hasGamePerk(purchasedUpgrades, game, 'perk_case_xray'),
+    caseXrayLevel: perkLevel('perk_case_xray'),
     pokerHoldBias: hasGamePerk(purchasedUpgrades, game, 'perk_poker_hold_bias'),
     pokerHoldBiasLevel: perkLevel('perk_poker_hold_bias'),
     kenoHeat: hasGamePerk(purchasedUpgrades, game, 'perk_keno_heat'),
