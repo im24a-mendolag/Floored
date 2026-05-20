@@ -66,8 +66,8 @@ const GAME_PERK_DEFS: Record<
     rarity: 'epic',
   },
   hilo: {
-    name: 'Range Finder',
-    description: 'Shows the min–max value of the next card still in the deck.',
+    name: 'Hot Streak',
+    description: 'Each correct guess has a 25% chance to advance your streak by 2 instead of 1.',
     effectKey: 'perk_hilo_range',
     baseCost: 20,
     rarity: 'rare',

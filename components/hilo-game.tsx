@@ -17,7 +17,6 @@ import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
-import { hiloNextCardRange } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
@@ -27,6 +26,7 @@ import { useCurse } from '@/hooks/use-curse'
 import { useBless } from '@/hooks/use-bless'
 import type { HiLoCard, HiLoState } from '@/games/hilo/types'
 import {
+  bumpStreak,
   cashOutHiLo,
   goAgainHiLo,
   guessHiLo,
@@ -34,6 +34,7 @@ import {
   loseGame,
   startHiLoRound,
   streakMultiplier,
+  tieGame,
   winGame,
 } from '@/games/hilo/engine'
 
@@ -125,11 +126,11 @@ interface PendingResult {
 
 export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   const { floorMinBet } = useSurvivalStore()
-  const { autoReBet } = useSettingsStore()
+  const { autoReBet, forceTie } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
   const { blessed } = useBless()
-  const { hiloRange } = useSurvivalPerks('hilo')
+  const { hiloHotStreak } = useSurvivalPerks('hilo')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound] = useState<HiLoState>(initHiLo)
@@ -139,6 +140,7 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
   const [quoteIdx, setQuoteIdx] = useState(() => pickQuote())
   const [currentCardAnim, setCurrentCardAnim] = useState('')
+  const [hotStreakFlash, setHotStreakFlash] = useState(false)
 
   const isBetting = round.stage === 'betting'
   const isPlaying = round.stage === 'playing'
@@ -147,10 +149,6 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   const canDeal = currentBet >= minBet && currentBet <= bankroll
   const showQuoteUntilNext = !isBetting
   const cashoutAmount = isRiding ? Math.round(round.betAmount * round.multiplier) : 0
-  const nextRange =
-    mode === 'survival' && hiloRange && (isPlaying || isRiding)
-      ? hiloNextCardRange(round.deck)
-      : null
 
   function addChip(value: number) {
     setCurrentBet(prev => Math.min(prev + value, bankroll))
@@ -171,15 +169,19 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
 
   function handleGuess(guess: 'higher' | 'lower') {
     if (!isPlaying && !isRiding) return
-    const next = blessed ? winGame(round, guess) : cursed ? loseGame(round, guess) : guessHiLo(round, guess)
+    let next = forceTie ? tieGame(round) : blessed ? winGame(round, guess) : cursed ? loseGame(round, guess) : guessHiLo(round, guess)
+    if (hiloHotStreak && next.stage === 'riding' && !next.isTie && Math.random() < 0.25) {
+      next = bumpStreak(next)
+      setHotStreakFlash(true)
+      setTimeout(() => setHotStreakFlash(false), 1200)
+    }
     setRound(next)
 
     if (next.stage === 'settled') {
-      const payout = 0
       const resolved = resolveGame(onResolve, {
         outcome: 'loss',
         betAmount: next.betAmount,
-        payout,
+        payout: 0,
         multiplier: 0,
       })
       const built = buildPendingResult(
@@ -264,9 +266,9 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
         gameLabel="HiLo"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
-        {nextRange && (
+        {hotStreakFlash && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-            Next card value {nextRange.min}–{nextRange.max}
+            🔥 Hot Streak — streak jumped by 2!
           </PerkHint>
         )}
         <GameActiveBetBadge
@@ -275,10 +277,14 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
           visible={!isBetting && round.betAmount > 0}
         />
 
-        {/* Streak indicator — always in DOM, invisible outside riding */}
-        <div className={`flex items-center gap-2 text-sm font-bold text-yellow-300 ${!isRiding ? 'invisible' : ''}`}>
-          <span>{flames}</span>
-          <span>{round.streak}× streak · {formatMultiplier(round.multiplier)}</span>
+        {/* Streak indicator — visible whenever there's an active multiplier */}
+        <div className={`flex items-center gap-2 text-sm font-bold ${round.isTie ? 'text-zinc-300' : 'text-yellow-300'} ${round.multiplier === 0 ? 'invisible' : ''}`}>
+          {round.isTie ? (
+            <span className="px-2 py-0.5 rounded-md bg-zinc-700 text-zinc-200 text-xs font-bold tracking-widest uppercase">Push</span>
+          ) : (
+            <span>{flames}</span>
+          )}
+          <span>{round.isTie ? `Bet returned · ${formatMultiplier(round.multiplier)}` : `${round.streak}× streak · ${formatMultiplier(round.multiplier)}`}</span>
         </div>
 
         {/* Card display */}
@@ -298,50 +304,46 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
           </div>
         </div>
 
-        {/* In-board guess buttons — visible during playing and riding */}
-        <div className={`flex gap-4 ${(!isPlaying && !isRiding) ? 'invisible pointer-events-none' : ''}`}>
-          <button
-            type="button"
-            onClick={() => handleGuess('higher')}
-            disabled={isRiding}
-            className="w-28 py-3 rounded-xl border-2 border-purple-600 bg-purple-950 hover:bg-purple-900 text-purple-200 font-bold text-sm uppercase tracking-wider transition-all duration-150 hover:scale-105 active:scale-95 disabled:opacity-0 disabled:pointer-events-none"
-          >
-            ↑ Higher
-          </button>
-          <button
-            type="button"
-            onClick={() => handleGuess('lower')}
-            disabled={isRiding}
-            className="w-28 py-3 rounded-xl border-2 border-purple-600 bg-purple-950 hover:bg-purple-900 text-purple-200 font-bold text-sm uppercase tracking-wider transition-all duration-150 hover:scale-105 active:scale-95 disabled:opacity-0 disabled:pointer-events-none"
-          >
-            ↓ Lower
-          </button>
-        </div>
-
-        {/* Riding phase — cash out vs go again */}
-        {isRiding && (
-          <div className="flex gap-3">
+        {/* Fixed-height slot shared by guess buttons and riding buttons */}
+        <div className="relative h-11 w-72 flex items-center justify-center">
+          <div className={`absolute inset-x-0 flex gap-3 ${!isPlaying ? 'invisible pointer-events-none' : ''}`}>
+            <button
+              type="button"
+              onClick={() => handleGuess('higher')}
+              className="flex-1 py-2.5 rounded-xl border-2 border-purple-600 bg-purple-950 hover:bg-purple-900 text-purple-200 font-bold text-sm uppercase tracking-wider transition-all duration-150 hover:scale-105 active:scale-95"
+            >
+              ↑ Higher
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGuess('lower')}
+              className="flex-1 py-2.5 rounded-xl border-2 border-purple-600 bg-purple-950 hover:bg-purple-900 text-purple-200 font-bold text-sm uppercase tracking-wider transition-all duration-150 hover:scale-105 active:scale-95"
+            >
+              ↓ Lower
+            </button>
+          </div>
+          <div className={`absolute inset-x-0 flex gap-3 ${!isRiding ? 'invisible pointer-events-none' : ''}`}>
             <button
               type="button"
               onClick={handleCashOut}
-              className="px-4 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-950 hover:bg-emerald-900 text-emerald-200 font-bold text-sm transition-all duration-150 hover:scale-105 active:scale-95"
+              className="flex-1 py-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-950 hover:bg-emerald-900 text-emerald-200 font-bold text-sm transition-all duration-150 hover:scale-105 active:scale-95"
             >
               Cash Out — {formatChips(cashoutAmount)}
             </button>
             <button
               type="button"
               onClick={handleGoAgain}
-              className="px-4 py-2.5 rounded-xl border-2 border-yellow-600 bg-yellow-950 hover:bg-yellow-900 text-yellow-200 font-bold text-sm transition-all duration-150 hover:scale-105 active:scale-95"
+              className="flex-1 py-2.5 rounded-xl border-2 border-yellow-600 bg-yellow-950 hover:bg-yellow-900 text-yellow-200 font-bold text-sm transition-all duration-150 hover:scale-105 active:scale-95"
             >
               Go Again → {formatMultiplier(nextMult)}
             </button>
           </div>
-        )}
+        </div>
 
         <div className="min-h-10 flex w-full max-w-sm items-center justify-center px-2 shrink-0">
           <p className="text-center text-xs text-zinc-500">
             {isBetting
-              ? 'Tie goes to the house · Ace counts high · Win streaks multiply your payout.'
+              ? 'Ties keep your streak alive · Ace counts high · Win streaks multiply your payout.'
               : isPlaying
                 ? 'Pick Higher or Lower above.'
                 : isRiding
@@ -367,8 +369,11 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
             {isBetting && <GameDockBetRow currentBet={currentBet} onClear={() => setCurrentBet(0)} />}
             {isRiding && (
               <p className="text-sm text-zinc-400">
-                Potential total winnings:{' '}
-                <span className="font-semibold text-emerald-400">{formatChips(cashoutAmount)}</span>
+                {round.isTie ? (
+                  <>Push — <span className="font-semibold text-zinc-200">{formatChips(cashoutAmount)} returned if you cash out</span></>
+                ) : (
+                  <>Potential total winnings:{' '}<span className="font-semibold text-emerald-400">{formatChips(cashoutAmount)}</span></>
+                )}
               </p>
             )}
             {isSettled && pendingResult && (

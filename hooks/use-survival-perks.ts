@@ -22,7 +22,7 @@ export function useSurvivalPerks(game: GameName) {
     hasRunEffect: (effectKey: string) => hasEffect(purchasedUpgrades, effectKey),
     peekDealer: hasGamePerk(purchasedUpgrades, game, 'perk_peek_dealer'),
     peekDealerLevel: perkLevel('perk_peek_dealer'),
-    hiloRange: hasGamePerk(purchasedUpgrades, game, 'perk_hilo_range'),
+    hiloHotStreak: hasGamePerk(purchasedUpgrades, game, 'perk_hilo_range'),
     chickenScout: hasGamePerk(purchasedUpgrades, game, 'perk_chicken_scout'),
     chickenScoutLevel: perkLevel('perk_chicken_scout'),
     crashZone: hasGamePerk(purchasedUpgrades, game, 'perk_crash_zone'),
