@@ -68,11 +68,8 @@ export default function SurvivalPage() {
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                      Lobby Reroll Tickets
-                    </p>
                     <p className="text-sm font-bold text-zinc-200 tabular-nums mt-1">
-                      {ticketCount}
+                      Lobby Reroll Tickets: {ticketCount}
                     </p>
                   </div>
                   <Button

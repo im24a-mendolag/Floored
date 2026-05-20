@@ -75,7 +75,7 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
     return (
       <li
         key={m.id}
-        className={`rounded-lg border px-3 py-3 ${
+        className={`flex-1 min-h-0 flex flex-col justify-center rounded-lg border px-3 py-3 ${
           m.completed
             ? 'border-emerald-800/50 bg-emerald-950/20'
             : failed
@@ -154,42 +154,28 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain flex flex-col gap-2 pr-0.5 min-h-0">
-        {activeMissions.length > 0 && (
-          <ul className="flex flex-col gap-2 shrink-0">
-            {activeMissions.length < missions.length && (
-              <li className="list-none">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-amber-500/80 px-0.5">
-                  Active
-                </p>
-              </li>
-            )}
-            {activeMissions.map((m) => renderMission(m))}
-          </ul>
+      <ul className="flex-1 flex flex-col gap-2 min-h-0">
+        {activeMissions.length > 0 && activeMissions.length < missions.length && (
+          <li className="list-none shrink-0">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-amber-500/80 px-0.5">Active</p>
+          </li>
         )}
+        {activeMissions.map((m) => renderMission(m))}
 
         {completedMissions.length > 0 && (
-          <ul className="flex flex-col gap-2 shrink-0">
-            <li className="list-none">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-emerald-600 px-0.5 pt-1">
-                Done
-              </p>
-            </li>
-            {completedMissions.map((m) => renderMission(m))}
-          </ul>
+          <li className="list-none shrink-0">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-emerald-600 px-0.5 pt-1">Done</p>
+          </li>
         )}
+        {completedMissions.map((m) => renderMission(m))}
 
         {failedMissions.length > 0 && (
-          <ul className="flex flex-col gap-2 shrink-0">
-            <li className="list-none">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-red-700 px-0.5 pt-1">
-                Failed
-              </p>
-            </li>
-            {failedMissions.map((m) => renderMission(m))}
-          </ul>
+          <li className="list-none shrink-0">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-red-700 px-0.5 pt-1">Failed</p>
+          </li>
         )}
-      </div>
+        {failedMissions.map((m) => renderMission(m))}
+      </ul>
     </div>
   )
 }

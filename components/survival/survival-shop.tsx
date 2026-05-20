@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { Button } from '@/components/ui/button'
 import {
@@ -264,17 +264,23 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
   )
 }
 
+const RARITY_TONE: Record<string, string> = {
+  common: 'text-zinc-500',
+  rare: 'text-sky-400',
+  epic: 'text-fuchsia-400',
+}
+
 /** Compact list of owned run upgrades for game sidebar */
 export function OwnedUpgradesList({
   compact = false,
   currentGame,
 }: {
   compact?: boolean
-  /** When set, run-wide + this game's items show in a pinned Active section. */
   currentGame?: GameName
 }) {
   const purchasedUpgrades = useSurvivalStore((s) => s.purchasedUpgrades)
   const inventory = useSurvivalStore((s) => s.inventory)
+  const [hoveredItem, setHoveredItem] = useState<CatalogItem | null>(null)
 
   const ownedItems = purchasedUpgrades
     .map((u) => getCatalogItem(u.id))
@@ -293,22 +299,77 @@ export function OwnedUpgradesList({
     )
   }
 
+  function isRelevant(item: CatalogItem) {
+    return item.scope === 'run' || item.game === currentGame
+  }
+
   const sortedItems =
     currentGame != null
       ? [
-          ...ownedItems.filter((i) => i.scope === 'run' || i.game === currentGame),
-          ...ownedItems.filter((i) => i.scope !== 'run' && i.game !== currentGame),
+          ...ownedItems.filter(isRelevant),
+          ...ownedItems.filter((i) => !isRelevant(i)),
         ]
       : ownedItems
 
   return (
-    <SurvivalSidebarPanel compact={compact} title="Upgrades" count={totalCount}>
-      {sortedItems.map((item) => (
-        <SurvivalSidebarRow key={item.id} name={item.name} scope={catalogScopeLabel(item)} />
-      ))}
-      {consumables.map(({ id, count, item }) => (
-        <SurvivalSidebarRow key={id} name={`${item!.name} ×${count}`} scope="Ticket" />
-      ))}
-    </SurvivalSidebarPanel>
+    <div className="relative flex-1 flex flex-col min-h-0">
+      <SurvivalSidebarPanel compact={compact} title="Upgrades" count={totalCount}>
+        {sortedItems.map((item) => {
+          const relevant = currentGame != null && isRelevant(item)
+          return (
+            <div
+              key={item.id}
+              onMouseEnter={() => setHoveredItem(item)}
+              onMouseLeave={() => setHoveredItem(null)}
+              className={`flex flex-col gap-0.5 py-1 px-1.5 rounded-md cursor-default transition-colors ${
+                relevant
+                  ? 'bg-sky-950/50 border border-sky-900/40'
+                  : 'hover:bg-zinc-800/40 border border-transparent'
+              }`}
+            >
+              <p className={`text-[11px] leading-snug ${relevant ? 'text-sky-200' : 'text-zinc-300'}`}>
+                {item.name}
+              </p>
+              <p className={`text-[9px] uppercase tracking-wide leading-none ${relevant ? 'text-sky-500/70' : 'text-zinc-600'}`}>
+                {catalogScopeLabel(item)}
+              </p>
+            </div>
+          )
+        })}
+        {consumables.map(({ id, count, item }) => {
+          const ci = item!
+          return (
+            <div
+              key={id}
+              onMouseEnter={() => setHoveredItem(ci)}
+              onMouseLeave={() => setHoveredItem(null)}
+              className="flex flex-col gap-0.5 py-1 px-1.5 rounded-md cursor-default hover:bg-zinc-800/40 border border-transparent"
+            >
+              <p className="text-[11px] text-zinc-300 leading-snug">{ci.name} ×{count}</p>
+              <p className="text-[9px] text-zinc-600 uppercase tracking-wide leading-none">Consumable</p>
+            </div>
+          )
+        })}
+      </SurvivalSidebarPanel>
+
+      {hoveredItem && (
+        <div className="absolute left-full top-0 ml-2 z-50 w-56 rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl p-3 pointer-events-none flex flex-col gap-1">
+          <p className="text-xs font-semibold text-zinc-100 leading-snug">{hoveredItem.name}</p>
+          <div className="flex items-center gap-2">
+            {hoveredItem.rarity && (
+              <p className={`text-[9px] font-semibold uppercase tracking-wider ${RARITY_TONE[hoveredItem.rarity] ?? 'text-zinc-500'}`}>
+                {hoveredItem.rarity}
+              </p>
+            )}
+            {catalogScopeLabel(hoveredItem) && (
+              <p className="text-[9px] uppercase tracking-wider text-zinc-600">
+                {catalogScopeLabel(hoveredItem)}
+              </p>
+            )}
+          </div>
+          <p className="text-[11px] text-zinc-400 leading-snug mt-0.5">{hoveredItem.description}</p>
+        </div>
+      )}
+    </div>
   )
 }
