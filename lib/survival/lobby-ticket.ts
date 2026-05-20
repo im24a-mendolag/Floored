@@ -6,41 +6,68 @@ export const LOBBY_REROLL_TICKET_ID = 'reroll_floor_game'
 export const LOBBY_REROLL_TICKET = {
   id: LOBBY_REROLL_TICKET_ID,
   name: 'Lobby Reroll Ticket',
-  description: 'Reroll one lobby game or one shop offer on this floor.',
+  description: 'Reroll one lobby game, shop offer, or mission on this floor.',
   baseCost: 8,
 } as const
+
+/** Shown in the survival lobby ticket purchase panel. */
+export const LOBBY_REROLL_TICKET_RULES = [
+  'Lobby games and shop offers share a pool per floor — each game or item can only appear once (including the initial lineup).',
+  'Missions can only be rerolled once per floor; each mission type can only appear once per floor.',
+] as const
 
 export function getLobbyTicketCount(inventory: { id: string; count: number }[]): number {
   return inventory.find((i) => i.id === LOBBY_REROLL_TICKET_ID)?.count ?? 0
 }
 
-/** Pick a replacement game not already on this floor (excluding the rerolled slot). */
-export function pickLobbyReplacement(
-  floorGames: GameName[],
-  slotIndex: number,
-  pool: GameName[],
-  rng: () => number,
-): GameName | null {
-  if (slotIndex < 0 || slotIndex >= floorGames.length) return null
-  const exclude = new Set(floorGames)
-  const candidates = pool.filter((g) => !exclude.has(g))
-  if (candidates.length === 0) return null
-  return candidates[Math.floor(rng() * candidates.length)]!
+/** Games already used on this floor (current lobby + any previous assignment). */
+export function lobbyGamesOfferedFromFloor(floorGames: GameName[]): GameName[] {
+  return [...new Set(floorGames)]
 }
 
-export function rerollLobbySlot(
+/** Candidate games for a ticket reroll on one lobby slot. */
+export function availableLobbyGamesForSlot(
+  pool: GameName[],
+  offeredGames: GameName[],
+): GameName[] {
+  const offered = new Set(offeredGames)
+  return pool.filter((g) => !offered.has(g))
+}
+
+export function canRerollLobbyGameWithTicket(
+  slotIndex: number,
+  floorGames: GameName[],
+  pool: GameName[],
+  offeredGames: GameName[],
+): boolean {
+  if (slotIndex < 0 || slotIndex >= floorGames.length) return false
+  return availableLobbyGamesForSlot(pool, offeredGames).length > 0
+}
+
+export function pickLobbyGameReroll(input: {
+  runSeed: string
+  floor: number
+  slotIndex: number
+  rollSeq: number
+  floorGames: GameName[]
+  pool: GameName[]
+  offeredGames: GameName[]
+}): GameName | null {
+  const available = availableLobbyGamesForSlot(input.pool, input.offeredGames)
+  if (available.length === 0) return null
+  const rng = createRng(
+    seedFromString(
+      `${input.runSeed}:lobby-ticket:${input.floor}:${input.slotIndex}:${input.rollSeq}`,
+    ),
+  )
+  return available[Math.floor(rng() * available.length)]!
+}
+
+export function applyLobbyGameReroll(
   floorGames: GameName[],
   slotIndex: number,
-  pool: GameName[],
-  runSeed: string,
-  floor: number,
-  rerollCount: number,
-): GameName[] | null {
-  const rng = createRng(
-    seedFromString(`${runSeed}:lobby-reroll:${floor}:${slotIndex}:${rerollCount}`),
-  )
-  const replacement = pickLobbyReplacement(floorGames, slotIndex, pool, rng)
-  if (!replacement) return null
+  replacement: GameName,
+): GameName[] {
   const next = [...floorGames]
   next[slotIndex] = replacement
   return next

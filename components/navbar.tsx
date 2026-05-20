@@ -30,7 +30,6 @@ export function Navbar() {
   const floorTimerPaused = useSurvivalStore((s) => s.floorTimerPaused)
   const floorComplete = useSurvivalStore((s) => s.floorComplete)
   const runDefeated = useSurvivalStore((s) => s.runDefeated)
-  const quotaMet = useSurvivalStore((s) => s.quotaMet)
   const quotaTarget = useSurvivalStore((s) => s.quotaTarget)
   const bankroll = useSurvivalStore((s) => s.bankroll)
   const sparks = useSurvivalStore((s) => s.sparks)
@@ -101,7 +100,7 @@ export function Navbar() {
   )
 
   const showFinishQuota = inSurvival && runActive && !floorComplete && !runDefeated
-  const finishQuotaEnabled = (quotaMet || bankroll >= quotaTarget) && bankroll >= floorMinBet
+  const finishQuotaEnabled = bankroll >= quotaTarget && bankroll >= floorMinBet
 
   return (
     <>

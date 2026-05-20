@@ -18,7 +18,7 @@ import {
 export function FloorPanel() {
   const router = useRouter()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const { currentFloor, floorMinBet, bankroll, quotaTarget, floorStartBankroll, quotaMet, floorComplete, runDefeated, sparks, endlessMode, abandonRun } = useSurvivalStore()
+  const { currentFloor, floorMinBet, bankroll, quotaTarget, floorStartBankroll, floorComplete, runDefeated, sparks, endlessMode, abandonRun } = useSurvivalStore()
 
   const netProgress = bankroll - floorStartBankroll
   const netTarget = quotaTarget - floorStartBankroll
@@ -26,7 +26,8 @@ export function FloorPanel() {
     ? 100
     : Math.min(100, Math.max(0, (netProgress / netTarget) * 100))
 
-  const progressColor = quotaMet
+  const quotaReached = bankroll >= quotaTarget
+  const progressColor = quotaReached
     ? 'bg-amber-400'
     : bankroll < floorStartBankroll
       ? 'bg-red-500'
@@ -88,7 +89,7 @@ export function FloorPanel() {
               style={{ width: `${progressPct}%` }}
             />
           </div>
-          {quotaMet && !floorComplete && (
+          {quotaReached && !floorComplete && (
             <p className="text-xs text-amber-400 font-semibold text-center mt-1">
               Quota met — finish early from the navbar or keep playing until the timer ends
             </p>

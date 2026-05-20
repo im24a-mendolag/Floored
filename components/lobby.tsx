@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import type { GameName } from '@/store/types'
-import { getLobbyTicketCount } from '@/lib/survival/lobby-ticket'
+import { SURVIVAL_GAME_POOL } from '@/lib/survival/balance'
+import { canRerollLobbyGameWithTicket, getLobbyTicketCount } from '@/lib/survival/lobby-ticket'
 
 interface GameEntry {
   name: GameName
@@ -229,7 +230,9 @@ export function Lobby({ mode }: Props) {
   const router = useRouter()
   const [pendingGame, setPendingGame] = useState<GameName | null>(null)
   const floorGames = useSurvivalStore((s) => s.floorGames)
+  const runSeed = useSurvivalStore((s) => s.runSeed)
   const inventory = useSurvivalStore((s) => s.inventory)
+  const lobbyGamesOffered = useSurvivalStore((s) => s.lobbyGamesOffered)
   const rerollLobbyGame = useSurvivalStore((s) => s.rerollLobbyGame)
   const { showAllGames } = useSettingsStore()
 
@@ -284,16 +287,35 @@ export function Lobby({ mode }: Props) {
               isOrphan ? 'col-span-2 sm:col-span-1' : 'col-span-1',
             ].join(' ')}
           >
-            {mode === 'survival' && ticketCount > 0 && !pendingGame && (
-              <button
-                type="button"
-                title="Use a ticket to reroll this lobby slot"
-                onClick={() => rerollLobbyGame(i)}
-                className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-black/40 text-sm font-bold text-white/90 hover:bg-black/60 hover:border-white/40 transition-colors"
-              >
-                ↻
-              </button>
-            )}
+            {mode === 'survival' &&
+              !showAllGames &&
+              ticketCount > 0 &&
+              !pendingGame &&
+              runSeed &&
+              (() => {
+                const slotIndex = floorGames.indexOf(g.name)
+                if (slotIndex < 0) return null
+                if (
+                  !canRerollLobbyGameWithTicket(
+                    slotIndex,
+                    floorGames,
+                    SURVIVAL_GAME_POOL,
+                    lobbyGamesOffered,
+                  )
+                ) {
+                  return null
+                }
+                return (
+                  <button
+                    type="button"
+                    title="Use a ticket to reroll this lobby game"
+                    onClick={() => rerollLobbyGame(slotIndex)}
+                    className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-black/40 text-sm font-bold text-white/90 hover:bg-black/60 hover:border-white/40 transition-colors"
+                  >
+                    ↻
+                  </button>
+                )
+              })()}
             <button
               type="button"
               onClick={() => available && handlePick(g.name)}

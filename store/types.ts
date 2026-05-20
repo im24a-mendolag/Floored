@@ -162,14 +162,24 @@ export interface SurvivalStore {
   shopRerollCount: number
   /** Purchases made in the shop this floor — used to vary the offer seed so replacement items are random. */
   shopPurchaseCount: number
-  /** Item IDs purchased from the shop this floor — slots with these IDs show a sold placeholder. */
-  shopSoldItemIds: string[]
+  /** Slot indices purchased from the shop this floor — purchased slots show an "already bought" placeholder until next floor. */
+  shopPurchasedSlotIndices: number[]
   /** Rerolls used on floor missions this floor (escalating spark cost). */
   missionRerollCount: number
   /** Lobby slot rerolls used this floor (seed variance). */
   lobbyRerollCount: number
-  /** Per shop-offer slot rerolls via lobby ticket this floor. */
-  shopOfferTicketRerolls: number[]
+  /** Catalog item id per shop slot [game0, game1, run, active]. */
+  shopSlotItemIds: (string | null)[]
+  /** Item ids already offered this floor per pool (game / run / active). */
+  shopOfferedIds: { game: string[]; run: string[]; active: string[] }
+  /** Increments on each lobby-ticket reroll this floor (RNG salt). */
+  shopTicketRollSeq: number
+  /** Mission offer keys already shown this floor (type:target:game). */
+  missionOfferedKeys: string[]
+  /** Mission slot indices that already used a lobby ticket reroll. */
+  missionTicketRerolledSlots: number[]
+  /** Lobby games already on this floor (initial lineup + any reroll; each once per floor). */
+  lobbyGamesOffered: GameName[]
   /** Player chose to continue past floor 10. */
   endlessMode: boolean
   /** Player is cursed — all games are rigged to lose. */
@@ -195,7 +205,7 @@ export interface SurvivalStore {
   clearLastRun: () => void
   setMissions: (missions: FloorMission[]) => void
   applyMissionResults: (updatedMissions: FloorMission[]) => void
-  purchaseUpgrade: (id: string, price: number) => boolean
+  purchaseUpgrade: (id: string, price: number, slotIndex: number) => boolean
   purchaseLobbyRerollTicket: () => boolean
   rerollLobbyGame: (slotIndex: number) => boolean
   rerollShopOfferWithTicket: (slotIndex: number) => boolean

@@ -4,9 +4,15 @@ import { useMemo } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { Button } from '@/components/ui/button'
 import {
-  generateShopOffersWithTicketRerolls,
-  buildShopPool,
-  SHOP_GAME_OFFER_COUNT,
+  slotIdsToOffers,
+  getShopPools,
+  canRerollShopSlot,
+  canRerollShopKind,
+  shopPoolKindForSlot,
+  SHOP_SLOT_GAME_0,
+  SHOP_SLOT_GAME_1,
+  SHOP_SLOT_RUN,
+  SHOP_SLOT_ACTIVE,
   type ShopOffer,
 } from '@/lib/survival/shop-offers'
 import { getLobbyTicketCount, LOBBY_REROLL_TICKET_ID } from '@/lib/survival/lobby-ticket'
@@ -28,16 +34,15 @@ interface SurvivalShopProps {
 }
 
 export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
-  const runSeed = useSurvivalStore((s) => s.runSeed)
-  const currentFloor = useSurvivalStore((s) => s.currentFloor)
   const difficulty = useSurvivalStore((s) => s.difficulty)
   const floorGames = useSurvivalStore((s) => s.floorGames)
   const sparks = useSurvivalStore((s) => s.sparks)
   const purchasedUpgrades = useSurvivalStore((s) => s.purchasedUpgrades)
   const inventory = useSurvivalStore((s) => s.inventory)
   const shopRerollCount = useSurvivalStore((s) => s.shopRerollCount)
-  const shopSoldItemIds = useSurvivalStore((s) => s.shopSoldItemIds)
-  const shopOfferTicketRerolls = useSurvivalStore((s) => s.shopOfferTicketRerolls)
+  const shopPurchasedSlotIndices = useSurvivalStore((s) => s.shopPurchasedSlotIndices)
+  const shopSlotItemIds = useSurvivalStore((s) => s.shopSlotItemIds)
+  const shopOfferedIds = useSurvivalStore((s) => s.shopOfferedIds)
   const purchaseUpgrade = useSurvivalStore((s) => s.purchaseUpgrade)
   const rerollShopOfferWithTicket = useSurvivalStore((s) => s.rerollShopOfferWithTicket)
   const lobbyTicketCount = getLobbyTicketCount(inventory)
@@ -47,29 +52,33 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     [purchasedUpgrades],
   )
 
-  const offers = useMemo(() => {
-    if (!runSeed || !difficulty) return []
-    return generateShopOffersWithTicketRerolls({
-      runSeed,
-      floor: currentFloor,
-      difficulty,
-      floorGames,
-      rerollCount: shopRerollCount,
-      ownedUpgradeIds,
-      slotTicketRerolls: shopOfferTicketRerolls,
-    })
-  }, [
-    runSeed,
-    currentFloor,
-    difficulty,
-    floorGames,
-    shopRerollCount,
-    ownedUpgradeIds,
-    shopOfferTicketRerolls,
-  ])
+  const pools = useMemo(
+    () => (difficulty != null ? getShopPools(floorGames, ownedUpgradeIds) : null),
+    [difficulty, floorGames, ownedUpgradeIds],
+  )
 
-  const poolRemaining =
-    difficulty != null ? buildShopPool(floorGames, ownedUpgradeIds).length : 0
+  const offers = useMemo(() => {
+    if (!difficulty) return [] as (ShopOffer | null)[]
+    return slotIdsToOffers(shopSlotItemIds, difficulty)
+  }, [difficulty, shopSlotItemIds])
+
+  const kindCanReroll = useMemo(() => {
+    if (!pools) return { game: false, run: false, active: false }
+    return {
+      game: canRerollShopKind('game', shopSlotItemIds, pools, shopOfferedIds),
+      run: canRerollShopKind('run', shopSlotItemIds, pools, shopOfferedIds),
+      active: canRerollShopKind('active', shopSlotItemIds, pools, shopOfferedIds),
+    }
+  }, [pools, shopSlotItemIds, shopOfferedIds])
+
+  function showRerollButton(slotIndex: number): boolean {
+    if (lobbyTicketCount <= 0) return false
+    if (shopPurchasedSlotIndices.includes(slotIndex)) return false
+    if (!pools) return false
+    const kind = shopPoolKindForSlot(slotIndex)
+    if (!kindCanReroll[kind]) return false
+    return canRerollShopSlot(slotIndex, shopSlotItemIds, pools, shopOfferedIds)
+  }
 
   function isOwned(id: string, scope: string): boolean {
     if (scope === 'consumable') {
@@ -89,10 +98,18 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     return catalog?.level != null ? `Owned · Lv.${catalog.level}` : 'Owned'
   }
 
-  const runOffer = offers[SHOP_GAME_OFFER_COUNT] ?? null
-  const gameOffers: (ShopOffer | null)[] = Array.from({ length: SHOP_GAME_OFFER_COUNT }, (_, i) =>
-    offers[i] ?? null,
-  )
+  const runOffer = offers[SHOP_SLOT_RUN] ?? null
+  const activeOffer = offers[SHOP_SLOT_ACTIVE] ?? null
+  const gameOffers: (ShopOffer | null)[] = [
+    offers[SHOP_SLOT_GAME_0] ?? null,
+    offers[SHOP_SLOT_GAME_1] ?? null,
+  ]
+
+  const poolEmpty =
+    pools != null &&
+    pools.game.length === 0 &&
+    pools.run.length === 0 &&
+    pools.active.length === 0
 
   function renderOfferCard(offer: ShopOffer, slotIndex: number) {
     const { item, price } = offer
@@ -110,10 +127,10 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
 
     return (
       <div
-        key={`${item.id}-${slotIndex}`}
+        key={`slot-${slotIndex}`}
         className={`relative rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 flex flex-col gap-2 ${CARD_HEIGHT}`}
       >
-        {lobbyTicketCount > 0 && (
+        {showRerollButton(slotIndex) && (
           <button
             type="button"
             title="Use a lobby reroll ticket on this offer"
@@ -144,7 +161,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
           variant={ownedText ? 'secondary' : 'default'}
           disabled={disabled}
           className="w-full mt-auto"
-          onClick={() => purchaseUpgrade(item.id, price)}
+          onClick={() => purchaseUpgrade(item.id, price, slotIndex)}
         >
           {ownedText ?? (canAfford ? 'Purchase' : 'Not enough sparks')}
         </Button>
@@ -152,50 +169,38 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     )
   }
 
-  function renderSoldSlot(offer: ShopOffer, slotIndex: number) {
-    const { item } = offer
-    const scopeLabel = catalogScopeLabel(item)
-    const scopeTone =
-      item.scope === 'game'
-        ? 'text-sky-400/40'
-        : item.scope === 'run'
-          ? 'text-violet-400/40'
-          : 'text-zinc-700'
-
+  function renderAlreadyBoughtSlot(label: string, slotIndex: number) {
     return (
       <div
-        key={`sold-${item.id}-${slotIndex}`}
+        key={`bought-${slotIndex}`}
         className={`rounded-xl border border-zinc-800/40 bg-zinc-950/20 p-3 flex flex-col gap-2 ${CARD_HEIGHT} opacity-50`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            {scopeLabel && (
-              <p className={`text-[10px] font-semibold uppercase tracking-wider mb-0.5 ${scopeTone}`}>
-                {scopeLabel}
-              </p>
-            )}
-            <p className="text-sm font-semibold text-zinc-600 line-through">{item.name}</p>
-            {item.level != null && <p className="text-[10px] text-zinc-700">Level {item.level}</p>}
+            <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5 text-zinc-600">
+              {label}
+            </p>
+            <p className="text-sm font-semibold text-zinc-600">Already Bought</p>
           </div>
           <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-base text-zinc-600 shrink-0">
             ✓
           </span>
         </div>
-        <p className="text-xs text-zinc-700 leading-snug flex-1">Restocked next floor.</p>
+        <p className="text-xs text-zinc-700 leading-snug flex-1">Refreshes next floor.</p>
         <button
           disabled
           className="w-full mt-auto rounded-md bg-zinc-900 text-zinc-700 text-xs py-1.5 cursor-not-allowed"
         >
-          Sold Out
+          Already Bought
         </button>
       </div>
     )
   }
 
-  function renderEmptyOfferSlot(label: string) {
+  function renderEmptyOfferSlot(label: string, slotIndex: number) {
     return (
       <div
-        key={label}
+        key={`empty-${slotIndex}`}
         className={`rounded-xl border border-dashed border-zinc-700/50 bg-zinc-950/20 p-3 flex flex-col gap-2 opacity-60 ${CARD_HEIGHT}`}
       >
         <div className="flex items-start justify-between gap-2">
@@ -221,8 +226,8 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
   }
 
   function renderSlot(offer: ShopOffer | null, slotIndex: number, emptyLabel: string) {
-    if (!offer) return renderEmptyOfferSlot(emptyLabel)
-    if (shopSoldItemIds.includes(offer.item.id)) return renderSoldSlot(offer, slotIndex)
+    if (shopPurchasedSlotIndices.includes(slotIndex)) return renderAlreadyBoughtSlot(emptyLabel, slotIndex)
+    if (!offer) return renderEmptyOfferSlot(emptyLabel, slotIndex)
     return renderOfferCard(offer, slotIndex)
   }
 
@@ -238,36 +243,21 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
       )}
 
       <p className="text-[10px] text-zinc-600 leading-snug">
-        Game upgrades match this floor&apos;s lobby only. Lobby reroll tickets work on ↻ here too, and on missions.
+        Shared pools per floor — each item or mission appears at most once. One ticket reroll per slot.
         {shopRerollCount > 0 && ` · Rerolled ${shopRerollCount}× this floor`}
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {renderSlot(runOffer, SHOP_GAME_OFFER_COUNT, 'Run upgrade')}
-
-        {/* Active item slot — coming soon */}
-        <div className={`rounded-xl border border-dashed border-zinc-700/40 bg-zinc-950/30 p-3 flex flex-col gap-2 opacity-50 ${CARD_HEIGHT}`}>
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5 text-orange-400/80">Active</p>
-              <p className="text-sm font-semibold text-zinc-500">Coming Soon</p>
-            </div>
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/80 text-lg text-zinc-600 shrink-0">
-              ∅
-            </span>
-          </div>
-          <p className="text-xs text-zinc-600 leading-snug flex-1">Active items with on-use effects.</p>
-          <button disabled className="w-full mt-auto rounded-md bg-zinc-800 text-zinc-600 text-xs py-1.5 cursor-not-allowed">
-            Locked
-          </button>
-        </div>
-
-        {gameOffers.map((offer, i) => renderSlot(offer, i, `Game upgrade ${i + 1}`))}
+        {renderSlot(runOffer, SHOP_SLOT_RUN, 'Run upgrade')}
+        {renderSlot(activeOffer, SHOP_SLOT_ACTIVE, 'Active item')}
+        {gameOffers.map((offer, i) =>
+          renderSlot(offer, i === 0 ? SHOP_SLOT_GAME_0 : SHOP_SLOT_GAME_1, `Game upgrade ${i + 1}`),
+        )}
       </div>
 
-      {offers.length === 0 && poolRemaining === 0 && (
+      {poolEmpty && (
         <p className="text-xs text-zinc-500 text-center py-2">
-          No shop items left for this floor — try next floor or reroll after purchases.
+          No shop items left for this floor — try next floor after more purchases.
         </p>
       )}
     </div>

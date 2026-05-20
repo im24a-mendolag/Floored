@@ -182,3 +182,90 @@ export function generateMissionsForFloor(
 
   return picked
 }
+
+export function missionOfferKey(m: Pick<FloorMission, 'type' | 'target' | 'game'>): string {
+  return `${m.type}:${m.target}:${m.game ?? ''}`
+}
+
+export function missionOfferedKeysFromMissions(missions: FloorMission[]): string[] {
+  return [...new Set(missions.map(missionOfferKey))]
+}
+
+function resolvedTarget(
+  def: (typeof MISSION_POOL)[number],
+  floorMinBet: number,
+): number {
+  return def.type === 'big_win' ? def.target * floorMinBet : def.target
+}
+
+function isMissionDefAlreadyOffered(
+  def: (typeof MISSION_POOL)[number],
+  offeredKeys: Set<string>,
+  floorMinBet: number,
+): boolean {
+  if ((EXCLUSIVE_TYPES as string[]).includes(def.type)) {
+    return [...offeredKeys].some((k) => k.startsWith(`${def.type}:`))
+  }
+  const target = resolvedTarget(def, floorMinBet)
+  return offeredKeys.has(`${def.type}:${target}:`)
+}
+
+function buildMissionFromDef(
+  def: (typeof MISSION_POOL)[number],
+  floor: number,
+  slotIndex: number,
+  difficulty: Difficulty,
+  floorGames: GameName[],
+  floorMinBet: number,
+  game: GameName | undefined,
+): FloorMission {
+  const target = resolvedTarget(def, floorMinBet)
+  return {
+    id: `${floor}-${def.type}-${target}-${slotIndex}-${game ?? 'any'}`,
+    type: def.type,
+    target,
+    progress: 0,
+    rewardSparks: rewardForFloor(def.baseReward, floor, difficulty),
+    completed: false,
+    minBet: floorMinBet,
+    ...(game ? { game } : {}),
+  }
+}
+
+/** Pick a replacement mission for one slot (not in offeredKeys). */
+export function pickMissionRerollForSlot(input: {
+  runSeed: string
+  floor: number
+  slotIndex: number
+  rollSeq: number
+  difficulty: Difficulty
+  floorGames: GameName[]
+  floorMinBet: number
+  offeredKeys: string[]
+}): FloorMission | null {
+  const offered = new Set(input.offeredKeys)
+  const candidates = MISSION_POOL.filter(
+    (def) => !isMissionDefAlreadyOffered(def, offered, input.floorMinBet),
+  )
+  if (candidates.length === 0) return null
+
+  const rng = createRng(
+    seedFromString(
+      `${input.runSeed}:mission-ticket:${input.floor}:${input.slotIndex}:${input.rollSeq}`,
+    ),
+  )
+  const def = candidates[Math.floor(rng() * candidates.length)]!
+  const game =
+    def.type === 'play_game'
+      ? input.floorGames[Math.floor(rng() * input.floorGames.length)]
+      : undefined
+  return buildMissionFromDef(
+    def,
+    input.floor,
+    input.slotIndex,
+    input.difficulty,
+    input.floorGames,
+    input.floorMinBet,
+    game,
+  )
+}
