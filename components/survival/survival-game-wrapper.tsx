@@ -158,7 +158,7 @@ export function SurvivalGameWrapper({
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Bankroll</p>
               <p className="text-lg font-black tabular-nums leading-tight">
-                <span className={bankroll >= floorStartBankroll ? 'text-foreground' : 'text-red-400'}>
+                <span className={bankroll >= quotaTarget ? 'text-foreground' : 'text-red-400'}>
                   {formatChips(bankroll)}
                 </span>
                 <span className="text-sm font-normal text-muted-foreground"> / {formatChips(quotaTarget)}</span>
@@ -166,7 +166,7 @@ export function SurvivalGameWrapper({
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Sparks</p>
-              <p className="text-2xl font-black tabular-nums leading-tight text-amber-300">{sparks.toLocaleString()}</p>
+              <p className="text-2xl font-black tabular-nums leading-tight text-amber-300">{formatChips(sparks)}</p>
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Min Bet</p>

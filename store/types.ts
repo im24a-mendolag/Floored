@@ -108,6 +108,8 @@ export interface SurvivalStore {
   sparks: number
   addSparks: (n: number) => void
   spendSparks: (n: number) => void
+  setSparks: (n: number) => void
+  devSetPurchasedUpgrades: (upgrades: PurchasedUpgrade[]) => void
   runActive: boolean
   runSeed: string | null
   gamesPlayed: number

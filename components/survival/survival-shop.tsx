@@ -17,6 +17,7 @@ import {
   type CatalogItem,
 } from '@/lib/survival/upgrades-catalog'
 import type { GameName } from '@/store/types'
+import { formatChips } from '@/utils/format'
 import { SurvivalSidebarPanel, SurvivalSidebarRow } from '@/components/survival/survival-sidebar-panel'
 
 const CARD_HEIGHT = 'min-h-[12rem]'
@@ -231,7 +232,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">Shop</h3>
           <span className="text-sm font-bold text-amber-400 tabular-nums">
-            <span className="text-[10px] font-normal text-zinc-500 mr-1">Sparks:</span>✦ {sparks.toLocaleString()}
+            <span className="text-[10px] font-normal text-zinc-500 mr-1">Sparks:</span>✦ {formatChips(sparks)}
           </span>
         </div>
       )}
