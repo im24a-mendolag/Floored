@@ -156,14 +156,16 @@ export function buildPendingResult(
     historySubtitle?: string
     gameMultiplier?: number
     payoutBoostMult?: number
+    freeBet?: boolean
   },
 ): GamePendingResult {
   const betSummary = formatOutcomeDisplayText(
     detail.bet ?? formatBetSummary(amounts.betAmount, detail.betSpecification),
   )
   const resultSummary = formatResultSummary(detail.result, detail.resultSpecification)
+  const isFreeBet = options?.freeBet === true
   const net = amounts.payout - amounts.betAmount
-  const tone: 'win' | 'loss' = net >= 0 ? 'win' : 'loss'
+  const tone: 'win' | 'loss' = isFreeBet ? 'win' : net >= 0 ? 'win' : 'loss'
   const historyTone: MatchHistoryTone =
     amounts.outcome === 'win' || amounts.outcome === 'push'
       ? 'win'
@@ -172,8 +174,13 @@ export function buildPendingResult(
         : amounts.payout > amounts.betAmount
           ? 'win'
           : 'loss'
-  const title = formatHistoryNetTitle(amounts.payout, amounts.betAmount, amounts.outcome)
-  const profitLabel = formatNetProfitDisplay(amounts.payout, amounts.betAmount, amounts.outcome)
+  const freeBetWin = isFreeBet && amounts.outcome === 'win' && amounts.payout > 0
+  const title = isFreeBet
+    ? freeBetWin ? `+${formatChips(amounts.payout)}` : 'Free bet'
+    : formatHistoryNetTitle(amounts.payout, amounts.betAmount, amounts.outcome)
+  const profitLabel = isFreeBet
+    ? freeBetWin ? `+${formatChips(amounts.payout)}` : 'Free bet'
+    : formatNetProfitDisplay(amounts.payout, amounts.betAmount, amounts.outcome)
   const multiplierHint = formatSettledMultiplierHint(options?.gameMultiplier, options?.payoutBoostMult)
   const subtitle =
     options?.historySubtitle != null

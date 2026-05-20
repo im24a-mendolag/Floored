@@ -137,7 +137,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
         result: outcome === 'win' ? `${s.multiplier}×` : 'Loss',
         resultSpecification: outcome === 'win' ? 'Win' : undefined,
       },
-      { gameMultiplier: outcome === 'win' ? s.multiplier : undefined },
+      { gameMultiplier: outcome === 'win' ? s.multiplier : undefined, freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }

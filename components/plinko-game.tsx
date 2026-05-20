@@ -139,7 +139,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     const finalMultiplier = session.golden ? session.result.multiplier * 2 : session.result.multiplier
     const finalOutcome = finalPayout >= session.bet ? 'win' : 'loss'
 
-    resolveGame(onResolveRef.current, {
+    const resolved = resolveGame(onResolveRef.current, {
       outcome: finalOutcome,
       betAmount: session.bet,
       payout: finalPayout,
@@ -155,7 +155,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         result: `${finalMultiplier}×`,
         resultSpecification: formatPlinkoRiskLabel(session.risk),
       },
-      { gameMultiplier: session.result.multiplier },
+      { gameMultiplier: session.result.multiplier, freeBet: resolved.firstBetWasFree },
     )
     setMatchHistory((h) => [built.entry, ...h].slice(0, 80))
 

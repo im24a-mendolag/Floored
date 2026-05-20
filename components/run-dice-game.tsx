@@ -214,7 +214,7 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
             resultSpecification:
               o === 'push' || next.rollResult == null ? undefined : 'Roll',
           },
-          { gameMultiplier: o === 'win' ? next.payoutMultiplier : undefined },
+          { gameMultiplier: o === 'win' ? next.payoutMultiplier : undefined, freeBet: resolved.firstBetWasFree },
         )
         setPendingResult(built)
       }

@@ -212,6 +212,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
       {
         result: outcome === 'push' ? 'Push' : resultLabel,
       },
+      { freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }

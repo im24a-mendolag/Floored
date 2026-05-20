@@ -275,6 +275,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
             total > 0
               ? `${formatBetSummary(total, betLabel)} → ${resultLabel} · ${outcomeWord}`
               : `${resultLabel} · ${outcomeWord}`,
+          freeBet: resolved.firstBetWasFree,
         },
       )
       setPendingResult(built)

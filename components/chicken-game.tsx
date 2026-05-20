@@ -113,7 +113,7 @@ export function ChickenGame({ mode, bankroll, onBet, onResolve }: ChickenGamePro
         result: outcome === 'loss' ? 'Bust' : String(next.step),
         resultSpecification: outcome === 'loss' ? undefined : 'Step',
       },
-      { gameMultiplier: outcome === 'win' && !partial ? next.multiplier : undefined },
+      { gameMultiplier: outcome === 'win' && !partial ? next.multiplier : undefined, freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }

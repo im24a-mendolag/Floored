@@ -161,6 +161,7 @@ export function OverUnderGame({ mode, bankroll, onBet, onResolve }: OverUnderGam
         {
           gameMultiplier: finalOutcome === 'win' ? settled.payoutMultiplier : undefined,
           payoutBoostMult: resolved.payoutBoostMult,
+          freeBet: resolved.firstBetWasFree,
         },
       )
       setPendingResult(built)

@@ -142,7 +142,7 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
         result: next.outcome === 'win' ? String(next.activeRow) : 'Burned',
         resultSpecification: next.outcome === 'win' ? 'Floor' : undefined,
       },
-      { gameMultiplier: next.outcome === 'win' ? next.cashoutMultiplier : undefined },
+      { gameMultiplier: next.outcome === 'win' ? next.cashoutMultiplier : undefined, freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }

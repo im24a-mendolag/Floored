@@ -186,6 +186,7 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
         {
           result: 'Loss',
         },
+        { freeBet: resolved.firstBetWasFree },
       )
       setPendingResult(built)
     }
@@ -209,7 +210,7 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
         result: `${settled.streak}×`,
         resultSpecification: 'streak',
       },
-      { gameMultiplier: settled.multiplier },
+      { gameMultiplier: settled.multiplier, freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }

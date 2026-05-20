@@ -240,6 +240,7 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
           historySubtitle: `Bet ${betName} · Landed ${result.resultMultiplier}× · ${resultColor}`,
           gameMultiplier: result.outcome === 'win' ? result.payoutMultiplier : undefined,
           payoutBoostMult: resolved.payoutBoostMult,
+          freeBet: resolved.firstBetWasFree,
         },
       )
       setPendingResult(built)

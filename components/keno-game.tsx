@@ -129,7 +129,7 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
         result: `${next.hits}/${next.picks.length}`,
         resultSpecification: 'hits',
       },
-      { gameMultiplier: next.multiplier > 0 ? next.multiplier : undefined },
+      { gameMultiplier: next.multiplier > 0 ? next.multiplier : undefined, freeBet: resolved.firstBetWasFree },
     )
     setPendingResult(built)
   }

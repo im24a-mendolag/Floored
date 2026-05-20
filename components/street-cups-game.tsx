@@ -324,6 +324,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
       multiplier: settled.outcome === 'win' ? STREET_CUPS_WIN_MULTIPLIER : 0,
     })
     const displayPayout = resolved.payout
+    const wasFree = resolved.firstBetWasFree
 
     /* Stage 1: lift chosen cup */
     addTimer(() => {
@@ -346,7 +347,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
         {
           result: outcome === 'win' ? 'Win' : 'Loss',
         },
-        { gameMultiplier: outcome === 'win' ? STREET_CUPS_WIN_MULTIPLIER : undefined },
+        { gameMultiplier: outcome === 'win' ? STREET_CUPS_WIN_MULTIPLIER : undefined, freeBet: wasFree },
       )
       setPendingResult(built)
       setShowNext(true)

@@ -220,6 +220,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
       const built = buildPendingResult(
         { outcome: o, betAmount: state.betAmount, payout: resolved.payout },
         { result: resultKind },
+        { freeBet: resolved.firstBetWasFree },
       )
       setTimeout(() => setPendingResult(built), resultDelay)
     }
