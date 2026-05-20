@@ -58,6 +58,7 @@ export function generateShopOffers(input: {
   floorGames: GameName[]
   ownedUpgradeIds?: string[]
   rerollCount?: number
+  purchaseCount?: number
   count?: number
 }): ShopOffer[] {
   const rerollCount = input.rerollCount ?? 0
@@ -105,7 +106,7 @@ export function rerollShopOfferAtSlot(input: {
 export function generateShopOffersWithTicketRerolls(
   input: Parameters<typeof generateShopOffers>[0] & { slotTicketRerolls?: number[] },
 ): ShopOffer[] {
-  const base = generateShopOffers(input)
+  const base = generateShopOffers({ ...input, purchaseCount: input.purchaseCount ?? 0 })
   const slotRerolls = input.slotTicketRerolls ?? []
   const owned = input.ownedUpgradeIds ?? []
   const result: ShopOffer[] = []

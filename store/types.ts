@@ -158,6 +158,10 @@ export interface SurvivalStore {
   firstBetInsuranceUsed: boolean
   /** Rerolls used on shop offers this floor (escalating spark cost). */
   shopRerollCount: number
+  /** Purchases made in the shop this floor — used to vary the offer seed so replacement items are random. */
+  shopPurchaseCount: number
+  /** Item IDs purchased from the shop this floor — slots with these IDs show a sold placeholder. */
+  shopSoldItemIds: string[]
   /** Rerolls used on floor missions this floor (escalating spark cost). */
   missionRerollCount: number
   /** Lobby slot rerolls used this floor (seed variance). */

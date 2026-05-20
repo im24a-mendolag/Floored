@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useMemo } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
@@ -19,6 +19,8 @@ import {
 import type { GameName } from '@/store/types'
 import { SurvivalSidebarPanel, SurvivalSidebarRow } from '@/components/survival/survival-sidebar-panel'
 
+const CARD_HEIGHT = 'min-h-[12rem]'
+
 interface SurvivalShopProps {
   /** Hide title when embedded in floor-complete modal */
   embedded?: boolean
@@ -33,6 +35,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
   const purchasedUpgrades = useSurvivalStore((s) => s.purchasedUpgrades)
   const inventory = useSurvivalStore((s) => s.inventory)
   const shopRerollCount = useSurvivalStore((s) => s.shopRerollCount)
+  const shopSoldItemIds = useSurvivalStore((s) => s.shopSoldItemIds)
   const shopOfferTicketRerolls = useSurvivalStore((s) => s.shopOfferTicketRerolls)
   const purchaseUpgrade = useSurvivalStore((s) => s.purchaseUpgrade)
   const rerollShopOfferWithTicket = useSurvivalStore((s) => s.rerollShopOfferWithTicket)
@@ -107,7 +110,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     return (
       <div
         key={`${item.id}-${slotIndex}`}
-        className="relative rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 flex flex-col gap-2"
+        className={`relative rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 flex flex-col gap-2 ${CARD_HEIGHT}`}
       >
         {lobbyTicketCount > 0 && (
           <button
@@ -134,7 +137,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
           </div>
           <span className="text-sm font-bold text-amber-400 tabular-nums shrink-0">✦ {price}</span>
         </div>
-        <p className="text-xs text-zinc-500 leading-snug">{item.description}</p>
+        <p className="text-xs text-zinc-500 leading-snug flex-1">{item.description}</p>
         <Button
           size="sm"
           variant={ownedText ? 'secondary' : 'default'}
@@ -148,11 +151,51 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     )
   }
 
+  function renderSoldSlot(offer: ShopOffer, slotIndex: number) {
+    const { item } = offer
+    const scopeLabel = catalogScopeLabel(item)
+    const scopeTone =
+      item.scope === 'game'
+        ? 'text-sky-400/40'
+        : item.scope === 'run'
+          ? 'text-violet-400/40'
+          : 'text-zinc-700'
+
+    return (
+      <div
+        key={`sold-${item.id}-${slotIndex}`}
+        className={`rounded-xl border border-zinc-800/40 bg-zinc-950/20 p-3 flex flex-col gap-2 ${CARD_HEIGHT} opacity-50`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            {scopeLabel && (
+              <p className={`text-[10px] font-semibold uppercase tracking-wider mb-0.5 ${scopeTone}`}>
+                {scopeLabel}
+              </p>
+            )}
+            <p className="text-sm font-semibold text-zinc-600 line-through">{item.name}</p>
+            {item.level != null && <p className="text-[10px] text-zinc-700">Level {item.level}</p>}
+          </div>
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-base text-zinc-600 shrink-0">
+            ✓
+          </span>
+        </div>
+        <p className="text-xs text-zinc-700 leading-snug flex-1">Restocked next floor.</p>
+        <button
+          disabled
+          className="w-full mt-auto rounded-md bg-zinc-900 text-zinc-700 text-xs py-1.5 cursor-not-allowed"
+        >
+          Sold Out
+        </button>
+      </div>
+    )
+  }
+
   function renderEmptyOfferSlot(label: string) {
     return (
       <div
         key={label}
-        className="rounded-xl border border-dashed border-zinc-700/50 bg-zinc-950/20 p-3 flex flex-col gap-2 opacity-60 min-h-[8.5rem]"
+        className={`rounded-xl border border-dashed border-zinc-700/50 bg-zinc-950/20 p-3 flex flex-col gap-2 opacity-60 ${CARD_HEIGHT}`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -176,6 +219,12 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     )
   }
 
+  function renderSlot(offer: ShopOffer | null, slotIndex: number, emptyLabel: string) {
+    if (!offer) return renderEmptyOfferSlot(emptyLabel)
+    if (shopSoldItemIds.includes(offer.item.id)) return renderSoldSlot(offer, slotIndex)
+    return renderOfferCard(offer, slotIndex)
+  }
+
   return (
     <div className={`flex flex-col gap-3 ${embedded ? '' : 'rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4'}`}>
       {!embedded && (
@@ -193,12 +242,10 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {runOffer
-          ? renderOfferCard(runOffer, SHOP_GAME_OFFER_COUNT)
-          : renderEmptyOfferSlot('Run upgrade')}
+        {renderSlot(runOffer, SHOP_GAME_OFFER_COUNT, 'Run upgrade')}
 
         {/* Active item slot — coming soon */}
-        <div className="rounded-xl border border-dashed border-zinc-700/40 bg-zinc-950/30 p-3 flex flex-col gap-2 opacity-50 min-h-[8.5rem]">
+        <div className={`rounded-xl border border-dashed border-zinc-700/40 bg-zinc-950/30 p-3 flex flex-col gap-2 opacity-50 ${CARD_HEIGHT}`}>
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5 text-orange-400/80">Active</p>
@@ -214,9 +261,7 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
           </button>
         </div>
 
-        {gameOffers.map((offer, i) =>
-          offer ? renderOfferCard(offer, i) : renderEmptyOfferSlot(`Game upgrade ${i + 1}`),
-        )}
+        {gameOffers.map((offer, i) => renderSlot(offer, i, `Game upgrade ${i + 1}`))}
       </div>
 
       {offers.length === 0 && poolRemaining === 0 && (
