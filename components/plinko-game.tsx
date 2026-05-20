@@ -151,9 +151,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
     const built = buildPendingResult(
       { outcome: finalOutcome, betAmount: session.bet, payout: finalPayout },
       {
-        betSpecification: formatPlinkoRiskLabel(session.risk),
         result: `${finalMultiplier}×`,
-        resultSpecification: formatPlinkoRiskLabel(session.risk),
       },
       { gameMultiplier: session.result.multiplier, freeBet: resolved.firstBetWasFree },
     )
@@ -188,6 +186,7 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
         entries={matchHistory}
         gameLabel="Plinko"
         emptyHint="No drops yet — results appear after each ball lands."
+        showLastBet
       >
         <GameDockBackButton mode={mode} visible={!isDropping} />
         {mode === 'survival' && goldenBallProc.perkActive && isDropping && (
