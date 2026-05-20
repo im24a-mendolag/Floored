@@ -166,6 +166,10 @@ export interface SurvivalStore {
   shopOfferTicketRerolls: number[]
   /** Player chose to continue past floor 10. */
   endlessMode: boolean
+  /** Player is cursed — all games are rigged to lose. */
+  cursed: boolean
+  /** Player is blessed — all games are rigged to win. */
+  blessed: boolean
 
   // ── Actions ──────────────────────────────────────────────────────────────
   startRun: (difficulty: Difficulty) => void
@@ -198,6 +202,8 @@ export interface SurvivalStore {
   recordResult: (result: GameResult) => void
   recordResultPayout: (result: GameResult) => void
   deductBet: (amount: number) => void
+  setCursed: (val: boolean) => void
+  setBlessed: (val: boolean) => void
 }
 
 export interface FreeplayStore {

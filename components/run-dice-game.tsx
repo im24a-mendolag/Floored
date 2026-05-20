@@ -35,9 +35,13 @@ import {
   classifyRunDiceTotal,
   getRunDicePayout,
   initRunDice,
+  loseGame,
   rollRunDice,
   startRunDiceRound,
+  winGame,
 } from '@/games/run-dice/engine'
+import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { RunDiceConfig, RunDiceState } from '@/games/run-dice/types'
 
 const DICE_WEIGHT: Record<number, number> = {2:1,3:2,4:3,5:4,6:5,7:6,8:5,9:4,10:3,11:2,12:1}
@@ -67,6 +71,8 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { runDiceInsight, runDiceInsightLevel } = useSurvivalPerks('run-dice')
   const insightProc = usePerkProc(
     mode === 'survival' && runDiceInsight,
@@ -152,12 +158,14 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
     if (isRolling) return
     clearAnimTimers()
 
-    const next = rollRunDice(
-      { ...round, config: gameConfig },
-      {
-        lossProtection: mode === 'survival' && protectionActiveRef.current,
-      },
-    )
+    const next = blessed
+      ? winGame(round)
+      : cursed
+        ? loseGame(round)
+        : rollRunDice(
+            { ...round, config: gameConfig },
+            { lossProtection: mode === 'survival' && protectionActiveRef.current },
+          )
 
     // Snapshot target values for the animation to reveal
     setTargetDice(next.dice)

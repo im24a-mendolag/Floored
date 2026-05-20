@@ -91,3 +91,56 @@ export function cashOut(state: DragonTowerState): DragonTowerState {
     message: `Cashed out at ${state.cashoutMultiplier.toFixed(2)}×`,
   }
 }
+
+/** Blessed pick: the dragon is never on the player's tile; advances safely. */
+export function winGame(state: DragonTowerState, tileIdx: number): DragonTowerState {
+  if (state.stage !== 'climbing') return state
+  const { activeRow, rows } = state
+  const row = rows[activeRow]
+  if (!row || row.picked !== null) return state
+
+  const safeDragonAt = (tileIdx + 1) % TILES_PER_ROW
+  const newRows = rows.map((r, i) =>
+    i === activeRow ? { ...r, dragonAt: safeDragonAt, picked: tileIdx } : r
+  )
+  const nextRow = activeRow + 1
+  const mult = FLOOR_MULTIPLIERS[activeRow]!
+
+  if (nextRow >= NUM_ROWS) {
+    return {
+      ...state,
+      stage: 'cashed-out',
+      rows: newRows,
+      activeRow: nextRow,
+      cashoutMultiplier: mult,
+      outcome: 'win',
+      message: `Tower conquered! ${mult.toFixed(2)}×`,
+    }
+  }
+
+  return {
+    ...state,
+    rows: newRows,
+    activeRow: nextRow,
+    cashoutMultiplier: mult,
+    message: `Floor ${nextRow + 1} — climb higher or cash out.`,
+  }
+}
+
+/** Cursed pick: the dragon is always on whichever tile the player chooses. */
+export function loseGame(state: DragonTowerState, tileIdx: number): DragonTowerState {
+  if (state.stage !== 'climbing') return state
+  const { activeRow, rows } = state
+  const row = rows[activeRow]
+  if (!row || row.picked !== null) return state
+  const newRows = rows.map((r, i) =>
+    i === activeRow ? { ...r, dragonAt: tileIdx, picked: tileIdx, revealed: true } : r
+  )
+  return {
+    ...state,
+    stage: 'busted',
+    rows: newRows.map((r) => ({ ...r, revealed: true })),
+    outcome: 'loss',
+    message: 'Dragon! You were burned.',
+  }
+}

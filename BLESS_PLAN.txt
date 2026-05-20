@@ -1,0 +1,99 @@
+FLOORED — BLESS MECHANIC
+========================
+
+Mirror of the curse mechanic. Every game engine exports winGame() (and
+variants where needed), wired in each component via useBless().
+
+Priority order in every action handler:
+  blessed ? winGame(...) : cursed ? loseGame(...) : normalAction(...)
+
+
+────────────────────────────────────────────
+STORE CHANGES
+────────────────────────────────────────────
+
+store/types.ts
+  • Add: blessed: boolean
+  • Add: setBlessed: (val: boolean) => void
+
+store/survival-store.ts
+  • Add 'blessed' to RUN_PERSIST_KEYS
+  • Initial state: blessed: false
+  • startRun reset: blessed: false
+  • abandonRun reset: blessed: false
+  • Action: setBlessed: (val) => set({ blessed: val })
+
+
+────────────────────────────────────────────
+HOOK
+────────────────────────────────────────────
+
+hooks/use-bless.ts  (mirrors hooks/use-curse.ts)
+  export function useBless() {
+    const blessed    = useSurvivalStore(s => s.blessed)
+    const setBlessed = useSurvivalStore(s => s.setBlessed)
+    return { blessed, setBlessed }
+  }
+
+
+────────────────────────────────────────────
+ENGINE winGame() FUNCTIONS
+────────────────────────────────────────────
+
+blackjack    winGame(bet)        — player gets 20 (two 10-value cards), dealer bust-prone hand
+             winHit(state)       — force a low card so player can't bust
+             winStand(state)     — front-load 10-value cards so dealer busts; always settle 'win'
+             winDouble(state)    — winHit then winStand on doubled bet
+
+roulette     winGame(target, amount)    — land on a number covered by the player's bet
+
+dragon-tower winGame(state, tileIdx)   — force dragon away from picked tile; advance row
+
+chicken-race winGame(bet, picked)      — winner = picked
+
+street-cups  winGame(state, pickedSlot) — winningSlot = pickedSlot
+
+poker-1p     winGame(state)            — three-of-a-kind hand (3×)
+
+case-battles winGame(state, cases)     — player draws rare/legendary, bot draws common
+
+hilo         winGame(state, guess)     — force a winning card; return 'riding'
+
+keno         winGame(amount, picks)    — drawn contains all picks (all hits)
+
+coin-flip    winGame(bet, pick)        — coin lands on pick; return 'riding' streak 1
+             winFlipAgain(state)       — coin lands on nextPick; increase streak
+
+plinko       winGamePath(risk)         — force a slot with multiplier >= 1
+
+crash        winGame(amount)           — crashAt = MAX_CRASH (30×); player has time to cash out
+
+over-under   winGameResolve(state)     — roll within 1..safeZone (guaranteed win)
+
+wheel        winGame(betColor, amount) — spinWheelWithResult(betColor, amount, betColor)
+
+mines        winGame(state, tileId)    — force tile safe; stay inProgress
+
+slots        winGame(betAmount)        — three cherries (5×)
+
+chicken-road winGame(state)            — advanceChickenRoundSafe (safe crossing)
+
+run-dice     winGame(state)            — pick a win sum; back-compute dice
+
+
+────────────────────────────────────────────
+COMPONENT WIRING
+────────────────────────────────────────────
+
+For every component:
+  import { useBless } from '@/hooks/use-bless'
+  import { winGame[, winVariants] } from '@/games/<game>/engine'
+  const { blessed } = useBless()
+
+Replace every cursed ternary with:
+  blessed ? winGame(...) : cursed ? loseGame(...) : normalAction(...)
+
+Special cases:
+  • blackjack: four swap points (deal, hit, stand, double)
+  • coin-flip: two swap points (flip, flip-again)
+  • chicken-race: if/else chain → add blessed branch first

@@ -32,8 +32,12 @@ import {
   dealHand,
   drawCards,
   initPoker,
+  loseGame,
   toggleHold,
+  winGame,
 } from '@/games/poker-1p/engine'
+import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { Card, PokerHandRank, PokerState } from '@/games/poker-1p/types'
 
 const HAND_ORDER: PokerHandRank[] = [
@@ -123,6 +127,8 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { pokerHoldBias, pokerHoldBiasLevel  } = useSurvivalPerks('poker-1p')
   const holdProc = usePerkProc(
     mode === 'survival' && pokerHoldBias,
@@ -171,7 +177,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
 
   function handleDraw() {
     setState((prev) => {
-      const settled = drawCards(prev, { holdBias: holdBiasRef.current })
+      const settled = blessed ? winGame(prev) : cursed ? loseGame(prev) : drawCards(prev, { holdBias: holdBiasRef.current })
       recordOutcome(settled)
       holdProc.resetPerk()
       return settled
@@ -279,7 +285,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
         <div className="min-h-10 flex w-full max-w-sm items-center justify-center px-2 shrink-0">
           <p className="text-center text-xs text-zinc-500">
             {isBetting
-              ? 'Place chips and deal. Jacks or better pays.'
+              ? 'Place chips and deal. Pair of jacks or better pays.'
               : isSelecting
                 ? 'Hold cards, then draw.'
                 : '\u00A0'}

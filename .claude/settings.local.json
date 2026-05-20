@@ -49,7 +49,11 @@
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
       "Bash(node -e \"console.log\\(require\\('./package.json'\\).dependencies.next\\)\")",
       "Bash(Remove-Item -Recurse -Force \"c:/Users/giova/VsProjects/Floored/.next\" -ErrorAction SilentlyContinue)",
-      "Bash(Write-Host \"done\")"
+      "Bash(Write-Host \"done\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\giova\\\\VsProjects\\\\Floored\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(git pull *)",
+      "Bash(echo \"Exit: $?\")"
     ]
   }
 }

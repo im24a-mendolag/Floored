@@ -95,6 +95,46 @@ export function getSlotsResultPayout(state: SlotsState): number {
   return Math.round(state.betAmount * state.payoutMultiplier)
 }
 
+/**
+ * Blessed spin: picks one symbol using the normal reel weights (so rarer symbols
+ * are still rarer) and uses it for all three reels — guaranteeing a three-of-a-kind
+ * win while keeping the full paytable reachable.
+ */
+export function winGame(betAmount: number): SlotsState {
+  let symbol = spinReel()
+  if (symbol === 'wild') symbol = 'cherry'
+  const reels: [SlotsSymbol, SlotsSymbol, SlotsSymbol] = [symbol, symbol, symbol]
+  const { multiplier, winType } = resolveReels(reels)
+  return {
+    stage: 'settled',
+    betAmount,
+    reels,
+    outcome: 'win',
+    payoutMultiplier: multiplier,
+    winType,
+    message: `${winType}! You win ${multiplier}×.`,
+  }
+}
+
+/**
+ * Cursed spin: forces a guaranteed non-matching reel combination so the
+ * payout is always 0. Uses symbols with no cherry/bar to avoid partial wins.
+ */
+export function loseGame(betAmount: number): SlotsState {
+  const pool: SlotsSymbol[] = ['bell', 'diamond', 'seven']
+  pool.sort(() => Math.random() - 0.5)
+  const reels = pool as [SlotsSymbol, SlotsSymbol, SlotsSymbol]
+  return {
+    stage: 'settled',
+    betAmount,
+    reels,
+    outcome: 'loss',
+    payoutMultiplier: 0,
+    winType: null,
+    message: 'No match. Better luck next spin.',
+  }
+}
+
 // Expose the full paytable for display
 export const PAYTABLE: { label: string; symbols: SlotsSymbol[]; multiplier: number }[] = [
   { label: 'Three Sevens',   symbols: ['seven',   'seven',   'seven'],   multiplier: 50  },

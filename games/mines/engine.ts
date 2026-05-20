@@ -87,6 +87,18 @@ export function revealMineTile(state: MinesState, tileId: number): MinesState {
     (state.multiplier * (25 / (nextRemainingSafe + 1))).toFixed(2)
   )
 
+  if (nextRemainingSafe === 0) {
+    return {
+      ...state,
+      stage: 'settled',
+      tiles: nextTiles,
+      remainingSafe: 0,
+      multiplier: nextMultiplier,
+      outcome: 'win',
+      message: `All safe tiles found! Cashed out at ${nextMultiplier.toFixed(2)}×.`,
+    }
+  }
+
   return {
     ...state,
     tiles: nextTiles,
@@ -108,4 +120,83 @@ export function cashOutMines(state: MinesState): MinesState {
 
 export function getMinesPayout(state: MinesState) {
   return state.outcome === 'win' ? Math.round(state.betAmount * state.multiplier) : 0
+}
+
+/** Randomly place exactly difficulty-many mines among the unrevealed tiles. */
+function redistributeMines(tiles: MineTile[], difficulty: MinesState['difficulty']): MineTile[] {
+  const mineCount = DIFFICULTY_MINES[difficulty]
+  const unrevealed = tiles.filter((t) => !t.revealed)
+  const shuffled = [...unrevealed].sort(() => Math.random() - 0.5)
+  const mineIds = new Set(shuffled.slice(0, Math.min(mineCount, unrevealed.length)).map((t) => t.id))
+  return tiles.map((t) => (t.revealed ? t : { ...t, hasMine: mineIds.has(t.id) }))
+}
+
+/**
+ * Blessed reveal: clears all mines from unrevealed tiles on every call so no
+ * future click can ever lose. Auto-cashes out when the last safe slot is used.
+ */
+export function winGame(state: MinesState, tileId: number): MinesState {
+  if (state.stage !== 'inProgress') return state
+  const tile = state.tiles.find((t) => t.id === tileId)
+  if (!tile || tile.revealed) return state
+
+  // Only force this specific tile safe — other tiles keep their mine state
+  // so unrevealed mines are shown correctly at settlement
+  const nextTiles = state.tiles.map((t) =>
+    t.id === tileId ? { ...t, hasMine: false, revealed: true } : t
+  )
+
+  const nextRemainingSafe = state.remainingSafe - 1
+  const nextMultiplier = Number(
+    (state.multiplier * (25 / (nextRemainingSafe + 1))).toFixed(2)
+  )
+
+  if (nextRemainingSafe === 0) {
+    return {
+      ...state,
+      stage: 'settled',
+      tiles: redistributeMines(nextTiles, state.difficulty),
+      remainingSafe: 0,
+      multiplier: nextMultiplier,
+      outcome: 'win',
+      message: `All safe tiles found! Cashed out at ${nextMultiplier.toFixed(2)}×.`,
+    }
+  }
+
+  return {
+    ...state,
+    tiles: nextTiles,
+    remainingSafe: nextRemainingSafe,
+    multiplier: nextMultiplier,
+    message: `${nextRemainingSafe} safe squares left.`,
+  }
+}
+
+/** Blessed manual cash-out: redistributes exactly difficulty-many mines among unrevealed tiles. */
+export function blessedCashOutMines(state: MinesState): MinesState {
+  if (state.stage !== 'inProgress') return state
+  return {
+    ...state,
+    stage: 'settled',
+    tiles: redistributeMines(state.tiles, state.difficulty),
+    outcome: 'win',
+    message: `Cashed out at ${state.multiplier.toFixed(2)}×.`,
+  }
+}
+
+/** Cursed reveal: the clicked tile is always a mine, regardless of placement. */
+export function loseGame(state: MinesState, tileId: number): MinesState {
+  if (state.stage !== 'inProgress') return state
+  const tile = state.tiles.find((t) => t.id === tileId)
+  if (!tile || tile.revealed) return state
+  return {
+    ...state,
+    stage: 'settled',
+    tiles: state.tiles.map((t) =>
+      t.id === tileId ? { ...t, hasMine: true, revealed: true } : t,
+    ),
+    multiplier: 0,
+    outcome: 'loss',
+    message: 'Boom! You hit a mine.',
+  }
 }

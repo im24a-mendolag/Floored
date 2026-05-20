@@ -32,9 +32,13 @@ import {
   TILES_PER_ROW,
   cashOut,
   initDragonTower,
+  loseGame,
   pickTile,
   startDragonTower,
+  winGame,
 } from '@/games/dragon-tower/engine'
+import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { DragonTowerState, TileRow } from '@/games/dragon-tower/types'
 
 interface DragonTowerResult {
@@ -94,6 +98,8 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { dragonBlindspot, dragonBlindspotLevel } = useSurvivalPerks('dragon-tower')
   const blindspotProc = usePerkProc(
     mode === 'survival' && dragonBlindspot,
@@ -153,7 +159,7 @@ export function DragonTowerGame({ mode, bankroll, onBet, onResolve }: DragonTowe
   }
 
   function handlePickTile(tileIdx: number) {
-    const next = pickTile(state, tileIdx)
+    const next = blessed ? winGame(state, tileIdx) : cursed ? loseGame(state, tileIdx) : pickTile(state, tileIdx)
     setState(next)
     if (next.stage === 'busted' || next.stage === 'cashed-out') recordOutcome(next)
   }

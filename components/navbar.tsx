@@ -21,6 +21,10 @@ export function Navbar() {
   const pathname = usePathname()
   const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
   const { autoReBet, setAutoReBet } = useSettingsStore()
+  const cursed = useSurvivalStore((s) => s.cursed)
+  const setCursed = useSurvivalStore((s) => s.setCursed)
+  const blessed = useSurvivalStore((s) => s.blessed)
+  const setBlessed = useSurvivalStore((s) => s.setBlessed)
   const runActive = useSurvivalStore((s) => s.runActive)
   const floorTimerPaused = useSurvivalStore((s) => s.floorTimerPaused)
   const floorComplete = useSurvivalStore((s) => s.floorComplete)
@@ -213,6 +217,32 @@ export function Navbar() {
                         />
                       </div>
                     </button>
+                    <div className="flex w-full flex-col gap-1.5 px-3 py-2">
+                      <span className="text-sm text-white/80">Mode <span className="text-white/30 text-xs">(test)</span></span>
+                      <div className="flex rounded-lg overflow-hidden border border-white/10 w-full">
+                        <button
+                          type="button"
+                          onClick={() => { setCursed(true); setBlessed(false) }}
+                          className={`flex-1 py-1 text-xs font-semibold transition-colors ${cursed ? 'bg-purple-600 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
+                        >
+                          Cursed
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setCursed(false); setBlessed(false) }}
+                          className={`flex-1 py-1 text-xs font-semibold transition-colors border-x border-white/10 ${!cursed && !blessed ? 'bg-white/20 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
+                        >
+                          Normal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setCursed(false); setBlessed(true) }}
+                          className={`flex-1 py-1 text-xs font-semibold transition-colors ${blessed ? 'bg-emerald-600 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'}`}
+                        >
+                          Blessed
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

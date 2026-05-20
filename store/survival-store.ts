@@ -82,6 +82,8 @@ const RUN_PERSIST_KEYS = [
   'lobbyRerollCount',
   'shopOfferTicketRerolls',
   'endlessMode',
+  'cursed',
+  'blessed',
 ] as const
 
 const EMPTY_SHOP_TICKET_REROLLS = [0, 0, 0] as const
@@ -131,6 +133,8 @@ export const useSurvivalStore = create<SurvivalStore>()(
       lobbyRerollCount: 0,
       shopOfferTicketRerolls: [...EMPTY_SHOP_TICKET_REROLLS],
       endlessMode: false,
+      cursed: false,
+      blessed: false,
       ...initialFloorTimerState(),
 
       startRun: (difficulty: Difficulty) => {
@@ -180,6 +184,8 @@ export const useSurvivalStore = create<SurvivalStore>()(
           lobbyRerollCount: 0,
           shopOfferTicketRerolls: [...EMPTY_SHOP_TICKET_REROLLS],
           endlessMode: false,
+          cursed: false,
+          blessed: false,
           ...initialFloorTimerState(),
         })
       },
@@ -218,6 +224,8 @@ export const useSurvivalStore = create<SurvivalStore>()(
           lobbyRerollCount: 0,
           shopOfferTicketRerolls: [...EMPTY_SHOP_TICKET_REROLLS],
           endlessMode: false,
+          cursed: false,
+          blessed: false,
           ...initialFloorTimerState(),
         }),
 
@@ -701,6 +709,9 @@ export const useSurvivalStore = create<SurvivalStore>()(
 
       deductBet: (amount: number) =>
         set((s) => ({ bankroll: s.bankroll - amount })),
+
+      setCursed: (val: boolean) => set({ cursed: val }),
+      setBlessed: (val: boolean) => set({ blessed: val }),
     }),
     {
       name: 'floored-survival',

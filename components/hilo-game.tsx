@@ -26,14 +26,18 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
+import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { HiLoCard, HiLoState } from '@/games/hilo/types'
 import {
   cashOutHiLo,
   goAgainHiLo,
   guessHiLo,
   initHiLo,
+  loseGame,
   startHiLoRound,
   streakMultiplier,
+  winGame,
 } from '@/games/hilo/engine'
 
 const CARD_BACK = 'repeating-linear-gradient(45deg, #27272a, #27272a 4px, #1f1f23 4px, #1f1f23 8px)'
@@ -122,6 +126,8 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { hiloRange } = useSurvivalPerks('hilo')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
@@ -164,7 +170,7 @@ export function HiLoGame({ mode, bankroll, onBet, onResolve }: HiLoGameProps) {
 
   function handleGuess(guess: 'higher' | 'lower') {
     if (!isPlaying && !isRiding) return
-    const next = guessHiLo(round, guess)
+    const next = blessed ? winGame(round, guess) : cursed ? loseGame(round, guess) : guessHiLo(round, guess)
     setRound(next)
 
     if (next.stage === 'settled') {

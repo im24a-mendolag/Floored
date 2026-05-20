@@ -31,9 +31,19 @@ import {
   doubleDownBlackjack,
   hitBlackjack,
   initBlackjack,
+  loseDouble,
+  loseGame,
+  loseHit,
+  loseStand,
   startBlackjackRound,
   standBlackjack,
+  winDouble,
+  winGame,
+  winHit,
+  winStand,
 } from '@/games/blackjack/engine'
+import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 
 const CARD_BACK_PATTERN = 'repeating-linear-gradient(45deg, #27272a, #27272a 4px, #1f1f23 4px, #1f1f23 8px)'
 
@@ -151,6 +161,8 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
+  const { blessed } = useBless()
   const minBet = mode === 'survival' ? floorMinBet : 1
   const { peekDealer } = useSurvivalPerks('blackjack')
   const showDealerHole = mode === 'survival' && peekDealer
@@ -241,12 +253,12 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
     onBet?.(currentBet)
     setQuoteIdx((prev) => pickQuote(prev))
     setLastBet(currentBet)
-    settleRound(startBlackjackRound(currentBet))
+    settleRound(blessed ? winGame(currentBet) : cursed ? loseGame(currentBet) : startBlackjackRound(currentBet))
     setCurrentBet(0)
   }
 
   function handleHit() {
-    const next = hitBlackjack(round)
+    const next = blessed ? winHit(round) : cursed ? loseHit(round) : hitBlackjack(round)
     if (next.stage === 'settled') {
       // Show the busting card first; keep round.stage='inProgress' so the
       // dealer hole card stays hidden until the deal animation finishes.
@@ -268,12 +280,12 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
     setRound(next)
   }
 
-  function handleStand() { animateDealerThenSettle(standBlackjack(round)) }
+  function handleStand() { animateDealerThenSettle(blessed ? winStand(round) : cursed ? loseStand(round) : standBlackjack(round)) }
 
   function handleDouble() {
     if (!canDouble) return
     onBet?.(round.betAmount)
-    const finalState = doubleDownBlackjack(round)
+    const finalState = blessed ? winDouble(round) : cursed ? loseDouble(round) : doubleDownBlackjack(round)
     const playerBusted = calculateHandValue(finalState.playerHand) > 21
 
     // Keep stage 'inProgress' so the dealer hole card stays hidden while the

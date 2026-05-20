@@ -25,7 +25,7 @@ export const HAND_LABELS: Record<PokerHandRank, string> = {
   'straight':        'Straight',
   'three-of-a-kind': 'Three of a Kind',
   'two-pair':        'Two Pair',
-  'jacks-or-better': 'Jacks or Better',
+  'jacks-or-better': 'Pair of Jacks or Better',
   'none':            'No Hand',
 }
 
@@ -141,6 +141,73 @@ export function toggleHold(state: PokerState, index: number): PokerState {
   const held = [...state.held] as boolean[]
   held[index] = !held[index]
   return { ...state, held }
+}
+
+/**
+ * Cursed draw: deals a completely new 5-card hand guaranteed to be 'none'.
+ * 5 different ranks (rules out all pairs/straights of-a-kind), not all same
+ * suit (rules out flush), ranks picked to avoid straights. Held cards are
+ * discarded — the outcome must be a loss regardless of what was held.
+ */
+export function loseGame(state: PokerState): PokerState {
+  const suitCycle: Suit[] = ['♠', '♥', '♦', '♣', '♠']
+  let hand: Card[]
+  for (;;) {
+    const picked = shuffle([...RANKS]).slice(0, 5)
+    const vals = picked.map(rankVal).sort((a, b) => a - b)
+    const isStraight =
+      vals[4]! - vals[0]! === 4 ||
+      (vals[0] === 2 && vals[1] === 3 && vals[2] === 4 && vals[3] === 5 && vals[4] === 14)
+    if (!isStraight) {
+      hand = picked.map((rank, i) => ({ rank, suit: suitCycle[i]! }))
+      break
+    }
+  }
+  return {
+    ...state,
+    stage: 'settled',
+    hand,
+    held: [false, false, false, false, false],
+    handRank: 'none',
+    multiplier: 0,
+    winningIndices: [],
+    outcome: 'loss',
+    message: 'No winning hand.',
+  }
+}
+
+/**
+ * Blessed draw: keeps held cards and always tries to fill non-held slots with
+ * a card matching a held rank (100% bias vs the normal 58%). Outcome is
+ * evaluated honestly — the player can still lose if they held nothing useful.
+ */
+export function winGame(state: PokerState): PokerState {
+  const usedKeys = new Set(state.hand.filter((_, i) => state.held[i]).map(c => `${c.rank}${c.suit}`))
+  const pool = shuffle(createDeck()).filter(c => !usedKeys.has(`${c.rank}${c.suit}`))
+  const heldRanks = Array.from(new Set(state.hand.filter((_, i) => state.held[i]).map(c => c.rank)))
+
+  const newHand: Card[] = state.hand.map((card, i) => {
+    if (state.held[i]) return card
+    if (heldRanks.length > 0) {
+      const matchIdx = pool.findIndex(c => heldRanks.includes(c.rank))
+      if (matchIdx >= 0) return pool.splice(matchIdx, 1)[0]!
+    }
+    return pool.splice(0, 1)[0] ?? card
+  })
+
+  const handRank = evaluateHand(newHand)
+  const multiplier = HAND_PAYOUTS[handRank]
+  return {
+    ...state,
+    stage: 'settled',
+    hand: newHand,
+    held: [false, false, false, false, false],
+    handRank,
+    multiplier,
+    winningIndices: getWinningIndices(newHand, handRank),
+    outcome: multiplier > 0 ? 'win' : 'loss',
+    message: multiplier > 0 ? `${HAND_LABELS[handRank]}!` : 'No winning hand.',
+  }
 }
 
 export function drawCards(state: PokerState, opts?: { holdBias?: boolean }): PokerState {

@@ -26,7 +26,9 @@ import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { pickQuote } from '@/lib/gambling-quotes'
 import { useBetGuard } from '@/hooks/use-bet-guard'
-import { computeMultiplier, initCrash, startCrashRound } from '@/games/crash/engine'
+import { computeMultiplier, initCrash, loseGame, startCrashRound, winGame } from '@/games/crash/engine'
+import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { CrashState } from '@/games/crash/types'
 
 interface CrashResult {
@@ -175,6 +177,8 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
+  const { cursed } = useCurse()
+  const { blessed } = useBless()
   const { crashZone, crashZoneLevel } = useSurvivalPerks('crash')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
@@ -248,7 +252,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
     setQuoteIdx((prev) => pickQuote(prev))
     setLastBet(currentBet)
     setElapsedMs(0)
-    setRound(startCrashRound(currentBet))
+    setRound(blessed ? winGame(currentBet) : cursed ? loseGame(currentBet) : startCrashRound(currentBet))
     setCurrentBet(0)
   }
 

@@ -36,10 +36,14 @@ import {
   getWheelPayout,
   initWheel,
   previewWheelOutcome,
+  loseGame,
   spinWheel,
   spinWheelWithResult,
+  winGame,
   WHEEL_SEGMENTS,
 } from '@/games/wheel/engine'
+import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { WheelColor, WheelState } from '@/games/wheel/types'
 
 const COLOR_STYLES: Record<WheelColor, { bg: string; border: string; text: string; ring: string }> = {
@@ -142,7 +146,9 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { wheelScout, wheelScoutLevel  } = useSurvivalPerks('wheel')
+  const { cursed } = useCurse()
+  const { blessed } = useBless()
+  const { wheelScout, wheelScoutLevel } = useSurvivalPerks('wheel')
   const scoutProc = usePerkProc(
     mode === 'survival' && wheelScout,
     'perk_wheel_scout',
@@ -196,10 +202,13 @@ export function WheelGame({ mode, bankroll, onBet, onResolve }: WheelGameProps) 
     setPendingResult(null)
     setQuoteIdx((prev) => pickQuote(prev))
 
-    const result =
-      scoutProc.perkActive && wheelPreviewRef.current
-        ? spinWheelWithResult(selectedColor, bet, wheelPreviewRef.current.resultColor)
-        : spinWheel(selectedColor, bet)
+    const result = blessed
+      ? winGame(selectedColor, bet)
+      : cursed
+        ? loseGame(selectedColor, bet)
+        : scoutProc.perkActive && wheelPreviewRef.current
+          ? spinWheelWithResult(selectedColor, bet, wheelPreviewRef.current.resultColor)
+          : spinWheel(selectedColor, bet)
     const target = getTargetRotation(rotationRef.current, result.resultColor!)
     rotationRef.current = target
     setWheelRotation(target)

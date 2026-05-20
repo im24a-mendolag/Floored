@@ -161,6 +161,73 @@ export function startBattle(state: CaseBattleState, cases: CaseDef[]): CaseBattl
   }
 }
 
+function rollItemFromTiers(caseDef: CaseDef, tierIndices: number[]): CaseItem {
+  const pool = tierIndices
+    .map((i) => caseDef.items[i])
+    .filter((e): e is { item: CaseItem; weight: number } => e != null)
+  if (pool.length === 0) return caseDef.items[0]!.item
+  const total = pool.reduce((s, e) => s + e.weight, 0)
+  let r = Math.random() * total
+  for (const entry of pool) {
+    r -= entry.weight
+    if (r <= 0) return entry.item
+  }
+  return pool[pool.length - 1]!.item
+}
+
+/**
+ * Cursed battle: player draws from common tiers (0.2× / 0.6×), bot draws
+ * from rare/epic/legendary (1.6× / 3.0× / 6.0×). Bot's worst beats
+ * player's best, so the loss is guaranteed with natural-looking rolls.
+ */
+export function loseGame(state: CaseBattleState, cases: CaseDef[]): CaseBattleState {
+  if (state.selectedCases.length === 0) return state
+  const userItems: OpenedCase[] = state.selectedCases.map((caseId) => ({
+    caseId,
+    item: rollItemFromTiers(cases[caseId]!, [0, 1]),
+  }))
+  const botItems: OpenedCase[] = state.selectedCases.map((caseId) => ({
+    caseId,
+    item: rollItemFromTiers(cases[caseId]!, [3, 4, 5]),
+  }))
+  return {
+    ...state,
+    stage: 'opening',
+    userItems,
+    botItems,
+    userTotal: 0,
+    botTotal: 0,
+    outcome: null,
+    message: 'Opening cases…',
+  }
+}
+
+/**
+ * Blessed battle: player draws from rare/epic/legendary tiers (1.6× / 3.0× / 6.0×),
+ * bot draws from common tiers (0.2× / 0.6×). Player always wins by a wide margin.
+ */
+export function winGame(state: CaseBattleState, cases: CaseDef[]): CaseBattleState {
+  if (state.selectedCases.length === 0) return state
+  const userItems: OpenedCase[] = state.selectedCases.map((caseId) => ({
+    caseId,
+    item: rollItemFromTiers(cases[caseId]!, [3, 4, 5]),
+  }))
+  const botItems: OpenedCase[] = state.selectedCases.map((caseId) => ({
+    caseId,
+    item: rollItemFromTiers(cases[caseId]!, [0, 1]),
+  }))
+  return {
+    ...state,
+    stage: 'opening',
+    userItems,
+    botItems,
+    userTotal: 0,
+    botTotal: 0,
+    outcome: null,
+    message: 'Opening cases…',
+  }
+}
+
 export function settleBattle(state: CaseBattleState): CaseBattleState {
   const userTotal = state.userItems.reduce((s, oc) => s + oc.item.value, 0)
   const botTotal  = state.botItems.reduce((s, oc) => s + oc.item.value, 0)

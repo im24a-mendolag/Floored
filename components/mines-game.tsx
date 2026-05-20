@@ -33,13 +33,18 @@ import { useSurvivalPerks, boostedPotential } from '@/hooks/use-survival-perks'
 import { usePerkProc } from '@/hooks/use-perk-proc'
 import { PerkHint } from '@/components/survival/perk-hint'
 import {
+  blessedCashOutMines,
   cashOutMines,
   getMinesPayout,
   initMines,
+  loseGame,
   revealMineTile,
   revealSafeMineTile,
   startMinesRound,
+  winGame,
 } from '@/games/mines/engine'
+import { useCurse } from '@/hooks/use-curse'
+import { useBless } from '@/hooks/use-bless'
 import type { MinesState } from '@/games/mines/types'
 
 const DIFFICULTIES: MinesState['difficulty'][] = ['easy', 'medium', 'hard', 'insane']
@@ -72,7 +77,9 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
-  const { minesSafe, minesSafeLevel, payoutBoostMult  } = useSurvivalPerks('mines')
+  const { cursed } = useCurse()
+  const { blessed } = useBless()
+  const { minesSafe, minesSafeLevel, payoutBoostMult } = useSurvivalPerks('mines')
   const minesProc = usePerkProc(
     mode === 'survival' && minesSafe,
     'perk_mines_safe',
@@ -144,7 +151,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
 
   function handleTileClick(tileId: number) {
     if (round.stage !== 'inProgress') return
-    const next = revealMineTile(round, tileId)
+    const next = blessed ? winGame(round, tileId) : cursed ? loseGame(round, tileId) : revealMineTile(round, tileId)
     setRound(next)
     if (next.stage === 'settled' && next.outcome) {
       recordOutcome(
@@ -156,7 +163,7 @@ export function MinesGame({ mode, bankroll, onBet, onResolve }: MinesGameProps) 
   }
 
   function handleCashOut() {
-    const next = cashOutMines(round)
+    const next = blessed ? blessedCashOutMines(round) : cashOutMines(round)
     setRound(next)
     recordOutcome(next, 'win', 'Cash out')
   }

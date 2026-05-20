@@ -74,6 +74,32 @@ export function settleRace(state: ChickenRaceState): ChickenRaceState {
   }
 }
 
+/** Blessed race: the player's chicken always wins. */
+export function winGame(bet: number, picked: number): ChickenRaceState {
+  return {
+    stage: 'racing',
+    betAmount: bet,
+    pickedChicken: picked,
+    winner: picked,
+    outcome: null,
+    message: "And they're off!",
+  }
+}
+
+/** Cursed race: always picks a winner that is not the player's chicken. */
+export function loseGame(bet: number, picked: number): ChickenRaceState {
+  const others = CHICKENS.filter((c) => c.id !== picked)
+  const winner = others[Math.floor(Math.random() * others.length)]?.id ?? ((picked + 1) % CHICKENS.length)
+  return {
+    stage: 'racing',
+    betAmount: bet,
+    pickedChicken: picked,
+    winner,
+    outcome: null,
+    message: "And they're off!",
+  }
+}
+
 export const RACE_TICKS = 36
 export const TICK_MS = 90
 
