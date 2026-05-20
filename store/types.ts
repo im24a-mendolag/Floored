@@ -144,6 +144,8 @@ export interface SurvivalStore {
 
   /** True after the floor timer expires with quota met — advance / victory flow. */
   floorComplete: boolean
+  /** How the floor was completed: 'early' = player chose, 'timer' = time ran out. */
+  floorCompleteReason: 'early' | 'timer' | null
   /** Pending defeat — shown after the player clicks Next in the current game. */
   pendingDefeatReason: DefeatReason | null
   /** True once defeat overlay is active. */

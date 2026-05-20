@@ -19,6 +19,7 @@ import { evaluateMissionsOnFloorComplete } from '@/lib/survival/mission-evaluato
 export function FloorCompleteModal() {
   const router = useRouter()
   const floorComplete = useSurvivalStore((s) => s.floorComplete)
+  const floorCompleteReason = useSurvivalStore((s) => s.floorCompleteReason)
   const endlessMode = useSurvivalStore((s) => s.endlessMode)
   const currentFloor = useSurvivalStore((s) => s.currentFloor)
   const bankroll = useSurvivalStore((s) => s.bankroll)
@@ -30,16 +31,15 @@ export function FloorCompleteModal() {
   const completedMissions = missions.filter((m) => m.completed)
   const advanceFloor = useSurvivalStore((s) => s.advanceFloor)
   const continueToEndless = useSurvivalStore((s) => s.continueToEndless)
-  const addSparks = useSurvivalStore((s) => s.addSparks)
   const endRun = useSurvivalStore((s) => s.endRun)
   const dismissFloorComplete = useSurvivalStore((s) => s.dismissFloorComplete)
   const appendFloorHistory = useSurvivalStore((s) => s.appendFloorHistory)
   const applyMissionResults = useSurvivalStore((s) => s.applyMissionResults)
 
-  const [sparksCredited, setSparksCredited] = useState(false)
   const [floorMissionsEvaluated, setFloorMissionsEvaluated] = useState(false)
 
   const isFinalFloorChoice = currentFloor === MAX_FLOORS && !endlessMode
+  const isEarly = floorCompleteReason === 'early'
   const netProgress = bankroll - floorStartBankroll
   const sparksEarned =
     difficulty != null
@@ -55,7 +55,6 @@ export function FloorCompleteModal() {
 
   useEffect(() => {
     if (!floorComplete) {
-      setSparksCredited(false)
       setFloorMissionsEvaluated(false)
       return
     }
@@ -71,11 +70,6 @@ export function FloorCompleteModal() {
   }, [floorComplete, floorMissionsEvaluated, missions, bankroll, floorStartBankroll, applyMissionResults])
 
   function creditFloorProgress() {
-    if (!sparksCredited) {
-      addSparks(sparksEarned)
-      setSparksCredited(true)
-    }
-
     appendFloorHistory({
       floor: currentFloor,
       quotaTarget,
@@ -84,6 +78,10 @@ export function FloorCompleteModal() {
       endBankroll: bankroll,
       completedAt: new Date().toISOString(),
     })
+  }
+
+  function handleKeepPlaying() {
+    dismissFloorComplete()
   }
 
   function handleContinue() {
@@ -105,27 +103,44 @@ export function FloorCompleteModal() {
     router.push('/survival')
   }
 
+  function handleOpenChange(open: boolean) {
+    if (!open && isEarly) {
+      dismissFloorComplete()
+    }
+  }
+
   return (
-    <Dialog open={floorComplete} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()}>
+    <Dialog open={floorComplete} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideClose={!isEarly}
+        onPointerDownOutside={(e) => { if (!isEarly) e.preventDefault() }}
+        onEscapeKeyDown={(e) => { if (!isEarly) e.preventDefault() }}
+        className="sm:max-w-md max-h-[90vh] overflow-y-auto"
+      >
         <DialogHeader>
           <DialogTitle className={isFinalFloorChoice ? 'text-amber-400 text-2xl' : ''}>
             {isFinalFloorChoice
               ? '🏆 All 10 floors cleared!'
-              : endlessMode
-                ? `Floor ${currentFloor} complete`
-                : `Floor ${currentFloor} Complete!`}
+              : isEarly
+                ? `Quota met — floor ${currentFloor}`
+                : endlessMode
+                  ? `Floor ${currentFloor} complete`
+                  : `Floor ${currentFloor} Complete!`}
           </DialogTitle>
           <DialogDescription>
             {isFinalFloorChoice
               ? 'Claim your victory or push into endless mode — quotas and min bets keep scaling.'
-              : endlessMode
-                ? 'Endless run — collect sparks and keep climbing.'
-                : 'Quota met — collect sparks, then pick your next game on the lobby.'}
+              : isEarly
+                ? 'You still have time left. Keep playing to build your bankroll, or advance now.'
+                : endlessMode
+                  ? 'Endless run — collect sparks and keep climbing.'
+                  : "Time's up — quota met. Collect sparks, then pick your next game on the lobby."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3 mt-2">          <div className="text-xs text-zinc-500">You start runs with 3 reroll tickets and gain 3 additional reroll tickets each floor.</div>          <div className="rounded-xl bg-muted/50 px-4 py-3 space-y-2 text-sm">
+        <div className="flex flex-col gap-3 mt-2">
+          <div className="text-xs text-zinc-500">You start runs with 3 reroll tickets and gain 3 additional reroll tickets each floor.</div>
+          <div className="rounded-xl bg-muted/50 px-4 py-3 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Goal bankroll</span>
               <span className="font-semibold">{formatChips(quotaTarget)}</span>
@@ -167,6 +182,15 @@ export function FloorCompleteModal() {
               </Button>
               <Button onClick={handleContinueEndless} variant="secondary" className="w-full">
                 Continue — Endless Mode
+              </Button>
+            </div>
+          ) : isEarly ? (
+            <div className="flex flex-col gap-2">
+              <Button onClick={handleContinue} className="w-full">
+                {endlessMode ? `Continue to Floor ${currentFloor + 1}` : `Advance to Floor ${currentFloor + 1}`}
+              </Button>
+              <Button onClick={handleKeepPlaying} variant="secondary" className="w-full">
+                Keep Playing
               </Button>
             </div>
           ) : (

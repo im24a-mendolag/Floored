@@ -26,6 +26,7 @@ import {
   STARTING_REROLL_TICKETS,
   REROLL_TICKETS_PER_FLOOR,
 } from '@/lib/survival/balance'
+import { calcFloorSparksEarned } from '@/lib/survival/sparks-economy'
 import { migratePersistedState } from '@/lib/survival/migrate'
 import { allPurchasedUpgradesForDev, getCatalogItem } from '@/lib/survival/upgrades-catalog'
 import {
@@ -94,6 +95,7 @@ const RUN_PERSIST_KEYS = [
   'inventory',
   'floorHistory',
   'floorComplete',
+  'floorCompleteReason',
   'runDefeated',
   'defeatReason',
   'pendingDefeatReason',
@@ -187,6 +189,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
       inventory: [],
       floorHistory: [],
       floorComplete: false,
+      floorCompleteReason: null,
       runDefeated: false,
       defeatReason: null,
       pendingDefeatReason: null,
@@ -245,6 +248,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
             : [],
           floorHistory: [],
           floorComplete: false,
+          floorCompleteReason: null,
           runDefeated: false,
           defeatReason: null,
           pendingDefeatReason: null,
@@ -295,6 +299,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           inventory: [],
           floorHistory: [],
           floorComplete: false,
+          floorCompleteReason: null,
           runDefeated: false,
           defeatReason: null,
           pendingDefeatReason: null,
@@ -317,30 +322,54 @@ export const useSurvivalStore = create<SurvivalStore>()(
         }),
 
       endRun: (opts) =>
-        set((s) => ({
-          runActive: false,
-          runSeed: null,
-          floorComplete: false,
-          runDefeated: false,
-          defeatReason: null,
-          pendingDefeatReason: null,
-          lastRun: {
-            endedAt: new Date().toISOString(),
-            endBankroll: s.bankroll,
-            floorsReached: opts?.victory ? MAX_FLOORS : s.currentFloor,
-            gamesPlayed: s.gamesPlayed,
-            peakBankroll: s.peakBankroll,
-            sparksEarned: s.sparks,
-            difficulty: s.difficulty,
-            victory: opts?.victory ?? false,
-            endlessMode: s.endlessMode,
-          },
-          endlessMode: false,
-        })),
+        set((s) => {
+          const floorSparkIncome = (opts?.victory ?? false) && s.difficulty != null
+            ? calcFloorSparksEarned({
+                floor: s.currentFloor,
+                bankroll: s.bankroll,
+                floorStartBankroll: s.floorStartBankroll,
+                quotaTarget: s.quotaTarget,
+                difficulty: s.difficulty,
+              }) + s.missions.filter((m) => m.completed).reduce((sum, m) => sum + m.rewardSparks, 0)
+            : 0
+          const totalSparks = s.sparks + floorSparkIncome
+          return {
+            runActive: false,
+            runSeed: null,
+            floorComplete: false,
+            floorCompleteReason: null,
+            runDefeated: false,
+            defeatReason: null,
+            pendingDefeatReason: null,
+            sparks: totalSparks,
+            lastRun: {
+              endedAt: new Date().toISOString(),
+              endBankroll: s.bankroll,
+              floorsReached: opts?.victory ? MAX_FLOORS : s.currentFloor,
+              gamesPlayed: s.gamesPlayed,
+              peakBankroll: s.peakBankroll,
+              sparksEarned: totalSparks,
+              difficulty: s.difficulty,
+              victory: opts?.victory ?? false,
+              endlessMode: s.endlessMode,
+            },
+            endlessMode: false,
+          }
+        }),
 
       advanceFloor: () =>
         set((s) => {
           if (s.currentFloor >= MAX_FLOORS && !s.endlessMode) return s
+
+          const floorSparkIncome = s.difficulty != null
+            ? calcFloorSparksEarned({
+                floor: s.currentFloor,
+                bankroll: s.bankroll,
+                floorStartBankroll: s.floorStartBankroll,
+                quotaTarget: s.quotaTarget,
+                difficulty: s.difficulty,
+              }) + s.missions.filter((m) => m.completed).reduce((sum, m) => sum + m.rewardSparks, 0)
+            : 0
 
           const nextFloor = s.currentFloor + 1
           const nextFloorData =
@@ -354,6 +383,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
               : { quotaTarget: s.quotaTarget, floorGames: s.floorGames, missions: s.missions }
 
           return {
+            sparks: s.sparks + floorSparkIncome,
             currentFloor: nextFloor,
             slotsUsed: 0,
             floorMinBet: getFloorMinBet(nextFloor),
@@ -362,6 +392,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
             floorGames: nextFloorData.floorGames,
             missions: nextFloorData.missions,
             floorComplete: false,
+            floorCompleteReason: null,
             firstBetInsuranceUsed: false,
             shopRerollCount: 0,
             shopPurchaseCount: 0,
@@ -401,6 +432,16 @@ export const useSurvivalStore = create<SurvivalStore>()(
         set((s) => {
           if (s.currentFloor !== MAX_FLOORS || s.endlessMode) return s
 
+          const floorSparkIncome = s.difficulty != null
+            ? calcFloorSparksEarned({
+                floor: s.currentFloor,
+                bankroll: s.bankroll,
+                floorStartBankroll: s.floorStartBankroll,
+                quotaTarget: s.quotaTarget,
+                difficulty: s.difficulty,
+              }) + s.missions.filter((m) => m.completed).reduce((sum, m) => sum + m.rewardSparks, 0)
+            : 0
+
           const nextFloor = s.currentFloor + 1
           const nextFloorData =
             s.runSeed && s.difficulty
@@ -413,6 +454,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
               : { quotaTarget: s.quotaTarget, floorGames: s.floorGames, missions: s.missions }
 
           return {
+            sparks: s.sparks + floorSparkIncome,
             endlessMode: true,
             currentFloor: nextFloor,
             slotsUsed: 0,
@@ -422,6 +464,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
             floorGames: nextFloorData.floorGames,
             missions: nextFloorData.missions,
             floorComplete: false,
+            floorCompleteReason: null,
             firstBetInsuranceUsed: false,
             shopRerollCount: 0,
             shopPurchaseCount: 0,
@@ -457,7 +500,12 @@ export const useSurvivalStore = create<SurvivalStore>()(
           }
         }),
 
-      dismissFloorComplete: () => set({ floorComplete: false }),
+      dismissFloorComplete: () => set({
+        floorComplete: false,
+        floorCompleteReason: null,
+        floorTimerPaused: false,
+        floorTimerSyncedAt: Date.now(),
+      }),
 
       syncFloorTimer: () => {
         const s = get()
@@ -494,6 +542,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           if (s.bankroll >= s.quotaTarget) {
             return {
               floorComplete: true,
+              floorCompleteReason: 'timer' as const,
               floorTimeRemainingMs: remaining,
               floorTimerPaused: true,
             }
@@ -514,6 +563,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
           const remaining = Math.max(0, s.floorTimeRemainingMs - elapsed)
           return {
             floorComplete: true,
+            floorCompleteReason: 'early' as const,
             floorTimeRemainingMs: remaining,
             floorTimerPaused: true,
           }
@@ -554,14 +604,12 @@ export const useSurvivalStore = create<SurvivalStore>()(
           const newlyCompleted = updatedMissions.filter(
             (m) => m.completed && !s.missions.find((prev) => prev.id === m.id)?.completed,
           )
-          const sparkRewards = newlyCompleted.reduce((sum, m) => sum + m.rewardSparks, 0)
           return {
             missions: updatedMissions,
             completedMissionIds: [
               ...s.completedMissionIds,
               ...newlyCompleted.map((m) => m.id),
             ],
-            sparks: s.sparks + sparkRewards,
           }
         }),
 
