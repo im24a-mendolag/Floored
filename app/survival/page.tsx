@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { FloorPanel } from '@/components/floor-panel'
@@ -10,6 +10,7 @@ import { FloorCompleteModal } from '@/components/survival/floor-complete-modal'
 import { SurvivalDefeatModal } from '@/components/survival/survival-defeat-modal'
 import { MissionPanel } from '@/components/survival/mission-panel'
 import { SurvivalShop } from '@/components/survival/survival-shop'
+import { DifficultyDialog } from '@/components/difficulty-dialog'
 import { Button } from '@/components/ui/button'
 import { calcShopPrice } from '@/lib/survival/balance'
 import { getLobbyTicketCount, LOBBY_REROLL_TICKET } from '@/lib/survival/lobby-ticket'
@@ -25,12 +26,20 @@ export default function SurvivalPage() {
   const inventory = useSurvivalStore((s) => s.inventory)
   const purchaseLobbyRerollTicket = useSurvivalStore((s) => s.purchaseLobbyRerollTicket)
 
-  useEffect(() => {
-    if (!runActive && !lastRun) router.replace('/')
-  }, [runActive, lastRun, router])
+  const [difficultyOpen, setDifficultyOpen] = useState(!runActive)
+
+  function handleDifficultyClose() {
+    setDifficultyOpen(false)
+    if (!useSurvivalStore.getState().runActive) router.replace('/')
+  }
 
   if (!runActive) {
-    return lastRun ? <RunSummary lastRun={lastRun} /> : null
+    return (
+      <>
+        <DifficultyDialog open={difficultyOpen} onClose={handleDifficultyClose} />
+        {lastRun && <RunSummary lastRun={lastRun} />}
+      </>
+    )
   }
 
   const ticketCount = getLobbyTicketCount(inventory)

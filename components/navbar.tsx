@@ -53,7 +53,7 @@ export function Navbar() {
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [menuOpen])
 
-  const survivalDesktop = runActive ? (
+  const survivalDesktop = (
     <Link
       href="/survival"
       className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -64,28 +64,14 @@ export function Navbar() {
     >
       Survival
     </Link>
-  ) : (
-    <Link
-      href="/"
-      className="px-4 py-2 rounded-lg text-sm font-semibold text-white/60 hover:text-white hover:bg-white/8 transition-colors"
-    >
-      Survival
-    </Link>
   )
 
-  const survivalMobile = runActive ? (
+  const survivalMobile = (
     <Link
       href="/survival"
       className={`flex-1 text-center py-1.5 rounded-lg text-sm font-medium transition-colors ${
         inSurvival ? 'bg-amber-900/40 text-amber-300' : 'text-white/50 hover:text-white/80'
       }`}
-    >
-      Survival
-    </Link>
-  ) : (
-    <Link
-      href="/"
-      className="flex-1 text-center py-1.5 rounded-lg text-sm font-medium text-white/50 hover:text-white/80 transition-colors"
     >
       Survival
     </Link>
