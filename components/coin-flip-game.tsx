@@ -351,9 +351,6 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
             )}
           </div>
 
-          {minBet > 1 && isBetting && !isFlipping && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>

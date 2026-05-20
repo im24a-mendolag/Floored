@@ -485,9 +485,6 @@ export function RunDiceGame({ mode, bankroll, config, onBet, onResolve }: RunDic
                 <button type="button" onClick={handleNextRoll} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
               </div>
             )}
-            {minBet > 1 && isBetting && (
-              <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-            )}
           </div>
         </div>
       </div>

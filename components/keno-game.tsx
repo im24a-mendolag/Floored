@@ -388,9 +388,6 @@ export function KenoGame({ mode, bankroll, onBet, onResolve }: KenoGameProps) {
             </div>
           </div>
 
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>

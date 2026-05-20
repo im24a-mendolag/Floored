@@ -270,9 +270,6 @@ export function PlinkoGame({ mode, bankroll, onBet, onResolve }: PlinkoGameProps
             )}
           </div>
 
-          {minBet > 1 && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>

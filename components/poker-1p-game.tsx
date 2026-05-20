@@ -348,9 +348,6 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
             </div>
           </div>
 
-          {minBet > 1 && isBetting && (
-            <p className="text-center text-zinc-600 text-sm">Min bet: {formatChips(minBet)}</p>
-          )}
         </div>
       </div>
     </div>

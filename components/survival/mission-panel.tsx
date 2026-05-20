@@ -42,7 +42,8 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
   const ticketCount = getLobbyTicketCount(inventory)
 
   const activeMissions = missions.filter((m) => !m.completed && !m.failed)
-  const settledMissions = missions.filter((m) => m.completed || m.failed)
+  const completedMissions = missions.filter((m) => m.completed)
+  const failedMissions = missions.filter((m) => m.failed && !m.completed)
 
   function renderMission(m: FloorMission, idx?: number) {
     const pct = m.target > 0 ? Math.min(100, (m.progress / m.target) * 100) : 0
@@ -61,18 +62,23 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
         }`}
       >
         <div className="flex items-start justify-between gap-2">
-          <span
-            className={`leading-snug ${compact ? 'text-[11px]' : 'text-xs'} ${
-              m.completed
-                ? 'text-emerald-400 line-through'
-                : failed
-                  ? 'text-red-400 line-through'
-                  : 'text-zinc-300'
-            }`}
-          >
-            {missionLabel(m)}
-            {failed && !m.completed ? ' — failed' : ''}
-          </span>
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span
+              className={`leading-snug ${compact ? 'text-[11px]' : 'text-xs'} ${
+                m.completed
+                  ? 'text-emerald-400 line-through'
+                  : failed
+                    ? 'text-red-400 line-through'
+                    : 'text-zinc-300'
+              }`}
+            >
+              {missionLabel(m)}
+              {failed && !m.completed ? ' — failed' : ''}
+            </span>
+            <span className={`font-semibold text-emerald-400 ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
+              +{m.rewardSparks} ✦
+            </span>
+          </div>
           <div className="flex h-7 w-7 items-center justify-center">
             {!compact && canRerollThis && ticketCount > 0 && idx != null ? (
               <button
@@ -141,16 +147,25 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
           </ul>
         )}
 
-        {settledMissions.length > 0 && (
+        {completedMissions.length > 0 && (
           <ul className="flex flex-col gap-2 shrink-0">
-            {activeMissions.length > 0 && (
-              <li className="list-none">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-600 px-0.5 pt-1">
-                  Done
-                </p>
-              </li>
-            )}
-            {settledMissions.map((m, i) => renderMission(m, i))}
+            <li className="list-none">
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-emerald-600 px-0.5 pt-1">
+                Done
+              </p>
+            </li>
+            {completedMissions.map((m, i) => renderMission(m, i))}
+          </ul>
+        )}
+
+        {failedMissions.length > 0 && (
+          <ul className="flex flex-col gap-2 shrink-0">
+            <li className="list-none">
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-red-700 px-0.5 pt-1">
+                Failed
+              </p>
+            </li>
+            {failedMissions.map((m, i) => renderMission(m, i))}
           </ul>
         )}
       </div>
