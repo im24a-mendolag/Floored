@@ -13,8 +13,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockSettledActions,
+  GameDockGameOverButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
@@ -34,6 +37,8 @@ import {
   loseGame,
   loseHit,
   loseStand,
+  commitPreviewBlackjack,
+  previewBlackjackDeal,
   startBlackjackRound,
   standBlackjack,
   winDouble,
@@ -163,7 +168,7 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
   const { cursed } = useCurse()
   const { blessed } = useBless()
   const minBet = mode === 'survival' ? floorMinBet : 1
-  const { peekDealer } = useSurvivalPerks('blackjack')
+  const { peekDealer, peekDealerLevel } = useSurvivalPerks('blackjack')
   const showDealerHole = mode === 'survival' && peekDealer
 
   const [round, setRound] = useState<BlackjackState>(initBlackjack())
@@ -174,50 +179,99 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
   const [dealerDisplayHand, setDealerDisplayHand] = useState<BlackjackCard[] | null>(null)
   const [settling, setSettling] = useState(false)
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([])
+  const [bettingPreview, setBettingPreview] = useState<BlackjackState | null>(null)
   const cancelDealerAnim = useRef<(() => void) | null>(null)
-
-  const displayedDealerHand = dealerDisplayHand ?? round.dealerHand
 
   // Delayed hand lengths — scores only appear after deal animation completes (~300ms)
   const [playerVisibleLen, setPlayerVisibleLen] = useState(0)
   const [dealerVisibleLen, setDealerVisibleLen] = useState(0)
 
   useEffect(() => {
+    if (
+      mode === 'survival' &&
+      peekDealerLevel >= 2 &&
+      round.stage === 'betting' &&
+      !bettingPreview
+    ) {
+      setBettingPreview(previewBlackjackDeal())
+    }
+  }, [mode, peekDealerLevel, round.stage, bettingPreview])
+
+  useEffect(() => {
     const t = setTimeout(() => setPlayerVisibleLen(round.playerHand.length), 300)
     return () => clearTimeout(t)
   }, [round.playerHand.length])
+
+  const isBetting     = round.stage === 'betting'
+  const isInProgress  = round.stage === 'inProgress'
+  const playerCanAct  = isInProgress && !settling
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, {
+    idle: isBetting || (round.stage === 'settled' && pendingResult != null),
+  })
+  const previewDealerHand =
+    isBetting && mode === 'survival' && peekDealerLevel >= 2 && bettingPreview
+      ? bettingPreview.dealerHand
+      : null
+  const displayedDealerHand = dealerDisplayHand ?? previewDealerHand ?? round.dealerHand
 
   useEffect(() => {
     const len = displayedDealerHand.length
     const t = setTimeout(() => setDealerVisibleLen(len), 300)
     return () => clearTimeout(t)
   }, [displayedDealerHand.length])
-
-  const isBetting     = round.stage === 'betting'
-  const isInProgress  = round.stage === 'inProgress'
-  const playerCanAct  = isInProgress && !settling
-  const canDouble     = round.canDouble && round.betAmount * 2 <= bankroll
+  const canDouble =
+    round.canDouble &&
+    round.betAmount * 2 <= bankroll &&
+    (round.playerHand.length === 2 || (mode === 'survival' && peekDealerLevel >= 4))
   const canDeal      = currentBet >= minBet && currentBet <= bankroll
 
   function addChip(value: number) {
     setCurrentBet((prev) => Math.min(prev + value, bankroll))
   }
 
+  function applyHoleCardPerks(state: BlackjackState): BlackjackState {
+    if (mode !== 'survival' || peekDealerLevel <= 0 || state.stage !== 'settled' || !state.outcome) {
+      return state
+    }
+    if (
+      peekDealerLevel >= 3 &&
+      state.dealerBlackjack &&
+      !state.playerBlackjack &&
+      state.outcome === 'loss'
+    ) {
+      return {
+        ...state,
+        outcome: 'push',
+        payoutMultiplier: 1,
+        message: 'Dealer blackjack — bet refunded.',
+      }
+    }
+    if (peekDealerLevel >= 5 && state.playerBlackjack && state.outcome === 'win') {
+      return {
+        ...state,
+        payoutMultiplier: 3,
+        message: 'Blackjack! Pays 3×.',
+      }
+    }
+    return state
+  }
+
   function settleRound(state: BlackjackState, resultDelay = RESULT_DELAY) {
-    setRound(state)
-    if (state.stage === 'settled' && state.outcome) {
-      const payout = Math.round(state.betAmount * state.payoutMultiplier)
+    const adjusted = applyHoleCardPerks(state)
+    setRound(adjusted)
+    if (adjusted.stage === 'settled' && adjusted.outcome) {
+      const payout = Math.round(adjusted.betAmount * adjusted.payoutMultiplier)
       const resolved = resolveGame(onResolve, {
-        outcome: state.outcome,
-        betAmount: state.betAmount,
+        outcome: adjusted.outcome,
+        betAmount: adjusted.betAmount,
         payout,
-        multiplier: state.payoutMultiplier,
+        multiplier: adjusted.payoutMultiplier,
       })
-      const o = state.outcome!
+      const o = adjusted.outcome!
       const resultKind =
-        o === 'push' ? 'Push' : o === 'loss' ? 'Loss' : state.payoutMultiplier >= 2.5 ? 'Blackjack' : 'Win'
+        o === 'push' ? 'Push' : o === 'loss' ? 'Loss' : adjusted.payoutMultiplier >= 2.5 ? 'Blackjack' : 'Win'
       const built = buildPendingResult(
-        { outcome: o, betAmount: state.betAmount, payout: resolved.payout },
+        { outcome: o, betAmount: adjusted.betAmount, payout: resolved.payout },
         { result: resultKind },
         { freeBet: resolved.firstBetWasFree },
       )
@@ -253,7 +307,15 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
     onBet?.(currentBet)
     setQuoteIdx((prev) => pickQuote(prev))
     setLastBet(currentBet)
-    settleRound(blessed ? winGame(currentBet) : cursed ? loseGame(currentBet) : startBlackjackRound(currentBet))
+    const started = blessed
+      ? winGame(currentBet)
+      : cursed
+        ? loseGame(currentBet)
+        : mode === 'survival' && peekDealerLevel >= 2 && bettingPreview
+          ? commitPreviewBlackjack(bettingPreview, currentBet)
+          : startBlackjackRound(currentBet)
+    setBettingPreview(null)
+    settleRound(started)
     setCurrentBet(0)
   }
 
@@ -285,7 +347,13 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
   function handleDouble() {
     if (!canDouble) return
     onBet?.(round.betAmount)
-    const finalState = blessed ? winDouble(round) : cursed ? loseDouble(round) : doubleDownBlackjack(round)
+    const finalState = blessed
+      ? winDouble(round)
+      : cursed
+        ? loseDouble(round)
+        : doubleDownBlackjack(round, {
+            allowMultiCard: mode === 'survival' && peekDealerLevel >= 4,
+          })
     const playerBusted = calculateHandValue(finalState.playerHand) > 21
 
     // Keep stage 'inProgress' so the dealer hole card stays hidden while the
@@ -320,6 +388,9 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
     cancelDealerAnim.current = null
     setDealerDisplayHand(null)
     setRound(initBlackjack())
+    setBettingPreview(
+      mode === 'survival' && peekDealerLevel >= 2 ? previewBlackjackDeal() : null,
+    )
     setCurrentBet(autoReBet ? Math.min(lastBet, bankroll) : 0)
     setSettling(false)
     setPlayerVisibleLen(0)
@@ -332,8 +403,8 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
       setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
       setPendingResult(null)
     }
+    if (!survivalAfterNext(mode)) return
     handleNewHand()
-    survivalAfterNext(mode)
   }
 
   return (
@@ -351,8 +422,8 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
         gameLabel="Blackjack"
       >
 
-        <GameDockBackButton mode={mode} visible={isBetting} />
-        {showDealerHole && isInProgress && (
+        <GameDockBackButton mode={mode} visible={isBetting && !showGameOver} />
+        {showDealerHole && (isInProgress || (isBetting && peekDealerLevel >= 2 && bettingPreview)) && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">Hole card visible</PerkHint>
         )}
         <GameCurrentBetBadge betAmount={round.betAmount} visible={!isBetting && round.betAmount > 0} />
@@ -376,7 +447,11 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
                 <CardFace
                   key={`d-${i}`}
                   card={card}
-                  hidden={i === 1 && isInProgress && !showDealerHole}
+                  hidden={
+                    i === 1 &&
+                    !showDealerHole &&
+                    (isInProgress || (isBetting && peekDealerLevel < 2))
+                  }
                   animDelay={i * 100}
                 />
               ))
@@ -467,14 +542,18 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
 
           <div className={`${GAME_DOCK_ACTIONS} min-h-[2.75rem] justify-center`}>
             {isBetting && (
-              <button
-                type="button"
-                onClick={handleDeal}
-                disabled={!canDeal}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                Deal →
-              </button>
+              showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleDeal}
+                  disabled={!canDeal}
+                  className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+                >
+                  Deal →
+                </button>
+              )
             )}
             {!isBetting && playerCanAct && (
               <div className="flex flex-wrap justify-center gap-2.5">
@@ -484,10 +563,12 @@ export function BlackjackGame({ mode, bankroll, onBet, onResolve }: BlackjackGam
               </div>
             )}
             {round.stage === 'settled' && pendingResult && (
-              <div className="flex justify-center gap-2">
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
-                <button type="button" onClick={handleNextHand} className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg">Next →</button>
-              </div>
+              <GameDockSettledActions
+                mode={mode}
+                showGameOver={showGameOver}
+                onGameOver={handleGameOver}
+                onNext={handleNextHand}
+              />
             )}
           </div>
 

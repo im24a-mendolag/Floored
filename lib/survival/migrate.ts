@@ -1,6 +1,9 @@
 import type { Difficulty, PurchasedUpgrade } from '@/store/types'
-import { SURVIVAL_GAME_POOL, calcQuotaTarget, FLOOR_DURATION_MS } from './balance'
+import { SURVIVAL_GAME_POOL, calcQuotaTarget } from './balance'
 import { generateFloor } from './floor-generator'
+import { missionOfferedKeysFromMissions } from './missions'
+import { lobbyGamesOfferedFromFloor } from './lobby-ticket'
+import { offeredIdsFromSlots, rollInitialShopOffers } from './shop-offers'
 import { getCatalogItem, normalizeUpgradeId } from './upgrades-catalog'
 
 function migratePurchasedUpgradeIds(raw: unknown): PurchasedUpgrade[] {
@@ -32,7 +35,7 @@ function migratePurchasedUpgradeIds(raw: unknown): PurchasedUpgrade[] {
  * Zustand persist migration callback for the floored-survival key.
  */
 export function migratePersistedState(raw: unknown, fromVersion: number): unknown {
-  if (fromVersion >= 4) return raw
+  if (fromVersion >= 5) return raw
 
   const s =
     raw != null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -85,10 +88,29 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
       shopRerollCount: typeof s.shopRerollCount === 'number' ? s.shopRerollCount : 0,
       missionRerollCount: typeof s.missionRerollCount === 'number' ? s.missionRerollCount : 0,
       lobbyRerollCount: typeof s.lobbyRerollCount === 'number' ? s.lobbyRerollCount : 0,
-      shopOfferTicketRerolls:
-        Array.isArray(s.shopOfferTicketRerolls) && s.shopOfferTicketRerolls.length > 0
-          ? s.shopOfferTicketRerolls
-          : [0, 0, 0],
+      shopSlotItemIds:
+        Array.isArray(s.shopSlotItemIds) && s.shopSlotItemIds.length > 0
+          ? s.shopSlotItemIds
+          : [null, null, null, null],
+      shopOfferedIds:
+        s.shopOfferedIds != null &&
+        typeof s.shopOfferedIds === 'object' &&
+        Array.isArray((s.shopOfferedIds as { game?: unknown }).game)
+          ? (s.shopOfferedIds as { game: string[]; run: string[]; active: string[] })
+          : { game: [], run: [], active: [] },
+      shopTicketRollSeq: typeof s.shopTicketRollSeq === 'number' ? s.shopTicketRollSeq : 0,
+      missionOfferedKeys:
+        Array.isArray((s as { missionOfferedKeys?: unknown }).missionOfferedKeys)
+          ? ((s as { missionOfferedKeys: string[] }).missionOfferedKeys)
+          : [],
+      missionTicketRerolledSlots: Array.isArray(
+        (s as { missionTicketRerolledSlots?: unknown }).missionTicketRerolledSlots,
+      )
+        ? ((s as { missionTicketRerolledSlots: number[] }).missionTicketRerolledSlots)
+        : [],
+      lobbyGamesOffered: Array.isArray((s as { lobbyGamesOffered?: unknown }).lobbyGamesOffered)
+        ? ((s as { lobbyGamesOffered: import('@/store/types').GameName[] }).lobbyGamesOffered)
+        : [],
       runDefeated: typeof s.runDefeated === 'boolean' ? s.runDefeated : false,
       defeatReason:
         s.defeatReason === 'bust' || s.defeatReason === 'quota' ? s.defeatReason : null,
@@ -98,20 +120,75 @@ export function migratePersistedState(raw: unknown, fromVersion: number): unknow
           : null,
       endlessMode: typeof s.endlessMode === 'boolean' ? s.endlessMode : false,
       quotaMet: typeof s.quotaMet === 'boolean' ? s.quotaMet : bankroll >= quotaTargetVal,
-      floorTimeRemainingMs: hadStaleQuotaComplete
-        ? FLOOR_DURATION_MS
-        : typeof s.floorTimeRemainingMs === 'number'
-          ? s.floorTimeRemainingMs
-          : FLOOR_DURATION_MS,
-      floorTimerPaused: typeof s.floorTimerPaused === 'boolean' ? s.floorTimerPaused : false,
-      floorTimerSyncedAt:
-        typeof s.floorTimerSyncedAt === 'number' ? s.floorTimerSyncedAt : Date.now(),
+      floorBetsPlaced: 0,
     }
   }
 
+  const runActive = base.runActive === true
+  const runSeed = typeof base.runSeed === 'string' ? base.runSeed : null
+  const floor = typeof base.currentFloor === 'number' ? base.currentFloor : 1
+  const floorGames = Array.isArray(base.floorGames) ? (base.floorGames as string[]) : []
+  const purchasedUpgrades = migratePurchasedUpgradeIds(base.purchasedUpgrades)
+  const shopRerollCount = typeof base.shopRerollCount === 'number' ? base.shopRerollCount : 0
+
+  let shopSlotItemIds: (string | null)[] =
+    Array.isArray(base.shopSlotItemIds) && base.shopSlotItemIds.length > 0
+      ? (base.shopSlotItemIds as (string | null)[])
+      : [null, null, null, null]
+
+  if (
+    runActive &&
+    runSeed &&
+    floorGames.length > 0 &&
+    shopSlotItemIds.every((id) => id == null)
+  ) {
+    const rolled = rollInitialShopOffers({
+      runSeed,
+      floor,
+      rerollCount: shopRerollCount,
+      floorGames: floorGames as import('@/store/types').GameName[],
+      ownedUpgradeIds: purchasedUpgrades.map((u) => u.id),
+    })
+    shopSlotItemIds = rolled.slotItemIds
+  }
+
+  let shopOfferedIds =
+    base.shopOfferedIds != null &&
+    typeof base.shopOfferedIds === 'object' &&
+    Array.isArray((base.shopOfferedIds as { game?: unknown }).game)
+      ? (base.shopOfferedIds as { game: string[]; run: string[]; active: string[] })
+      : offeredIdsFromSlots(shopSlotItemIds)
+
+  const missions = Array.isArray(base.missions) ? (base.missions as import('@/store/types').FloorMission[]) : []
+  const floorGamesArr = Array.isArray(base.floorGames)
+    ? (base.floorGames as import('@/store/types').GameName[])
+    : []
+
+  const missionOfferedKeys =
+    Array.isArray(base.missionOfferedKeys) && base.missionOfferedKeys.length > 0
+      ? (base.missionOfferedKeys as string[])
+      : missionOfferedKeysFromMissions(missions)
+
+  const lobbyGamesOffered =
+    Array.isArray(base.lobbyGamesOffered) && base.lobbyGamesOffered.length > 0
+      ? (base.lobbyGamesOffered as import('@/store/types').GameName[])
+      : lobbyGamesOfferedFromFloor(floorGamesArr)
+
+  const { shopOfferTicketRerolls: _t, shopOfferOverrides: _o, shopOfferSeenIds: _s, ...rest } =
+    base
+
   return {
-    ...base,
-    version: 4,
-    purchasedUpgrades: migratePurchasedUpgradeIds(base.purchasedUpgrades),
+    ...rest,
+    version: 5,
+    purchasedUpgrades,
+    shopSlotItemIds,
+    shopOfferedIds,
+    shopTicketRollSeq: typeof base.shopTicketRollSeq === 'number' ? base.shopTicketRollSeq : 0,
+    missionOfferedKeys,
+    missionTicketRerolledSlots: Array.isArray(base.missionTicketRerolledSlots)
+      ? (base.missionTicketRerolledSlots as number[])
+      : [],
+    lobbyGamesOffered,
+    floorBetsPlaced: typeof base.floorBetsPlaced === 'number' ? base.floorBetsPlaced : 0,
   }
 }

@@ -13,8 +13,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockGameOverButton,
+  GameDockLeaveButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
@@ -148,6 +151,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
   const isBetting = state.stage === 'betting'
   const isSelecting = state.stage === 'selecting'
   const isSettled = state.stage === 'settled'
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, { idle: isBetting || isSettled })
   const canDeal = currentBet >= minBet && currentBet <= bankroll
   const showQuoteUntilNext = !isBetting && !isSettled
   const potentialWinnings =
@@ -207,9 +211,9 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
     unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     setState(initPoker())
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
-    survivalAfterNext(mode)
   }, [pendingResult, autoReBet, lastBet, bankroll, mode])
 
   const heldCount = state.held.filter(Boolean).length
@@ -227,7 +231,7 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
         entries={matchHistory}
         gameLabel="1 Player Poker"
       >
-        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameDockBackButton mode={mode} visible={isBetting && !showGameOver} />
         {mode === 'survival' && holdProc.perkActive && isSelecting && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             Hold Harmony — draw favors held ranks
@@ -329,22 +333,26 @@ export function Poker1pGame({ mode, bankroll, onBet, onResolve }: Poker1pGamePro
 
           <div className={GAME_DOCK_ACTIONS}>
             <div className="flex justify-center gap-2">
-              {isSettled && (
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              {showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <>
+                  {isSettled && <GameDockLeaveButton mode={mode} />}
+                  <button
+                    type="button"
+                    onClick={isSettled ? handleNext : isSelecting ? handleDraw : handleDeal}
+                    disabled={isBetting && !canDeal}
+                    className={[
+                      'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                      isSettled && state.outcome === 'win'
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-zinc-800 disabled:text-zinc-600'
+                        : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
+                    ].join(' ')}
+                  >
+                    {isSettled ? 'Next →' : isSelecting ? 'Draw →' : 'Deal →'}
+                  </button>
+                </>
               )}
-              <button
-                type="button"
-                onClick={isSettled ? handleNext : isSelecting ? handleDraw : handleDeal}
-                disabled={isBetting && !canDeal}
-                className={[
-                  'min-w-[10.5rem] px-7 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
-                  isSettled && state.outcome === 'win'
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-zinc-800 disabled:text-zinc-600'
-                    : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
-                ].join(' ')}
-              >
-                {isSettled ? 'Next →' : isSelecting ? 'Draw →' : 'Deal →'}
-              </button>
             </div>
           </div>
 

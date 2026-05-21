@@ -142,8 +142,10 @@ export interface SurvivalStore {
   /** Historical record of completed floors. */
   floorHistory: FloorRecord[]
 
-  /** True after the floor timer expires with quota met — advance / victory flow. */
+  /** True after all bets are used with quota met, or player chose to finish early. */
   floorComplete: boolean
+  /** How the floor was completed: 'early' = player chose, 'bet-limit' = all bets used. */
+  floorCompleteReason: 'early' | 'bet-limit' | null
   /** Pending defeat — shown after the player clicks Next in the current game. */
   pendingDefeatReason: DefeatReason | null
   /** True once defeat overlay is active. */
@@ -151,21 +153,32 @@ export interface SurvivalStore {
   defeatReason: DefeatReason | null
   /** True once bankroll reaches quotaTarget (does not end the floor). */
   quotaMet: boolean
-  /** Milliseconds left on the current floor timer. */
-  floorTimeRemainingMs: number
-  floorTimerPaused: boolean
-  /** Epoch ms when floorTimeRemainingMs was last synced. */
-  floorTimerSyncedAt: number
+  /** Number of bets placed this floor (floor ends at FLOOR_BET_LIMIT). */
+  floorBetsPlaced: number
   /** Opening Ticket — free first bet per floor consumed. */
   firstBetInsuranceUsed: boolean
   /** Rerolls used on shop offers this floor (escalating spark cost). */
   shopRerollCount: number
+  /** Purchases made in the shop this floor — used to vary the offer seed so replacement items are random. */
+  shopPurchaseCount: number
+  /** Slot indices purchased from the shop this floor — purchased slots show an "already bought" placeholder until next floor. */
+  shopPurchasedSlotIndices: number[]
   /** Rerolls used on floor missions this floor (escalating spark cost). */
   missionRerollCount: number
   /** Lobby slot rerolls used this floor (seed variance). */
   lobbyRerollCount: number
-  /** Per shop-offer slot rerolls via lobby ticket this floor. */
-  shopOfferTicketRerolls: number[]
+  /** Catalog item id per shop slot [game0, game1, run, active]. */
+  shopSlotItemIds: (string | null)[]
+  /** Item ids already offered this floor per pool (game / run / active). */
+  shopOfferedIds: { game: string[]; run: string[]; active: string[] }
+  /** Increments on each lobby-ticket reroll this floor (RNG salt). */
+  shopTicketRollSeq: number
+  /** Mission offer keys already shown this floor (type:target:game). */
+  missionOfferedKeys: string[]
+  /** Mission slot indices that already used a lobby ticket reroll. */
+  missionTicketRerolledSlots: number[]
+  /** Lobby games already on this floor (initial lineup + any reroll; each once per floor). */
+  lobbyGamesOffered: GameName[]
   /** Player chose to continue past floor 10. */
   endlessMode: boolean
   /** Player is cursed — all games are rigged to lose. */
@@ -180,10 +193,6 @@ export interface SurvivalStore {
   advanceFloor: () => void
   continueToEndless: () => void
   dismissFloorComplete: () => void
-  syncFloorTimer: () => number
-  resyncFloorTimer: () => void
-  toggleFloorTimerPause: () => void
-  completeFloorFromTimer: () => void
   finishQuotaEarly: () => void
   queueDefeat: (reason: DefeatReason) => void
   confirmPendingDefeat: () => void
@@ -192,7 +201,7 @@ export interface SurvivalStore {
   clearLastRun: () => void
   setMissions: (missions: FloorMission[]) => void
   applyMissionResults: (updatedMissions: FloorMission[]) => void
-  purchaseUpgrade: (id: string, price: number) => boolean
+  purchaseUpgrade: (id: string, price: number, slotIndex: number) => boolean
   purchaseLobbyRerollTicket: () => boolean
   rerollLobbyGame: (slotIndex: number) => boolean
   rerollShopOfferWithTicket: (slotIndex: number) => boolean
@@ -203,7 +212,10 @@ export interface SurvivalStore {
   rerollMission: (index: number) => boolean
   appendFloorHistory: (record: FloorRecord) => void
   recordResult: (result: GameResult) => void
-  recordResultPayout: (result: GameResult) => void
+  recordResultPayout: (
+    result: GameResult,
+    options?: { settleFloorBet?: boolean; bankrollDelta?: number },
+  ) => void
   deductBet: (amount: number) => void
   setCursed: (val: boolean) => void
   setBlessed: (val: boolean) => void

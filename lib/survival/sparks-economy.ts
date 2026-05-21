@@ -1,5 +1,5 @@
 import type { Difficulty } from '@/store/types'
-import { sparkFloorMult } from './balance'
+import { OVER_QUOTA_SPARK_MAX, sparkFloorMult } from './balance'
 
 export interface FloorSparksInput {
   floor: number
@@ -16,6 +16,9 @@ export function calcFloorSparksEarned(input: FloorSparksInput): number {
   if (input.bankroll < input.quotaTarget) return base
 
   const overQuota = input.bankroll - input.quotaTarget
-  const overBonus = Math.min(5, Math.floor(overQuota / 500))
+  const overBonus = Math.min(
+    OVER_QUOTA_SPARK_MAX,
+    Math.floor(overQuota / (input.quotaTarget * 0.01)),
+  )
   return base + overBonus
 }

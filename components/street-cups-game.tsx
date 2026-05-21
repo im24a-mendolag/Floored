@@ -13,8 +13,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockGameOverButton,
+  GameDockLeaveButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
@@ -224,6 +227,9 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
   const isShuffling = round.stage === 'shuffling'
   const isPicking   = round.stage === 'picking'
   const isSettled   = round.stage === 'settled'
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, {
+    idle: !isPicking && !isRevealing && !isShuffling && (isBetting || (isSettled && showNext)),
+  })
 
   const canStart = currentBet >= minBet && currentBet <= bankroll
   const showQuoteUntilNext = !isBetting && !isSettled
@@ -360,6 +366,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     clearTimers()
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     setShowNext(false)
     setLiftedSlots(new Set())
     setCupSlots([0, 1, 2])
@@ -368,7 +375,6 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
     setRound(initStreetCups())
     setEliminatedCupId(null)
     if (autoReBet && lastBet >= minBet && lastBet <= bankroll) setCurrentBet(lastBet)
-    survivalAfterNext(mode)
   }
 
   /* Button label / state logic */
@@ -411,7 +417,7 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
         entries={matchHistory}
         gameLabel="Street Cups"
       >
-        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameDockBackButton mode={mode} visible={isBetting && !showGameOver} />
         {isPicking && eliminatedCupId !== null && cupsProc.perkActive && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             One wrong cup eliminated
@@ -486,17 +492,21 @@ export function StreetCupsGame({ mode, bankroll, onBet, onResolve }: StreetCupsG
 
           <div className={GAME_DOCK_ACTIONS}>
             <div className="flex justify-center gap-2">
-              {isSettled && showNext && (
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              {showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <>
+                  {isSettled && showNext && <GameDockLeaveButton mode={mode} />}
+                  <button
+                    type="button"
+                    onClick={isSettled && showNext ? handleNext : handleStart}
+                    disabled={actionDisabled}
+                    className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+                  >
+                    {actionLabel}
+                  </button>
+                </>
               )}
-              <button
-                type="button"
-                onClick={isSettled && showNext ? handleNext : handleStart}
-                disabled={actionDisabled}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                {actionLabel}
-              </button>
             </div>
           </div>
 

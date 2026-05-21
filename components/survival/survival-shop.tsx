@@ -1,12 +1,18 @@
-﻿'use client'
+'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useSurvivalStore } from '@/store/survival-store'
 import { Button } from '@/components/ui/button'
 import {
-  generateShopOffersWithTicketRerolls,
-  buildShopPool,
-  SHOP_GAME_OFFER_COUNT,
+  slotIdsToOffers,
+  getShopPools,
+  canRerollShopSlot,
+  canRerollShopKind,
+  shopPoolKindForSlot,
+  SHOP_SLOT_GAME_0,
+  SHOP_SLOT_GAME_1,
+  SHOP_SLOT_RUN,
+  SHOP_SLOT_ACTIVE,
   type ShopOffer,
 } from '@/lib/survival/shop-offers'
 import { getLobbyTicketCount, LOBBY_REROLL_TICKET_ID } from '@/lib/survival/lobby-ticket'
@@ -20,21 +26,23 @@ import type { GameName } from '@/store/types'
 import { formatChips } from '@/utils/format'
 import { SurvivalSidebarPanel, SurvivalSidebarRow } from '@/components/survival/survival-sidebar-panel'
 
+const CARD_HEIGHT = 'min-h-[12rem]'
+
 interface SurvivalShopProps {
   /** Hide title when embedded in floor-complete modal */
   embedded?: boolean
 }
 
 export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
-  const runSeed = useSurvivalStore((s) => s.runSeed)
-  const currentFloor = useSurvivalStore((s) => s.currentFloor)
   const difficulty = useSurvivalStore((s) => s.difficulty)
   const floorGames = useSurvivalStore((s) => s.floorGames)
   const sparks = useSurvivalStore((s) => s.sparks)
   const purchasedUpgrades = useSurvivalStore((s) => s.purchasedUpgrades)
   const inventory = useSurvivalStore((s) => s.inventory)
   const shopRerollCount = useSurvivalStore((s) => s.shopRerollCount)
-  const shopOfferTicketRerolls = useSurvivalStore((s) => s.shopOfferTicketRerolls)
+  const shopPurchasedSlotIndices = useSurvivalStore((s) => s.shopPurchasedSlotIndices)
+  const shopSlotItemIds = useSurvivalStore((s) => s.shopSlotItemIds)
+  const shopOfferedIds = useSurvivalStore((s) => s.shopOfferedIds)
   const purchaseUpgrade = useSurvivalStore((s) => s.purchaseUpgrade)
   const rerollShopOfferWithTicket = useSurvivalStore((s) => s.rerollShopOfferWithTicket)
   const lobbyTicketCount = getLobbyTicketCount(inventory)
@@ -44,29 +52,33 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     [purchasedUpgrades],
   )
 
-  const offers = useMemo(() => {
-    if (!runSeed || !difficulty) return []
-    return generateShopOffersWithTicketRerolls({
-      runSeed,
-      floor: currentFloor,
-      difficulty,
-      floorGames,
-      rerollCount: shopRerollCount,
-      ownedUpgradeIds,
-      slotTicketRerolls: shopOfferTicketRerolls,
-    })
-  }, [
-    runSeed,
-    currentFloor,
-    difficulty,
-    floorGames,
-    shopRerollCount,
-    ownedUpgradeIds,
-    shopOfferTicketRerolls,
-  ])
+  const pools = useMemo(
+    () => (difficulty != null ? getShopPools(floorGames, ownedUpgradeIds) : null),
+    [difficulty, floorGames, ownedUpgradeIds],
+  )
 
-  const poolRemaining =
-    difficulty != null ? buildShopPool(floorGames, ownedUpgradeIds).length : 0
+  const offers = useMemo(() => {
+    if (!difficulty) return [] as (ShopOffer | null)[]
+    return slotIdsToOffers(shopSlotItemIds, difficulty)
+  }, [difficulty, shopSlotItemIds])
+
+  const kindCanReroll = useMemo(() => {
+    if (!pools) return { game: false, run: false, active: false }
+    return {
+      game: canRerollShopKind('game', shopSlotItemIds, pools, shopOfferedIds),
+      run: canRerollShopKind('run', shopSlotItemIds, pools, shopOfferedIds),
+      active: canRerollShopKind('active', shopSlotItemIds, pools, shopOfferedIds),
+    }
+  }, [pools, shopSlotItemIds, shopOfferedIds])
+
+  function showRerollButton(slotIndex: number): boolean {
+    if (lobbyTicketCount <= 0) return false
+    if (shopPurchasedSlotIndices.includes(slotIndex)) return false
+    if (!pools) return false
+    const kind = shopPoolKindForSlot(slotIndex)
+    if (!kindCanReroll[kind]) return false
+    return canRerollShopSlot(slotIndex, shopSlotItemIds, pools, shopOfferedIds)
+  }
 
   function isOwned(id: string, scope: string): boolean {
     if (scope === 'consumable') {
@@ -86,10 +98,18 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     return catalog?.level != null ? `Owned · Lv.${catalog.level}` : 'Owned'
   }
 
-  const runOffer = offers[SHOP_GAME_OFFER_COUNT] ?? null
-  const gameOffers: (ShopOffer | null)[] = Array.from({ length: SHOP_GAME_OFFER_COUNT }, (_, i) =>
-    offers[i] ?? null,
-  )
+  const runOffer = offers[SHOP_SLOT_RUN] ?? null
+  const activeOffer = offers[SHOP_SLOT_ACTIVE] ?? null
+  const gameOffers: (ShopOffer | null)[] = [
+    offers[SHOP_SLOT_GAME_0] ?? null,
+    offers[SHOP_SLOT_GAME_1] ?? null,
+  ]
+
+  const poolEmpty =
+    pools != null &&
+    pools.game.length === 0 &&
+    pools.run.length === 0 &&
+    pools.active.length === 0
 
   function renderOfferCard(offer: ShopOffer, slotIndex: number) {
     const { item, price } = offer
@@ -107,10 +127,10 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
 
     return (
       <div
-        key={`${item.id}-${slotIndex}`}
-        className="relative rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 flex flex-col gap-2"
+        key={`slot-${slotIndex}`}
+        className={`relative rounded-xl border border-zinc-800 bg-zinc-950/50 p-3 flex flex-col gap-2 ${CARD_HEIGHT}`}
       >
-        {lobbyTicketCount > 0 && (
+        {showRerollButton(slotIndex) && (
           <button
             type="button"
             title="Use a lobby reroll ticket on this offer"
@@ -135,13 +155,13 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
           </div>
           <span className="text-sm font-bold text-amber-400 tabular-nums shrink-0">✦ {price}</span>
         </div>
-        <p className="text-xs text-zinc-500 leading-snug">{item.description}</p>
+        <p className="text-xs text-zinc-500 leading-snug flex-1">{item.description}</p>
         <Button
           size="sm"
           variant={ownedText ? 'secondary' : 'default'}
           disabled={disabled}
           className="w-full mt-auto"
-          onClick={() => purchaseUpgrade(item.id, price)}
+          onClick={() => purchaseUpgrade(item.id, price, slotIndex)}
         >
           {ownedText ?? (canAfford ? 'Purchase' : 'Not enough sparks')}
         </Button>
@@ -149,11 +169,39 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     )
   }
 
-  function renderEmptyOfferSlot(label: string) {
+  function renderAlreadyBoughtSlot(label: string, slotIndex: number) {
     return (
       <div
-        key={label}
-        className="rounded-xl border border-dashed border-zinc-700/50 bg-zinc-950/20 p-3 flex flex-col gap-2 opacity-60 min-h-[8.5rem]"
+        key={`bought-${slotIndex}`}
+        className={`rounded-xl border border-zinc-800/40 bg-zinc-950/20 p-3 flex flex-col gap-2 ${CARD_HEIGHT} opacity-50`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5 text-zinc-600">
+              {label}
+            </p>
+            <p className="text-sm font-semibold text-zinc-600">Already Bought</p>
+          </div>
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 text-base text-zinc-600 shrink-0">
+            ✓
+          </span>
+        </div>
+        <p className="text-xs text-zinc-700 leading-snug flex-1">Refreshes next floor.</p>
+        <button
+          disabled
+          className="w-full mt-auto rounded-md bg-zinc-900 text-zinc-700 text-xs py-1.5 cursor-not-allowed"
+        >
+          Already Bought
+        </button>
+      </div>
+    )
+  }
+
+  function renderEmptyOfferSlot(label: string, slotIndex: number) {
+    return (
+      <div
+        key={`empty-${slotIndex}`}
+        className={`rounded-xl border border-dashed border-zinc-700/50 bg-zinc-950/20 p-3 flex flex-col gap-2 opacity-60 ${CARD_HEIGHT}`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -177,6 +225,12 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
     )
   }
 
+  function renderSlot(offer: ShopOffer | null, slotIndex: number, emptyLabel: string) {
+    if (shopPurchasedSlotIndices.includes(slotIndex)) return renderAlreadyBoughtSlot(emptyLabel, slotIndex)
+    if (!offer) return renderEmptyOfferSlot(emptyLabel, slotIndex)
+    return renderOfferCard(offer, slotIndex)
+  }
+
   return (
     <div className={`flex flex-col gap-3 ${embedded ? '' : 'rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4'}`}>
       {!embedded && (
@@ -189,44 +243,31 @@ export function SurvivalShop({ embedded = false }: SurvivalShopProps) {
       )}
 
       <p className="text-[10px] text-zinc-600 leading-snug">
-        Game upgrades match this floor&apos;s lobby only. Lobby reroll tickets work on ↻ here too, and on missions.
+        Shared pools per floor — each item or mission appears at most once. One ticket reroll per slot.
         {shopRerollCount > 0 && ` · Rerolled ${shopRerollCount}× this floor`}
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {runOffer
-          ? renderOfferCard(runOffer, SHOP_GAME_OFFER_COUNT)
-          : renderEmptyOfferSlot('Run upgrade')}
-
-        {/* Active item slot — coming soon */}
-        <div className="rounded-xl border border-dashed border-zinc-700/40 bg-zinc-950/30 p-3 flex flex-col gap-2 opacity-50 min-h-[8.5rem]">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5 text-orange-400/80">Active</p>
-              <p className="text-sm font-semibold text-zinc-500">Coming Soon</p>
-            </div>
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/80 text-lg text-zinc-600 shrink-0">
-              ∅
-            </span>
-          </div>
-          <p className="text-xs text-zinc-600 leading-snug flex-1">Active items with on-use effects.</p>
-          <button disabled className="w-full mt-auto rounded-md bg-zinc-800 text-zinc-600 text-xs py-1.5 cursor-not-allowed">
-            Locked
-          </button>
-        </div>
-
+        {renderSlot(runOffer, SHOP_SLOT_RUN, 'Run upgrade')}
+        {renderSlot(activeOffer, SHOP_SLOT_ACTIVE, 'Active item')}
         {gameOffers.map((offer, i) =>
-          offer ? renderOfferCard(offer, i) : renderEmptyOfferSlot(`Game upgrade ${i + 1}`),
+          renderSlot(offer, i === 0 ? SHOP_SLOT_GAME_0 : SHOP_SLOT_GAME_1, `Game upgrade ${i + 1}`),
         )}
       </div>
 
-      {offers.length === 0 && poolRemaining === 0 && (
+      {poolEmpty && (
         <p className="text-xs text-zinc-500 text-center py-2">
-          No shop items left for this floor — try next floor or reroll after purchases.
+          No shop items left for this floor — try next floor after more purchases.
         </p>
       )}
     </div>
   )
+}
+
+const RARITY_TONE: Record<string, string> = {
+  common: 'text-zinc-500',
+  rare: 'text-sky-400',
+  epic: 'text-fuchsia-400',
 }
 
 /** Compact list of owned run upgrades for game sidebar */
@@ -235,11 +276,11 @@ export function OwnedUpgradesList({
   currentGame,
 }: {
   compact?: boolean
-  /** When set, run-wide + this game's items show in a pinned Active section. */
   currentGame?: GameName
 }) {
   const purchasedUpgrades = useSurvivalStore((s) => s.purchasedUpgrades)
   const inventory = useSurvivalStore((s) => s.inventory)
+  const [hoveredItem, setHoveredItem] = useState<CatalogItem | null>(null)
 
   const ownedItems = purchasedUpgrades
     .map((u) => getCatalogItem(u.id))
@@ -258,22 +299,77 @@ export function OwnedUpgradesList({
     )
   }
 
+  function isRelevant(item: CatalogItem) {
+    return item.scope === 'run' || item.game === currentGame
+  }
+
   const sortedItems =
     currentGame != null
       ? [
-          ...ownedItems.filter((i) => i.scope === 'run' || i.game === currentGame),
-          ...ownedItems.filter((i) => i.scope !== 'run' && i.game !== currentGame),
+          ...ownedItems.filter(isRelevant),
+          ...ownedItems.filter((i) => !isRelevant(i)),
         ]
       : ownedItems
 
   return (
-    <SurvivalSidebarPanel compact={compact} title="Upgrades" count={totalCount}>
-      {sortedItems.map((item) => (
-        <SurvivalSidebarRow key={item.id} name={item.name} scope={catalogScopeLabel(item)} />
-      ))}
-      {consumables.map(({ id, count, item }) => (
-        <SurvivalSidebarRow key={id} name={`${item!.name} ×${count}`} scope="Ticket" />
-      ))}
-    </SurvivalSidebarPanel>
+    <div className="relative flex-1 flex flex-col min-h-0">
+      <SurvivalSidebarPanel compact={compact} title="Upgrades" count={totalCount}>
+        {sortedItems.map((item) => {
+          const relevant = currentGame != null && isRelevant(item)
+          return (
+            <div
+              key={item.id}
+              onMouseEnter={() => setHoveredItem(item)}
+              onMouseLeave={() => setHoveredItem(null)}
+              className={`flex flex-col gap-0.5 py-1 px-1.5 rounded-md cursor-default transition-colors ${
+                relevant
+                  ? 'bg-sky-950/50 border border-sky-900/40'
+                  : 'hover:bg-zinc-800/40 border border-transparent'
+              }`}
+            >
+              <p className={`text-[11px] leading-snug ${relevant ? 'text-sky-200' : 'text-zinc-300'}`}>
+                {item.name}
+              </p>
+              <p className={`text-[9px] uppercase tracking-wide leading-none ${relevant ? 'text-sky-500/70' : 'text-zinc-600'}`}>
+                {catalogScopeLabel(item)}
+              </p>
+            </div>
+          )
+        })}
+        {consumables.map(({ id, count, item }) => {
+          const ci = item!
+          return (
+            <div
+              key={id}
+              onMouseEnter={() => setHoveredItem(ci)}
+              onMouseLeave={() => setHoveredItem(null)}
+              className="flex flex-col gap-0.5 py-1 px-1.5 rounded-md cursor-default hover:bg-zinc-800/40 border border-transparent"
+            >
+              <p className="text-[11px] text-zinc-300 leading-snug">{ci.name} ×{count}</p>
+              <p className="text-[9px] text-zinc-600 uppercase tracking-wide leading-none">Consumable</p>
+            </div>
+          )
+        })}
+      </SurvivalSidebarPanel>
+
+      {hoveredItem && (
+        <div className="absolute left-full top-0 ml-2 z-50 w-56 rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl p-3 pointer-events-none flex flex-col gap-1">
+          <p className="text-xs font-semibold text-zinc-100 leading-snug">{hoveredItem.name}</p>
+          <div className="flex items-center gap-2">
+            {hoveredItem.rarity && (
+              <p className={`text-[9px] font-semibold uppercase tracking-wider ${RARITY_TONE[hoveredItem.rarity] ?? 'text-zinc-500'}`}>
+                {hoveredItem.rarity}
+              </p>
+            )}
+            {catalogScopeLabel(hoveredItem) && (
+              <p className="text-[9px] uppercase tracking-wider text-zinc-600">
+                {catalogScopeLabel(hoveredItem)}
+              </p>
+            )}
+          </div>
+          <p className="text-[11px] text-zinc-400 leading-snug mt-0.5">{hoveredItem.description}</p>
+        </div>
+      )}
+    </div>
   )
 }

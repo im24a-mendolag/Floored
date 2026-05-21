@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips } from '@/utils/format'
 import { useOpeningTicketActive } from '@/hooks/use-opening-ticket'
+import { FLOOR_BET_LIMIT } from '@/lib/survival/balance'
 import type { GameName } from '@/store/types'
 import { FloorCompleteModal } from '@/components/survival/floor-complete-modal'
 import { SurvivalDefeatModal } from '@/components/survival/survival-defeat-modal'
@@ -107,7 +108,7 @@ export function SurvivalGameWrapper({
   const floorStartBankroll = useSurvivalStore((s) => s.floorStartBankroll)
   const bankroll = useSurvivalStore((s) => s.bankroll)
   const floorGames = useSurvivalStore((s) => s.floorGames)
-  const sparks = useSurvivalStore((s) => s.sparks)
+  const floorBetsPlaced = useSurvivalStore((s) => s.floorBetsPlaced)
   const openingBetFree = useOpeningTicketActive()
   const endlessMode = useSurvivalStore((s) => s.endlessMode)
 
@@ -143,18 +144,26 @@ export function SurvivalGameWrapper({
         {/* Right sidebar — run info + missions + game switch */}
         <div className="hidden lg:flex flex-col gap-2 w-48 shrink-0 min-h-0">
           <div className="rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col gap-2 shrink-0">
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Floor</p>
-              <p className="text-2xl font-black leading-tight">
-                {currentFloor}
-                <span className="text-sm font-normal text-muted-foreground">
-                  {endlessMode ? ' ∞' : ' / 10'}
-                </span>
-              </p>
+            {/* Top row: Floor | Min Bet */}
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Floor</p>
+                <p className="text-2xl font-black leading-tight">
+                  {currentFloor}
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {endlessMode ? ' ∞' : ' / 10'}
+                  </span>
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Min Bet</p>
+                <p className="text-sm font-semibold text-muted-foreground leading-tight">{formatChips(floorMinBet)}</p>
+              </div>
             </div>
             {openingBetFree && (
               <p className="text-[10px] font-semibold text-emerald-400/90 leading-tight">Opening Ticket ready</p>
             )}
+            {/* Bankroll / Quota */}
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Bankroll</p>
               <p className="text-lg font-black tabular-nums leading-tight">
@@ -164,13 +173,13 @@ export function SurvivalGameWrapper({
                 <span className="text-sm font-normal text-muted-foreground"> / {formatChips(quotaTarget)}</span>
               </p>
             </div>
+            {/* Bet counter */}
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Sparks</p>
-              <p className="text-2xl font-black tabular-nums leading-tight text-amber-300">{formatChips(sparks)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Min Bet</p>
-              <p className="text-sm font-semibold text-muted-foreground leading-tight">{formatChips(floorMinBet)}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Bets</p>
+              <p className="text-2xl font-black tabular-nums leading-tight">
+                {floorBetsPlaced}
+                <span className="text-sm font-normal text-muted-foreground">/{FLOOR_BET_LIMIT}</span>
+              </p>
             </div>
           </div>
 

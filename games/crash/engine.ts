@@ -7,10 +7,11 @@ const START_MULT  = 0.75
 
 const MIN_CRASH = 0.8
 const MAX_CRASH = 30.0
+const HOUSE_EDGE = 0.95
 
 function generateCrashPoint(): number {
-  const skewed = Math.pow(Math.random(), 2.5)
-  return parseFloat((MIN_CRASH + skewed * (MAX_CRASH - MIN_CRASH)).toFixed(2))
+  const u = Math.random()
+  return parseFloat(Math.min(MAX_CRASH, HOUSE_EDGE / u).toFixed(2))
 }
 
 // Curve: 0.75 × e^(0.23t)  →  0.75× at t=0, 1× at ~1.2s, 2× at ~4.2s

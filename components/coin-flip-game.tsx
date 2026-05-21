@@ -12,8 +12,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockGameOverButton,
+  GameDockLeaveButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
@@ -92,6 +95,9 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
   const isRiding = state.stage === 'riding'
   const isSettled = state.stage === 'settled'
   const isFlipping = coinAnim !== 'idle'
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, {
+    idle: !isFlipping && (isBetting || isSettled),
+  })
   const canFlip = currentBet >= minBet && currentBet <= bankroll && state.pick !== null
 
   const cashoutAmount = isRiding ? Math.round(state.betAmount * state.multiplier) : 0
@@ -190,11 +196,11 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
     unlock()
     if (pendingResult) setMatchHistory((h) => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     setState({ ...initCoinFlip(), pick: autoReBet ? lastPickRef.current : null })
     setSpinKeyframes({ from: '0deg', end: '1440deg' })
     setCoinAnim('idle')
     setCurrentBet(autoReBet && lastBet <= bankroll ? lastBet : 0)
-    survivalAfterNext(mode)
   }, [pendingResult, autoReBet, lastBet, bankroll, mode])
 
   const coinAnimClass = coinAnim === 'spinning' ? 'coin-spinning' : coinAnim === 'landing' ? 'coin-landing' : ''
@@ -219,7 +225,7 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
         entries={matchHistory}
         gameLabel="Coin Flip"
       >
-        <GameDockBackButton mode={mode} visible={isBetting && !isFlipping} />
+        <GameDockBackButton mode={mode} visible={isBetting && !isFlipping && !showGameOver} />
         {biasChance != null && (isBetting || isRiding) && !isFlipping && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             Coin biased toward your pick (~{Math.round(biasChance * 100)}%)
@@ -323,22 +329,26 @@ export function CoinFlipGame({ mode, bankroll, onBet, onResolve }: CoinFlipGameP
           </div>
 
           <div className="shrink-0 w-full flex justify-center items-center gap-3">
-            {isSettled && (
-              <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+            {showGameOver ? (
+              <GameDockGameOverButton onClick={handleGameOver} />
+            ) : (
+              <>
+                {isSettled && <GameDockLeaveButton mode={mode} />}
+                <button
+                  type="button"
+                  onClick={isSettled ? handleNext : isRiding ? handleCashOut : handleFlip}
+                  disabled={(isBetting && !canFlip) || isFlipping}
+                  className={[
+                    'min-w-[8rem] px-5 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
+                    isRiding
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50'
+                      : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
+                  ].join(' ')}
+                >
+                  {isSettled ? 'Next →' : isRiding ? `Cash Out — ${formatChips(cashoutAmount)}` : 'Flip →'}
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              onClick={isSettled ? handleNext : isRiding ? handleCashOut : handleFlip}
-              disabled={(isBetting && !canFlip) || isFlipping}
-              className={[
-                'min-w-[8rem] px-5 py-2 font-bold rounded-lg transition-colors text-base shadow-lg',
-                isRiding
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50'
-                  : 'bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900',
-              ].join(' ')}
-            >
-              {isSettled ? 'Next →' : isRiding ? `Cash Out — ${formatChips(cashoutAmount)}` : 'Flip →'}
-            </button>
             {isRiding && (
               <button
                 type="button"

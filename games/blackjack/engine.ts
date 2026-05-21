@@ -178,6 +178,43 @@ export function startBlackjackRound(betAmount: number): BlackjackState {
   return initialState
 }
 
+/** Pre-deal hands for Hole Card Reader L2+ (betting-phase preview). */
+export function previewBlackjackDeal(): BlackjackState {
+  let state = startBlackjackRound(1)
+  let guard = 0
+  while (state.stage === 'settled' && guard++ < 32) {
+    state = startBlackjackRound(1)
+  }
+  return {
+    ...state,
+    stage: 'betting',
+    betAmount: 0,
+    outcome: null,
+    payoutMultiplier: 1,
+    message: 'Place your bet.',
+    canDouble: !state.playerBlackjack && !state.dealerBlackjack,
+  }
+}
+
+export function commitPreviewBlackjack(preview: BlackjackState, betAmount: number): BlackjackState {
+  if (preview.playerBlackjack || preview.dealerBlackjack) {
+    const outcome: BlackjackOutcome = preview.playerBlackjack
+      ? preview.dealerBlackjack
+        ? 'push'
+        : 'win'
+      : 'loss'
+    return settle({ ...preview, betAmount }, outcome)
+  }
+  return {
+    ...preview,
+    betAmount,
+    stage: 'inProgress',
+    outcome: null,
+    message: 'Your move.',
+    canDouble: true,
+  }
+}
+
 export function hitBlackjack(state: BlackjackState): BlackjackState {
   if (state.stage !== 'inProgress') return state
   const [next, ...rest] = state.deck
@@ -219,8 +256,12 @@ export function standBlackjack(state: BlackjackState): BlackjackState {
   return settle(nextState, 'loss')
 }
 
-export function doubleDownBlackjack(state: BlackjackState): BlackjackState {
-  if (state.stage !== 'inProgress' || state.playerHand.length !== 2) return state
+export function doubleDownBlackjack(
+  state: BlackjackState,
+  opts?: { allowMultiCard?: boolean },
+): BlackjackState {
+  if (state.stage !== 'inProgress') return state
+  if (!opts?.allowMultiCard && state.playerHand.length !== 2) return state
   const [next, ...rest] = state.deck
   if (!next) return { ...state, stage: 'settled', outcome: 'loss', message: 'No cards left.', canDouble: false }
 

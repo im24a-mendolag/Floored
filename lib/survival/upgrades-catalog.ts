@@ -64,6 +64,14 @@ const GAME_PERK_DEFS: Record<
     effectKey: 'perk_peek_dealer',
     baseCost: 24,
     rarity: 'epic',
+    descriptionForLevel: (level) => {
+      const parts = ['See the dealer hole card after your first two cards are dealt.']
+      if (level >= 2) parts.push('Hole card visible before you place your bet.')
+      if (level >= 3) parts.push('Dealer blackjack refunds your bet.')
+      if (level >= 4) parts.push('Double down anytime.')
+      if (level >= 5) parts.push('Blackjack pays 3×.')
+      return parts.join(' ')
+    },
   },
   hilo: {
     name: 'Hot Streak',
@@ -86,7 +94,7 @@ const GAME_PERK_DEFS: Record<
     baseCost: 22,
     rarity: 'rare',
     descriptionForLevel: (level) => {
-      const pct = Math.round((CRASH_CUSHION_BY_LEVEL[level - 1] ?? 0.15) * 100)
+      const pct = Math.round((CRASH_CUSHION_BY_LEVEL[level - 1] ?? 0.25) * 100)
       return `Recover ${pct}% of your bet on a sub-3× crash.`
     },
   },
@@ -188,7 +196,7 @@ const GAME_PERK_DEFS: Record<
     baseCost: 20,
     rarity: 'rare',
     descriptionForLevel: (level) => {
-      const pct = Math.round((COIN_BIAS_CHANCE_BY_LEVEL[level - 1] ?? 0.60) * 100)
+      const pct = Math.round((COIN_BIAS_CHANCE_BY_LEVEL[level] ?? 0.60) * 100)
       return `Your chosen side wins ${pct}% of the time.`
     },
   },

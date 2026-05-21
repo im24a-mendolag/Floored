@@ -3,7 +3,7 @@
 import { useSurvivalStore } from '@/store/survival-store'
 import type { FloorMission } from '@/store/types'
 import { getLobbyTicketCount } from '@/lib/survival/lobby-ticket'
-import { canRerollMission } from '@/lib/survival/mission-reroll'
+import { canRerollMissionWithTicket } from '@/lib/survival/mission-reroll'
 import { formatChips } from '@/utils/format'
 
 function missionLabel(m: FloorMission): string {
@@ -13,7 +13,8 @@ function missionLabel(m: FloorMission): string {
       return `Win ${m.target} in a row${minTag}`
     case 'play_game': {
       const game = m.game?.split('-').join(' ') ?? 'a game'
-      return `Play ${game}${minTag}`
+      const times = m.target === 1 ? '' : ` ${m.target} times`
+      return `Play ${game}${times}${minTag}`
     }
     case 'min_multiplier':
       return `Win with ${m.target}×+ multiplier${minTag}`
@@ -36,7 +37,14 @@ interface MissionPanelProps {
 
 export function MissionPanel({ compact = false }: MissionPanelProps) {
   const missions = useSurvivalStore((s) => s.missions)
-
+  const runSeed = useSurvivalStore((s) => s.runSeed)
+  const currentFloor = useSurvivalStore((s) => s.currentFloor)
+  const difficulty = useSurvivalStore((s) => s.difficulty)
+  const floorGames = useSurvivalStore((s) => s.floorGames)
+  const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
+  const missionOfferedKeys = useSurvivalStore((s) => s.missionOfferedKeys)
+  const missionTicketRerolledSlots = useSurvivalStore((s) => s.missionTicketRerolledSlots)
+  const shopTicketRollSeq = useSurvivalStore((s) => s.shopTicketRollSeq)
   const inventory = useSurvivalStore((s) => s.inventory)
   const rerollMissionWithTicket = useSurvivalStore((s) => s.rerollMissionWithTicket)
   const ticketCount = getLobbyTicketCount(inventory)
@@ -45,15 +53,30 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
   const completedMissions = missions.filter((m) => m.completed)
   const failedMissions = missions.filter((m) => m.failed && !m.completed)
 
-  function renderMission(m: FloorMission, idx?: number) {
+  function showMissionReroll(m: FloorMission): boolean {
+    if (compact || ticketCount <= 0 || !runSeed || !difficulty) return false
+    const idx = missions.indexOf(m)
+    if (idx < 0) return false
+    return canRerollMissionWithTicket(idx, missions, missionOfferedKeys, missionTicketRerolledSlots, {
+      runSeed,
+      floor: currentFloor,
+      difficulty,
+      floorGames,
+      floorMinBet,
+      rollSeq: shopTicketRollSeq + 1,
+    })
+  }
+
+  function renderMission(m: FloorMission) {
+    const idx = missions.indexOf(m)
     const pct = m.target > 0 ? Math.min(100, (m.progress / m.target) * 100) : 0
     const failed = m.failed === true
-    const canRerollThis = canRerollMission(m)
+    const showReroll = showMissionReroll(m)
 
     return (
       <li
         key={m.id}
-        className={`rounded-lg border px-3 py-3 ${
+        className={`flex-1 min-h-0 flex flex-col justify-center rounded-lg border px-3 py-3 ${
           m.completed
             ? 'border-emerald-800/50 bg-emerald-950/20'
             : failed
@@ -80,12 +103,12 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
             </span>
           </div>
           <div className="flex h-7 w-7 items-center justify-center">
-            {!compact && canRerollThis && ticketCount > 0 && idx != null ? (
+            {showReroll ? (
               <button
                 type="button"
                 onClick={() => rerollMissionWithTicket(idx)}
                 className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-700 bg-zinc-950/80 text-xs font-semibold text-zinc-100 hover:bg-zinc-900"
-                title="Use a lobby reroll ticket to reroll this mission"
+                title="Use a lobby reroll ticket to reroll this mission (once per mission)"
               >
                 ↻
               </button>
@@ -126,49 +149,34 @@ export function MissionPanel({ compact = false }: MissionPanelProps) {
           </p>
           {!compact && (
             <p className="text-[10px] text-zinc-600 leading-snug mt-0.5">
-              Play-game missions use this floor&apos;s lobby only.
+              Play-game missions use this floor&apos;s lobby only. Each mission can be ticket-rerolled once.
             </p>
           )}
         </div>
-
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain flex flex-col gap-2 pr-0.5 min-h-0">
-        {activeMissions.length > 0 && (
-          <ul className="flex flex-col gap-2 shrink-0">
-            {activeMissions.length < missions.length && (
-              <li className="list-none">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-amber-500/80 px-0.5">
-                  Active
-                </p>
-              </li>
-            )}
-            {activeMissions.map((m, i) => renderMission(m, i))}
-          </ul>
+      <ul className="flex-1 flex flex-col gap-2 min-h-0">
+        {activeMissions.length > 0 && activeMissions.length < missions.length && (
+          <li className="list-none shrink-0">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-amber-500/80 px-0.5">Active</p>
+          </li>
         )}
+        {activeMissions.map((m) => renderMission(m))}
 
         {completedMissions.length > 0 && (
-          <ul className="flex flex-col gap-2 shrink-0">
-            <li className="list-none">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-emerald-600 px-0.5 pt-1">
-                Done
-              </p>
-            </li>
-            {completedMissions.map((m, i) => renderMission(m, i))}
-          </ul>
+          <li className="list-none shrink-0">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-emerald-600 px-0.5 pt-1">Done</p>
+          </li>
         )}
+        {completedMissions.map((m) => renderMission(m))}
 
         {failedMissions.length > 0 && (
-          <ul className="flex flex-col gap-2 shrink-0">
-            <li className="list-none">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-red-700 px-0.5 pt-1">
-                Failed
-              </p>
-            </li>
-            {failedMissions.map((m, i) => renderMission(m, i))}
-          </ul>
+          <li className="list-none shrink-0">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-red-700 px-0.5 pt-1">Failed</p>
+          </li>
         )}
-      </div>
+        {failedMissions.map((m) => renderMission(m))}
+      </ul>
     </div>
   )
 }

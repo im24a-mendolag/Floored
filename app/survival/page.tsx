@@ -13,7 +13,11 @@ import { SurvivalShop } from '@/components/survival/survival-shop'
 import { DifficultyDialog } from '@/components/difficulty-dialog'
 import { Button } from '@/components/ui/button'
 import { calcShopPrice } from '@/lib/survival/balance'
-import { getLobbyTicketCount, LOBBY_REROLL_TICKET } from '@/lib/survival/lobby-ticket'
+import {
+  getLobbyTicketCount,
+  LOBBY_REROLL_TICKET,
+  LOBBY_REROLL_TICKET_RULES,
+} from '@/lib/survival/lobby-ticket'
 
 export default function SurvivalPage() {
   const router = useRouter()
@@ -64,11 +68,8 @@ export default function SurvivalPage() {
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                      Lobby Reroll Tickets
-                    </p>
                     <p className="text-sm font-bold text-zinc-200 tabular-nums mt-1">
-                      {ticketCount}
+                      Lobby Reroll Tickets: {ticketCount}
                     </p>
                   </div>
                   <Button
@@ -82,9 +83,11 @@ export default function SurvivalPage() {
                     <span className="ml-1 font-bold text-amber-400 tabular-nums">✦ {ticketPrice}</span>
                   </Button>
                 </div>
-                <p className="text-[10px] text-zinc-500 leading-snug mt-3">
-                  Use ↻ on a lobby game, shop offer, or mission to reroll.
-                </p>
+                <ul className="text-[10px] text-zinc-500 leading-snug mt-3 space-y-1 list-disc list-inside">
+                  {LOBBY_REROLL_TICKET_RULES.map((rule) => (
+                    <li key={rule}>{rule}</li>
+                  ))}
+                </ul>
               </div>
               <div className="flex-1">
                 <MissionPanel />

@@ -1,6 +1,7 @@
 import type { CoinSide } from '@/games/coin-flip/types'
 import type { GameName, PurchasedUpgrade } from '@/store/types'
 import { getCatalogItem, normalizeUpgradeId } from './upgrades-catalog'
+import { RAW_PAYOUT_MULT_CAP } from './balance'
 import {
   COIN_BIAS_CHANCE_BY_LEVEL,
   CRASH_CUSHION_BY_LEVEL,
@@ -54,7 +55,7 @@ export function computePayoutMultiplier(purchasedUpgrades: PurchasedUpgrade[], g
       mult *= parsed
     }
   }
-  return mult
+  return Math.min(RAW_PAYOUT_MULT_CAP, mult)
 }
 
 export function applyPayoutBoost(amount: number, purchasedUpgrades: PurchasedUpgrade[], game: GameName): number {
@@ -103,7 +104,7 @@ export function survivalWagerCap(
 export function getCoinBiasChance(purchasedUpgrades: PurchasedUpgrade[], game: GameName): number {
   const level = getPerkLevel(purchasedUpgrades, game, 'perk_coin_bias')
   if (level <= 0) return 0.5
-  return COIN_BIAS_CHANCE_BY_LEVEL[level - 1] ?? 0.55
+  return COIN_BIAS_CHANCE_BY_LEVEL[level] ?? 0.55
 }
 
 export function hiloNextCardRange(deck: { value: number }[]): { min: number; max: number } | null {
@@ -120,9 +121,9 @@ export function pickChickenScoutEliminate(winnerId: number, chickenCount = 4): n
   return others[Math.floor(Math.random() * others.length)]!
 }
 
-/** Returns the fraction of the bet recovered when crash happens below 1×. */
+/** Returns the fraction of the bet recovered when crash happens below 3×. */
 export function getCrashCushion(level = 1): number {
-  return CRASH_CUSHION_BY_LEVEL[Math.max(1, Math.min(5, level)) - 1] ?? 0.15
+  return CRASH_CUSHION_BY_LEVEL[Math.max(1, Math.min(5, level)) - 1] ?? 0.25
 }
 
 export function findFirstSafeMineTile(tiles: { id: number; hasMine: boolean; revealed: boolean }[]): number | null {

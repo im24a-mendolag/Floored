@@ -58,7 +58,7 @@ export function pickCupStreetCups(state: StreetCupsState, pickedSlot: number): S
 }
 
 /** Win pays 2× the bet. */
-export const STREET_CUPS_WIN_MULTIPLIER = 2
+export const STREET_CUPS_WIN_MULTIPLIER = 2.5
 
 /** Blessed pick: the crown is always under the player's chosen cup. */
 export function winGame(state: StreetCupsState, pickedSlot: number): StreetCupsState {

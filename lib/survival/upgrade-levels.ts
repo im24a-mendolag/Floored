@@ -11,10 +11,10 @@ export const RUN_PAYOUT_MULT_BY_LEVEL = [1.05, 1.10, 1.15, 1.20, 1.25] as const
 /** Opening Ticket: free-bet cap as × floor minimum bet. */
 export const OPENING_TICKET_CAP_BY_LEVEL = [10, 12, 16, 22, 30] as const
 
-/** Weighted coin: win chance for the player's pick. */
-export const COIN_BIAS_CHANCE_BY_LEVEL = [0.58, 0.63, 0.67, 0.71, 0.75] as const
+/** Weighted coin: win chance for the player's pick. Index 0 unused; index = perk level (1–5). */
+export const COIN_BIAS_CHANCE_BY_LEVEL = [0, 0.54, 0.57, 0.6, 0.63, 0.65] as const
 
-/** Crash Cushion: fraction of bet recovered when crash happens below 1×, by level. */
+/** Crash Cushion: fraction of bet recovered when crash happens below 3×, by level. */
 export const CRASH_CUSHION_BY_LEVEL = [0.25, 0.35, 0.45, 0.60, 0.75] as const
 
 const LEGACY_UPGRADE_ID_MAP: Record<string, string> = {

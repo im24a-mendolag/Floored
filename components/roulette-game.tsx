@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
 import { useSettingsStore } from '@/store/settings-store'
 import {
@@ -18,8 +17,11 @@ import {
   GameDockBackButton,
   GameDockBetRow,
   GameDockChipRow,
+  GameDockGameOverButton,
+  GameDockLeaveButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
 import { formatChips } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
@@ -119,7 +121,6 @@ function betBtnStyle(type: RouletteBetType, isActive: boolean): string {
 }
 
 export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameProps) {
-  const router = useRouter()
   const { floorMinBet } = useSurvivalStore()
   const { autoReBet } = useSettingsStore()
   const { lock, unlock } = useBetGuard()
@@ -151,6 +152,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
 
   const isBetting = round.stage === 'betting' && !spinning
   const isSettled = round.stage === 'settled' && !spinning
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, { idle: !spinning })
 
   // Ball Tracker: proc + eliminated numbers during betting (before spin).
   useEffect(() => {
@@ -296,8 +298,8 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
 
   function handleNext() {
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
+    if (!survivalAfterNext(mode)) return
     handleNewRound()
-    survivalAfterNext(mode)
   }
 
   useEffect(() => () => {
@@ -319,7 +321,7 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
         entries={matchHistory}
         gameLabel="Roulette"
       >
-        <GameDockBackButton mode={mode} visible={isBetting} />
+        <GameDockBackButton mode={mode} visible={isBetting && !showGameOver} />
         {trackerProc.perkActive && trackerEliminated.length > 0 && isBetting && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             Not winning: {trackerEliminated.join(', ')}
@@ -519,23 +521,21 @@ export function RouletteGame({ mode, bankroll, onBet, onResolve }: RouletteGameP
 
           <div className={GAME_DOCK_ACTIONS}>
             <div className="flex justify-center gap-2">
-              {isSettled && (
-                <button
-                  type="button"
-                  onClick={() => router.push(`/${mode}`)}
-                  className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base"
-                >
-                  ← Leave
-                </button>
+              {showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <>
+                  {isSettled && <GameDockLeaveButton mode={mode} />}
+                  <button
+                    type="button"
+                    onClick={isSettled ? handleNext : handleSpin}
+                    disabled={!isSettled && (!canSpin || spinning)}
+                    className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+                  >
+                    {isSettled ? 'Next →' : spinning ? 'Spinning…' : 'Spin →'}
+                  </button>
+                </>
               )}
-              <button
-                type="button"
-                onClick={isSettled ? handleNext : handleSpin}
-                disabled={!isSettled && (!canSpin || spinning)}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                {isSettled ? 'Next →' : spinning ? 'Spinning…' : 'Spin →'}
-              </button>
             </div>
           </div>
         </div>

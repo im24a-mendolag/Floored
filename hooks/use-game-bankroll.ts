@@ -18,6 +18,15 @@ export interface GameResolvePayload {
   betAmount: number
   payout: number
   multiplier?: number
+  /**
+   * When false, only credits payout (e.g. Plinko balls before the last in a drop).
+   * Floor bet count, missions, streak, and history run on the settling resolve.
+   */
+  settleFloorBet?: boolean
+  /** Payout was already bankrolled on prior resolves in the same drop. */
+  payoutAlreadyCredited?: boolean
+  /** Any ball in the drop lost (Plinko multi-ball — streak / flawless). */
+  subRoundLoss?: boolean
 }
 
 export interface ResolvedGamePayload extends GameResolvePayload {
@@ -108,6 +117,25 @@ export function useSurvivalGameBankroll(game: GameName) {
 
   const handleResolve = useCallback(
     <R extends GameResolvePayload>(result: R): R & ResolvedGamePayload => {
+      const settleFloorBet = result.settleFloorBet !== false
+
+      if (!settleFloorBet) {
+        recordResultPayout(
+          {
+            id: `${game}-${Date.now()}`,
+            game,
+            floor: currentFloor,
+            betAmount: result.betAmount,
+            payout: result.payout,
+            outcome: result.outcome === 'push' ? 'push' : result.outcome,
+            multiplier: result.multiplier,
+            playedAt: new Date(),
+          },
+          { settleFloorBet: false },
+        )
+        return result as R & ResolvedGamePayload
+      }
+
       const before = useSurvivalStore.getState()
       const isFirstBetThisFloor = before.history.filter((h) => h.floor === currentFloor).length === 0
       const wasFreeBet =
@@ -124,16 +152,23 @@ export function useSurvivalGameBankroll(game: GameName) {
         },
       )
 
-      recordResultPayout({
-        id: `${game}-${Date.now()}`,
-        game,
-        floor: currentFloor,
-        betAmount: result.betAmount,
-        payout: adjusted.payout,
-        outcome: result.outcome === 'push' ? 'push' : result.outcome,
-        multiplier: adjusted.multiplier ?? result.multiplier,
-        playedAt: new Date(),
-      })
+      const bankrollDelta = result.payoutAlreadyCredited
+        ? adjusted.payout - result.payout
+        : adjusted.payout
+
+      recordResultPayout(
+        {
+          id: `${game}-${Date.now()}`,
+          game,
+          floor: currentFloor,
+          betAmount: result.betAmount,
+          payout: adjusted.payout,
+          outcome: result.outcome === 'push' ? 'push' : result.outcome,
+          multiplier: adjusted.multiplier ?? result.multiplier,
+          playedAt: new Date(),
+        },
+        { settleFloorBet: true, bankrollDelta },
+      )
 
       const after = useSurvivalStore.getState()
       const gamesPlayedThisFloor = after.history.filter((h) => h.floor === currentFloor).length
@@ -149,6 +184,7 @@ export function useSurvivalGameBankroll(game: GameName) {
         floorStartBankroll: after.floorStartBankroll,
         streak: after.streak,
         gamesPlayedThisFloor,
+        subRoundLoss: result.subRoundLoss,
       })
 
       applyMissionResults(updatedMissions)

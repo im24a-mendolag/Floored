@@ -1,18 +1,25 @@
 import type { Difficulty, GameName } from '@/store/types'
 
 /** Dev/testing: grant every shop upgrade when a survival run starts. Set false before release. */
-export const GRANT_ALL_UPGRADES = true
+export const GRANT_ALL_UPGRADES = false
 
 /** Dev/testing: bankroll and sparks when a survival run starts (and idle reset). */
 export const STARTING_BANKROLL = 1000
-export const STARTING_SPARKS = 15
+export const STARTING_SPARKS = 20
 
 /** Dev/testing: starting reroll tickets granted in inventory for a run */
 export const STARTING_REROLL_TICKETS = 3
 /** How many reroll tickets are awarded automatically when advancing to the next floor */
-export const REROLL_TICKETS_PER_FLOOR = 3
+export const REROLL_TICKETS_PER_FLOOR = 2
+
+/** Cap on combined game + run payout boost multiplier applied to wins. */
+export const RAW_PAYOUT_MULT_CAP = 1.5
+
+/** Max bonus sparks from exceeding floor quota. */
+export const OVER_QUOTA_SPARK_MAX = 10
 
 export const MAX_FLOORS = 10
+export const FLOOR_BET_LIMIT = 10
 
 /**
  * Games with an existing app/survival/<game>/page.tsx route.
@@ -41,8 +48,6 @@ export const SURVIVAL_GAME_POOL: GameName[] = [
   'coin-flip',
 ]
 
-/** Default time allowed per floor before auto-advancing to shop. */
-export const FLOOR_DURATION_MS = 5 * 60 * 1000
 export const DIFFICULTY_QUOTA_MULT: Record<Difficulty, number> = {
   normal: 1.0,
   hard: 1.5,

@@ -11,8 +11,11 @@ import {
   GAME_DOCK_ACTIONS,
   GameActiveBetBadge,
   GameDockBackButton,
+  GameDockGameOverButton,
+  GameDockLeaveButton,
   GameDockSettledRow,
 } from '@/components/game-dock-parts'
+import { useSurvivalGameOver } from '@/hooks/use-survival-game-over'
 import { PerkHint } from '@/components/survival/perk-hint'
 import { GameDockRandomQuote } from '@/components/game-dock-random-quote'
 import { GameFieldWithHistory, type MatchHistoryEntry } from '@/components/game-match-history'
@@ -144,6 +147,9 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   const isSetup = state.stage === 'setup'
   const isOpening = state.stage === 'opening'
   const isSettled = state.stage === 'settled'
+  const { showGameOver, handleGameOver } = useSurvivalGameOver(mode, {
+    idle: !isOpening && (isSetup || isSettled),
+  })
   const isRerollPending = isOpening && rerollPending
   const showQuoteUntilNext = isOpening && !isRerollPending
 
@@ -261,17 +267,16 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     unlock()
     if (pendingResult) setMatchHistory(h => [pendingResult.entry, ...h].slice(0, 80))
     setPendingResult(null)
+    if (!survivalAfterNext(mode)) return
     const fresh = initCaseBattle()
     if (autoReBet && lastSelectedCases.length > 0) {
       const cost = lastSelectedCases.reduce((s, id) => s + (cases[id]?.price ?? 0), 0)
       if (cost <= bankroll) {
         setState({ ...fresh, selectedCases: lastSelectedCases, totalCost: cost })
-        survivalAfterNext(mode)
         return
       }
     }
     setState(fresh)
-    survivalAfterNext(mode)
   }, [pendingResult, autoReBet, lastSelectedCases, bankroll, cases, mode])
 
   const caseCounts = cases.map(c => state.selectedCases.filter(id => id === c.id).length)
@@ -290,7 +295,7 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
         entries={matchHistory}
         gameLabel="Case Battles"
       >
-        <GameDockBackButton mode={mode} visible={isSetup} />
+        <GameDockBackButton mode={mode} visible={isSetup && !showGameOver} />
         {isSetup && (blessed || cursed) && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
             {blessed ? 'Guaranteed win this battle' : 'Guaranteed loss this battle'}
@@ -489,20 +494,24 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
 
           <div className={GAME_DOCK_ACTIONS}>
             <div className="flex justify-center gap-2">
-              {isSettled && (
-                <button type="button" onClick={() => router.push(`/${mode}`)} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">← Leave</button>
+              {showGameOver ? (
+                <GameDockGameOverButton onClick={handleGameOver} />
+              ) : (
+                <>
+                  {isSettled && <GameDockLeaveButton mode={mode} />}
+                  {isRerollPending && (
+                    <button type="button" onClick={handleSkipReroll} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">Skip</button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={isSettled ? handleNext : handleBattle}
+                    disabled={(isOpening && !isRerollPending) || (isSetup && !canBattle)}
+                    className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
+                  >
+                    {isSettled ? 'Next →' : isRerollPending ? 'Rerolling…' : isOpening ? 'Opening…' : 'Battle →'}
+                  </button>
+                </>
               )}
-              {isRerollPending && (
-                <button type="button" onClick={handleSkipReroll} className="px-4 py-2 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-white font-bold rounded-lg transition-colors text-base">Skip</button>
-              )}
-              <button
-                type="button"
-                onClick={isSettled ? handleNext : handleBattle}
-                disabled={(isOpening && !isRerollPending) || (isSetup && !canBattle)}
-                className="min-w-[10.5rem] px-7 py-2 bg-white hover:bg-zinc-100 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-900 font-bold rounded-lg transition-colors text-base shadow-lg"
-              >
-                {isSettled ? 'Next →' : isRerollPending ? 'Rerolling…' : isOpening ? 'Opening…' : 'Battle →'}
-              </button>
             </div>
           </div>
 

@@ -7,12 +7,6 @@ import { useFreeplayStore } from '@/store/freeplay-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { useSurvivalStore } from '@/store/survival-store'
 import { formatChips, parseChips } from '@/utils/format'
-import {
-  useFloorTimer,
-  useFloorTimeRemainingMs,
-  formatFloorTime,
-} from '@/hooks/use-floor-timer'
-import { FloorPauseModal } from '@/components/survival/floor-pause-modal'
 import { allPurchasedUpgradesForDev } from '@/lib/survival/upgrades-catalog'
 
 const HUD_PILL =
@@ -27,10 +21,8 @@ export function Navbar() {
   const blessed = useSurvivalStore((s) => s.blessed)
   const setBlessed = useSurvivalStore((s) => s.setBlessed)
   const runActive = useSurvivalStore((s) => s.runActive)
-  const floorTimerPaused = useSurvivalStore((s) => s.floorTimerPaused)
   const floorComplete = useSurvivalStore((s) => s.floorComplete)
   const runDefeated = useSurvivalStore((s) => s.runDefeated)
-  const quotaMet = useSurvivalStore((s) => s.quotaMet)
   const quotaTarget = useSurvivalStore((s) => s.quotaTarget)
   const bankroll = useSurvivalStore((s) => s.bankroll)
   const sparks = useSurvivalStore((s) => s.sparks)
@@ -38,8 +30,6 @@ export function Navbar() {
   const setSparks = useSurvivalStore((s) => s.setSparks)
   const devSetPurchasedUpgrades = useSurvivalStore((s) => s.devSetPurchasedUpgrades)
   const floorMinBet = useSurvivalStore((s) => s.floorMinBet)
-  const toggleFloorTimerPause = useSurvivalStore((s) => s.toggleFloorTimerPause)
-  const resyncFloorTimer = useSurvivalStore((s) => s.resyncFloorTimer)
   const finishQuotaEarly = useSurvivalStore((s) => s.finishQuotaEarly)
   const [menuOpen, setMenuOpen] = useState(false)
   const [devPassword, setDevPassword] = useState('')
@@ -63,9 +53,6 @@ export function Navbar() {
       setCursedSorryPending(false)
     }
   }, [devPassword, setDevModeUnlocked, setCursed])
-
-  useFloorTimer()
-  const floorTimeRemainingMs = useFloorTimeRemainingMs()
 
   const isHome = pathname === '/'
   const inFreeplay = pathname?.startsWith('/freeplay')
@@ -107,12 +94,10 @@ export function Navbar() {
   )
 
   const showFinishQuota = inSurvival && runActive && !floorComplete && !runDefeated
-  const finishQuotaEnabled = (quotaMet || bankroll >= quotaTarget) && bankroll >= floorMinBet
+  const finishQuotaEnabled = bankroll >= quotaTarget && bankroll >= floorMinBet
 
   return (
     <>
-      <FloorPauseModal />
-
       {cursedOverlay && (
         <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm select-none">
           <p className="text-7xl font-black uppercase tracking-widest text-red-500 drop-shadow-[0_0_40px_rgba(239,68,68,0.8)] animate-pulse text-center px-4">
@@ -184,30 +169,6 @@ export function Navbar() {
 
             {/* Right: timer + account */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 z-10">
-              {inSurvival && runActive && (
-                <div className="flex items-center gap-1.5">
-                  {!floorComplete && !runDefeated && (
-                    <>
-                      <div className={`${HUD_PILL} min-w-[3.25rem] text-center`}>
-                        {formatFloorTime(floorTimeRemainingMs)}
-                      </div>
-                      {!floorTimerPaused && (
-                        <button
-                          type="button"
-                          onClick={() => toggleFloorTimerPause()}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700/60 bg-zinc-900/80 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
-                          aria-label="Pause floor timer"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden>
-                            <path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z" />
-                          </svg>
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-
               {inFreeplay && (
                 <div className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-white/5 border border-white/10">
                   <div className="text-right">
@@ -291,18 +252,6 @@ export function Navbar() {
                               <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${showAllGames ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
                             </div>
                           </button>
-                          {inSurvival && runActive && (
-                            <button
-                              type="button"
-                              onClick={() => { if (devTimerFrozen) resyncFloorTimer(); setDevTimerFrozen(!devTimerFrozen) }}
-                              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors"
-                            >
-                              <span className="text-sm text-white/80">Freeze timer <span className="text-white/30 text-xs">(survival)</span></span>
-                              <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${devTimerFrozen ? 'bg-yellow-500' : 'bg-white/20'}`}>
-                                <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${devTimerFrozen ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
-                              </div>
-                            </button>
-                          )}
                           <div className="flex w-full items-center justify-between gap-3 px-3 py-2">
                             <span className="text-sm text-white/80">Game mode</span>
                             <div className="relative flex h-5 w-16 shrink-0 rounded-full border border-white/10 bg-white/5 overflow-hidden">
