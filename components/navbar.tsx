@@ -15,7 +15,7 @@ const HUD_PILL =
 export function Navbar() {
   const pathname = usePathname()
   const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
-  const { autoReBet, setAutoReBet, forceTie, setForceTie, showAllGames, setShowAllGames, devModeUnlocked, setDevModeUnlocked, devTimerFrozen, setDevTimerFrozen } = useSettingsStore()
+  const { autoReBet, setAutoReBet, forceTie, setForceTie, showAllGames, setShowAllGames, devModeUnlocked, setDevModeUnlocked, devTimerFrozen, setDevTimerFrozen, devInfiniteBets, setDevInfiniteBets } = useSettingsStore()
   const cursed = useSurvivalStore((s) => s.cursed)
   const setCursed = useSurvivalStore((s) => s.setCursed)
   const blessed = useSurvivalStore((s) => s.blessed)
@@ -222,7 +222,7 @@ export function Navbar() {
                         {devModeUnlocked && (
                           <button
                             type="button"
-                            onClick={() => { setDevModeUnlocked(false); setForceTie(false); setShowAllGames(false); setCursed(false); setBlessed(false); setDevTimerFrozen(false) }}
+                            onClick={() => { setDevModeUnlocked(false); setForceTie(false); setShowAllGames(false); setCursed(false); setBlessed(false); setDevTimerFrozen(false); setDevInfiniteBets(false) }}
                             className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
                           >
                             Lock
@@ -250,6 +250,16 @@ export function Navbar() {
                             <span className="text-sm text-white/80">All games <span className="text-white/30 text-xs">(survival)</span></span>
                             <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${showAllGames ? 'bg-yellow-500' : 'bg-white/20'}`}>
                               <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${showAllGames ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDevInfiniteBets(!devInfiniteBets)}
+                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors"
+                          >
+                            <span className="text-sm text-white/80">Infinite bets <span className="text-white/30 text-xs">(survival)</span></span>
+                            <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${devInfiniteBets ? 'bg-yellow-500' : 'bg-white/20'}`}>
+                              <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${devInfiniteBets ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
                             </div>
                           </button>
                           <div className="flex w-full items-center justify-between gap-3 px-3 py-2">

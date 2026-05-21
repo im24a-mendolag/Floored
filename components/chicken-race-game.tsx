@@ -144,11 +144,9 @@ export function ChickenRaceGame({ mode, bankroll, onBet, onResolve }: ChickenRac
         clearInterval(tickRef.current!)
         tickRef.current = null
         setProgress([...raceFramesRef.current[RACE_TICKS - 1]!])
-        setState((prev) => {
-          const settled = settleRace(prev)
-          recordOutcome(settled)
-          return settled
-        })
+        const settled = settleRace(next)
+        setState(settled)
+        recordOutcome(settled)
       }
     }, TICK_MS)
   }

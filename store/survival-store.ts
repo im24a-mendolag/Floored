@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useSettingsStore } from './settings-store'
 import type {
   SurvivalStore,
   Difficulty,
@@ -853,7 +854,7 @@ export const useSurvivalStore = create<SurvivalStore>()(
             quotaMet,
             floorBetsPlaced: nextBetsPlaced,
           }
-          if (nextBetsPlaced >= FLOOR_BET_LIMIT) {
+          if (!useSettingsStore.getState().devInfiniteBets && nextBetsPlaced >= FLOOR_BET_LIMIT) {
             if (newBankroll >= s.quotaTarget) {
               return { ...base, floorComplete: true, floorCompleteReason: 'bet-limit' as const }
             }

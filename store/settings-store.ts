@@ -14,6 +14,8 @@ interface SettingsStore {
   setDevModeUnlocked: (v: boolean) => void
   devTimerFrozen: boolean
   setDevTimerFrozen: (v: boolean) => void
+  devInfiniteBets: boolean
+  setDevInfiniteBets: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -29,6 +31,8 @@ export const useSettingsStore = create<SettingsStore>()(
       setDevModeUnlocked: (v) => set({ devModeUnlocked: v }),
       devTimerFrozen: false,
       setDevTimerFrozen: (v) => set({ devTimerFrozen: v }),
+      devInfiniteBets: false,
+      setDevInfiniteBets: (v) => set({ devInfiniteBets: v }),
     }),
     { name: 'floored-settings' }
   )
