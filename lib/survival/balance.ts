@@ -66,11 +66,14 @@ export const DIFFICULTY_SHOP_PRICE_MULT: Record<Difficulty, number> = {
 
 /**
  * Absolute bankroll goal for a given floor.
- * Floor 1 = $2,000  |  Floor 10 = $1,000,000  |  endless scaling beyond.
- * Formula: 2000 * 500^((floor-1)/9)
+ * Floors 1–10: 2000 * 500^((floor-1)/9)  →  $2K … $1M
+ * Endless (11+): $1M * 1.6^(floor-10)    →  much steeper per-floor ramp
  */
 export function calcQuotaTarget(floor: number, difficulty: Difficulty): number {
-  const base = Math.round(2_000 * Math.pow(500, (floor - 1) / 9))
+  const base =
+    floor <= MAX_FLOORS
+      ? Math.round(2_000 * Math.pow(500, (floor - 1) / 9))
+      : Math.round(1_000_000 * Math.pow(1.6, floor - MAX_FLOORS))
   return Math.round(base * DIFFICULTY_QUOTA_MULT[difficulty])
 }
 
@@ -103,9 +106,11 @@ export function calcMissionRerollCost(rerollsUsed: number, difficulty: Difficult
 }
 
 /**
- * Spark reward multiplier per floor (used in Step 7).
- * Linear: floor 1 = 1.0×, floor 10 = 2.8×.
+ * Spark reward multiplier per floor.
+ * Floors 1–10: linear 1.0× … 2.8× (same as before).
+ * Endless (11+): accelerates to match steeper quota curve.
  */
 export function sparkFloorMult(floor: number): number {
-  return 1 + (floor - 1) * 0.2
+  if (floor <= 10) return 1 + (floor - 1) * 0.2
+  return 2.8 + (floor - 10) * 0.5
 }

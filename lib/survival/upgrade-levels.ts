@@ -14,8 +14,8 @@ export const OPENING_TICKET_CAP_BY_LEVEL = [10, 12, 16, 22, 30] as const
 /** Weighted coin: win chance for the player's pick. Index 0 unused; index = perk level (1–5). */
 export const COIN_BIAS_CHANCE_BY_LEVEL = [0, 0.54, 0.57, 0.6, 0.63, 0.65] as const
 
-/** Crash Zone: early-crash push threshold (×). Index 0 unused; index = perk level (1–5). */
-export const CRASH_ZONE_THRESHOLD_BY_LEVEL = [0, 1.0, 1.05, 1.1, 1.2, 1.3] as const
+/** Crash Cushion: fraction of bet recovered when crash happens below 3×, by level. */
+export const CRASH_CUSHION_BY_LEVEL = [0.25, 0.35, 0.45, 0.60, 0.75] as const
 
 const LEGACY_UPGRADE_ID_MAP: Record<string, string> = {
   payout_boost_5: 'run_payout_boost_l1',

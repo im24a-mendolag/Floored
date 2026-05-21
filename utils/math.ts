@@ -15,7 +15,7 @@ export function getFloorMinBet(floor: number): number {
   if (floor <= 10) return FLOOR_MIN_BETS[floor] ?? 10
   let bet = 10000
   for (let f = 11; f <= floor; f++) {
-    bet = Math.floor(bet * 1.5)
+    bet = Math.floor(bet * 1.8)
   }
   return bet
 }

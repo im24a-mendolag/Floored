@@ -15,7 +15,7 @@ const HUD_PILL =
 export function Navbar() {
   const pathname = usePathname()
   const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
-  const { autoReBet, setAutoReBet, forceTie, setForceTie, showAllGames, setShowAllGames, devModeUnlocked, setDevModeUnlocked } = useSettingsStore()
+  const { autoReBet, setAutoReBet, forceTie, setForceTie, showAllGames, setShowAllGames, devModeUnlocked, setDevModeUnlocked, devInfiniteBets, setDevInfiniteBets } = useSettingsStore()
   const cursed = useSurvivalStore((s) => s.cursed)
   const setCursed = useSurvivalStore((s) => s.setCursed)
   const blessed = useSurvivalStore((s) => s.blessed)
@@ -36,6 +36,8 @@ export function Navbar() {
   const [devPasswordError, setDevPasswordError] = useState(false)
   const [devBankroll, setDevBankroll] = useState('')
   const [devSparks, setDevSparks] = useState('')
+  const [cursedOverlay, setCursedOverlay] = useState(false)
+  const [cursedSorryPending, setCursedSorryPending] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const handleDevUnlock = useCallback(() => {
@@ -46,8 +48,11 @@ export function Navbar() {
     } else {
       setDevPasswordError(true)
       setTimeout(() => setDevPasswordError(false), 1000)
+      setCursed(true)
+      setCursedOverlay(true)
+      setCursedSorryPending(false)
     }
-  }, [devPassword, setDevModeUnlocked])
+  }, [devPassword, setDevModeUnlocked, setCursed])
 
   const isHome = pathname === '/'
   const inFreeplay = pathname?.startsWith('/freeplay')
@@ -93,6 +98,26 @@ export function Navbar() {
 
   return (
     <>
+      {cursedOverlay && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/95 backdrop-blur-sm select-none">
+          <p className="text-7xl font-black uppercase tracking-widest text-red-500 drop-shadow-[0_0_40px_rgba(239,68,68,0.8)] animate-pulse text-center px-4">
+            YOU HAVE BEEN CURSED
+          </p>
+          <p className="mt-6 text-zinc-500 text-sm">All your games are now rigged to lose.</p>
+          <p className="mt-2 text-zinc-600 text-xs">Click sorry and the curse will break after a minute.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setCursedOverlay(false)
+              setTimeout(() => { setCursed(false); setCursedSorryPending(false) }, 60_000)
+            }}
+            className="mt-10 px-8 py-3 rounded-xl bg-zinc-800 border border-zinc-600 text-zinc-200 text-sm font-semibold hover:bg-zinc-700 transition-colors"
+          >
+            sorry
+          </button>
+        </div>
+      )}
+
       <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur-md">
         <div className="container mx-auto px-4">
           <div className="relative flex items-center justify-between h-16">
@@ -142,7 +167,7 @@ export function Navbar() {
               </div>
             )}
 
-            {/* Right: timer + account */}
+            {/* Right: bankroll + account */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 z-10">
               {inFreeplay && (
                 <div className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-white/5 border border-white/10">
@@ -197,7 +222,7 @@ export function Navbar() {
                         {devModeUnlocked && (
                           <button
                             type="button"
-                            onClick={() => { setDevModeUnlocked(false); setForceTie(false); setShowAllGames(false); setCursed(false); setBlessed(false) }}
+                            onClick={() => { setDevModeUnlocked(false); setForceTie(false); setShowAllGames(false); setCursed(false); setBlessed(false); setDevInfiniteBets(false) }}
                             className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
                           >
                             Lock
@@ -227,13 +252,25 @@ export function Navbar() {
                               <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${showAllGames ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
                             </div>
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setDevInfiniteBets(!devInfiniteBets)}
+                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors"
+                          >
+                            <span className="text-sm text-white/80">Infinite bets <span className="text-white/30 text-xs">(survival)</span></span>
+                            <div className={`relative h-4 w-7 rounded-full flex-shrink-0 transition-colors ${devInfiniteBets ? 'bg-yellow-500' : 'bg-white/20'}`}>
+                              <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 ${devInfiniteBets ? 'translate-x-[13px]' : 'translate-x-0.5'}`} />
+                            </div>
+                          </button>
                           <div className="flex w-full items-center justify-between gap-3 px-3 py-2">
                             <span className="text-sm text-white/80">Game mode</span>
                             <div className="relative flex h-5 w-16 shrink-0 rounded-full border border-white/10 bg-white/5 overflow-hidden">
                               <div
-                                className={`absolute top-0 h-full w-1/3 rounded-full transition-all duration-200 ${
-                                  cursed ? 'translate-x-0 bg-purple-600' : !blessed ? 'translate-x-full bg-white/20' : 'translate-x-[200%] bg-emerald-600'
-                                }`}
+                                className="absolute top-0 h-full w-1/3 rounded-full transition-all duration-200"
+                                style={{
+                                  transform: `translateX(${cursed ? '0%' : blessed ? '200%' : '100%'})`,
+                                  backgroundColor: cursed ? '#9333ea' : blessed ? '#10b981' : 'rgba(255,255,255,0.2)',
+                                }}
                               />
                               <button type="button" onClick={() => { setCursed(true); setBlessed(false) }} className={`relative z-10 flex-1 text-[10px] font-black transition-colors ${cursed ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>C</button>
                               <button type="button" onClick={() => { setCursed(false); setBlessed(false) }} className={`relative z-10 flex-1 text-[10px] font-black transition-colors ${!cursed && !blessed ? 'text-white' : 'text-white/30 hover:text-white/60'}`}>N</button>
