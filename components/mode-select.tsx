@@ -92,13 +92,13 @@ export function ModeSelect() {
                 Freeplay
               </p>
               <p className="text-white/40 text-xs mt-1.5">
-                All games, no floors, no timer. 10,000 chips to start.
+                All games, no floors, no quotas. 10,000 chips to start.
               </p>
             </div>
 
             <ul className="space-y-1.5">
               {[
-                'No time limit',
+                'No floors or quotas',
                 'No economy, no stakes',
                 'Practice any game',
                 'Infinite reset',

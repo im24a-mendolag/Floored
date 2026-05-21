@@ -15,7 +15,7 @@ const HUD_PILL =
 export function Navbar() {
   const pathname = usePathname()
   const freeplayBankroll = useFreeplayStore((s) => s.bankroll)
-  const { autoReBet, setAutoReBet, forceTie, setForceTie, showAllGames, setShowAllGames, devModeUnlocked, setDevModeUnlocked, devTimerFrozen, setDevTimerFrozen, devInfiniteBets, setDevInfiniteBets } = useSettingsStore()
+  const { autoReBet, setAutoReBet, forceTie, setForceTie, showAllGames, setShowAllGames, devModeUnlocked, setDevModeUnlocked, devInfiniteBets, setDevInfiniteBets } = useSettingsStore()
   const cursed = useSurvivalStore((s) => s.cursed)
   const setCursed = useSurvivalStore((s) => s.setCursed)
   const blessed = useSurvivalStore((s) => s.blessed)
@@ -167,7 +167,7 @@ export function Navbar() {
               </div>
             )}
 
-            {/* Right: timer + account */}
+            {/* Right: bankroll + account */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 z-10">
               {inFreeplay && (
                 <div className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-white/5 border border-white/10">
@@ -222,7 +222,7 @@ export function Navbar() {
                         {devModeUnlocked && (
                           <button
                             type="button"
-                            onClick={() => { setDevModeUnlocked(false); setForceTie(false); setShowAllGames(false); setCursed(false); setBlessed(false); setDevTimerFrozen(false); setDevInfiniteBets(false) }}
+                            onClick={() => { setDevModeUnlocked(false); setForceTie(false); setShowAllGames(false); setCursed(false); setBlessed(false); setDevInfiniteBets(false) }}
                             className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
                           >
                             Lock

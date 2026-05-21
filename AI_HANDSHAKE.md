@@ -208,7 +208,7 @@ autoReBet: boolean          // user pref — persist last bet each round
 forceTie: boolean           // dev — forces HiLo to tie
 showAllGames: boolean       // dev — shows all games in survival lobby
 devModeUnlocked: boolean    // dev — password "geek" unlocks the panel
-devTimerFrozen: boolean     // dev — freeze the floor countdown
+devInfiniteBets: boolean    // dev — bypass FLOOR_BET_LIMIT (infinite bets per floor)
 ```
 
 ---
@@ -218,7 +218,7 @@ Unlocked by entering `"geek"` in the settings panel.
 - Cursed / Normal / Blessed toggle (affects crash point and other outcomes via engine flags)
 - Force tie (HiLo)
 - Show all games (survival lobby)
-- Freeze timer
+- Infinite bets (bypass `FLOOR_BET_LIMIT`)
 - Bankroll / Sparks numeric setters
 - Grant all upgrades / Clear upgrades buttons
 - Curse overlay: full-screen "YOU HAVE BEEN CURSED" message, 60s timeout
