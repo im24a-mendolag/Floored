@@ -96,7 +96,7 @@ export function FloorPanel() {
           </div>
           {quotaReached && !floorComplete && (
             <p className="text-xs text-amber-400 font-semibold text-center mt-1">
-              Quota met — finish early from the navbar or keep betting until your limit runs out
+              Quota met — advance now from the navbar, or keep betting to build your bankroll
             </p>
           )}
           {floorComplete && (
