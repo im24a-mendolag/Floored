@@ -132,6 +132,8 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
   const cases = getCases(minBet)
 
   const [state, setState] = useState<CaseBattleState>(initCaseBattle)
+  const stateRef = useRef(state)
+  stateRef.current = state
   const [rerollPending, setRerollPending] = useState(false)
   const [rerollingIdx, setRerollingIdx] = useState(-1)
   const [infoCaseId, setInfoCaseId] = useState<number | null>(null)
@@ -185,11 +187,9 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
         xrayProcFiredRef.current = false
         setRerollPending(true)
       } else {
-        setState(prev => {
-          const settled = settleBattle(prev)
-          settleCaseBattle(settled)
-          return settled
-        })
+        const settled = settleBattle(stateRef.current)
+        settleCaseBattle(settled)
+        setState(settled)
       }
     }, (total - 1) * 800 + 600 + 500)
     timeoutsRef.current.push(tSettle)
@@ -234,22 +234,18 @@ export function CaseBattlesGame({ mode, bankroll, onBet, onResolve }: CaseBattle
     setRerollingIdx(slotIndex)
     setTimeout(() => {
       setRerollingIdx(-1)
-      setState(prev => {
-        const withReroll = rerollUserItem(prev, slotIndex, cases)
-        const settled = settleBattle(withReroll)
-        settleCaseBattle(settled)
-        return settled
-      })
+      const withReroll = rerollUserItem(stateRef.current, slotIndex, cases)
+      const settled = settleBattle(withReroll)
+      settleCaseBattle(settled)
+      setState(settled)
     }, 700)
   }
 
   function handleSkipReroll() {
     setRerollPending(false)
-    setState(prev => {
-      const settled = settleBattle(prev)
-      settleCaseBattle(settled)
-      return settled
-    })
+    const settled = settleBattle(stateRef.current)
+    settleCaseBattle(settled)
+    setState(settled)
   }
 
   function handleBattle() {
