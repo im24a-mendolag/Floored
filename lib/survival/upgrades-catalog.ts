@@ -3,7 +3,7 @@ import { LOBBY_REROLL_TICKET, LOBBY_REROLL_TICKET_ID } from './lobby-ticket'
 import { perkProcChancePercent } from './perk-proc'
 import {
   COIN_BIAS_CHANCE_BY_LEVEL,
-  CRASH_ZONE_PAD_BY_LEVEL,
+  CRASH_CUSHION_BY_LEVEL,
   GAME_PAYOUT_MULT_BY_LEVEL,
   MAX_UPGRADE_LEVEL,
   OPENING_TICKET_CAP_BY_LEVEL,
@@ -80,14 +80,14 @@ const GAME_PERK_DEFS: Record<
     rarity: 'rare',
   },
   crash: {
-    name: 'Crash Zone',
-    description: 'Shows a narrow band around the hidden crash point.',
+    name: 'Crash Cushion',
+    description: 'Recovers a portion of your bet when the rocket crashes below 3×.',
     effectKey: 'perk_crash_zone',
     baseCost: 22,
     rarity: 'rare',
     descriptionForLevel: (level) => {
-      const pct = Math.round((CRASH_ZONE_PAD_BY_LEVEL[level - 1] ?? 0.07) * 100)
-      return `Shows a ±${pct}% band around the hidden crash point.`
+      const pct = Math.round((CRASH_CUSHION_BY_LEVEL[level - 1] ?? 0.15) * 100)
+      return `Recover ${pct}% of your bet on a sub-3× crash.`
     },
   },
   mines: {

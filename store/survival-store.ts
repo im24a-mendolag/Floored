@@ -348,6 +348,8 @@ export const useSurvivalStore = create<SurvivalStore>()(
         return remaining
       },
 
+      resyncFloorTimer: () => set({ floorTimerSyncedAt: Date.now() }),
+
       toggleFloorTimerPause: () =>
         set((s) => {
           if (s.floorComplete || s.runDefeated) return s

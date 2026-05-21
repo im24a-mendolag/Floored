@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useSurvivalStore } from '@/store/survival-store'
+import { useSettingsStore } from '@/store/settings-store'
 
 /** Ticks the floor countdown and triggers floor complete when time runs out. */
 export function useFloorTimer() {
@@ -14,9 +15,10 @@ export function useFloorTimer() {
   const runDefeated = useSurvivalStore((s) => s.runDefeated)
   const syncFloorTimer = useSurvivalStore((s) => s.syncFloorTimer)
   const completeFloorFromTimer = useSurvivalStore((s) => s.completeFloorFromTimer)
+  const devTimerFrozen = useSettingsStore((s) => s.devTimerFrozen)
 
   useEffect(() => {
-    if (!inSurvival || !runActive || floorComplete || floorTimerPaused || runDefeated) return
+    if (!inSurvival || !runActive || floorComplete || floorTimerPaused || runDefeated || devTimerFrozen) return
 
     const id = window.setInterval(() => {
       const remaining = syncFloorTimer()
@@ -24,7 +26,7 @@ export function useFloorTimer() {
     }, 1000)
 
     return () => window.clearInterval(id)
-  }, [inSurvival, runActive, floorComplete, floorTimerPaused, runDefeated, syncFloorTimer, completeFloorFromTimer])
+  }, [inSurvival, runActive, floorComplete, floorTimerPaused, runDefeated, devTimerFrozen, syncFloorTimer, completeFloorFromTimer])
 }
 
 /** Live remaining ms for display (accounts for elapsed time while unpaused). */
@@ -36,16 +38,17 @@ export function useFloorTimeRemainingMs(): number {
   const floorTimeRemainingMs = useSurvivalStore((s) => s.floorTimeRemainingMs)
   const floorTimerPaused = useSurvivalStore((s) => s.floorTimerPaused)
   const floorTimerSyncedAt = useSurvivalStore((s) => s.floorTimerSyncedAt)
+  const devTimerFrozen = useSettingsStore((s) => s.devTimerFrozen)
 
   const [, setTick] = useState(0)
 
   useEffect(() => {
-    if (!inSurvival || !runActive || floorComplete || floorTimerPaused) return
+    if (!inSurvival || !runActive || floorComplete || floorTimerPaused || devTimerFrozen) return
     const id = window.setInterval(() => setTick((t) => t + 1), 1000)
     return () => window.clearInterval(id)
-  }, [inSurvival, runActive, floorComplete, floorTimerPaused])
+  }, [inSurvival, runActive, floorComplete, floorTimerPaused, devTimerFrozen])
 
-  if (!inSurvival || !runActive || floorComplete || floorTimerPaused) return floorTimeRemainingMs
+  if (!inSurvival || !runActive || floorComplete || floorTimerPaused || devTimerFrozen) return floorTimeRemainingMs
   return Math.max(0, floorTimeRemainingMs - (Date.now() - floorTimerSyncedAt))
 }
 

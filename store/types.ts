@@ -181,6 +181,7 @@ export interface SurvivalStore {
   continueToEndless: () => void
   dismissFloorComplete: () => void
   syncFloorTimer: () => number
+  resyncFloorTimer: () => void
   toggleFloorTimerPause: () => void
   completeFloorFromTimer: () => void
   finishQuotaEarly: () => void

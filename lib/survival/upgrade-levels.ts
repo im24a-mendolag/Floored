@@ -14,8 +14,8 @@ export const OPENING_TICKET_CAP_BY_LEVEL = [10, 12, 16, 22, 30] as const
 /** Weighted coin: win chance for the player's pick. */
 export const COIN_BIAS_CHANCE_BY_LEVEL = [0.58, 0.63, 0.67, 0.71, 0.75] as const
 
-/** Crash Zone: band padding as a fraction of crashAt, by level (tighter = stronger). */
-export const CRASH_ZONE_PAD_BY_LEVEL = [0.08, 0.07, 0.06, 0.05, 0.04] as const
+/** Crash Cushion: fraction of bet recovered when crash happens below 1×, by level. */
+export const CRASH_CUSHION_BY_LEVEL = [0.25, 0.35, 0.45, 0.60, 0.75] as const
 
 const LEGACY_UPGRADE_ID_MAP: Record<string, string> = {
   payout_boost_5: 'run_payout_boost_l1',

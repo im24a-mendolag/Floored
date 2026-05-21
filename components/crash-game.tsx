@@ -20,7 +20,7 @@ import { formatChips, formatMultiplier } from '@/utils/format'
 import type { GameResolveFn } from '@/hooks/use-game-bankroll'
 import { buildPendingResult, type GamePendingResult } from '@/lib/game-result-labels'
 import { resolveGame } from '@/lib/survival/game-resolve'
-import { crashZoneBand } from '@/lib/survival/survival-perks'
+import { getCrashCushion } from '@/lib/survival/survival-perks'
 import { survivalAfterNext } from '@/lib/survival/survival-round'
 import { useSurvivalPerks } from '@/hooks/use-survival-perks'
 import { PerkHint } from '@/components/survival/perk-hint'
@@ -64,8 +64,8 @@ function crashPendingResult(
   )
 }
 
-// Inline growth formula so CrashCurve has no engine dependency
-function mult(ms: number) { return Math.exp(0.23 * ms / 1000) }
+// Inline growth formula so CrashCurve has no engine dependency — matches engine exactly
+function mult(ms: number) { return 0.75 * Math.exp(0.23 * ms / 1000) }
 
 function buildSmoothPath(pts: [number, number][]): string {
   if (pts.length < 2) return `M ${pts[0]![0]} ${pts[0]![1]}`
@@ -112,7 +112,7 @@ function CrashCurve({
   const maxMult = Math.max(curMult * 1.8, 3)
 
   const toX = (t: number) => LEFT + (t / maxTime) * (RIGHT - LEFT)
-  const toY = (m: number) => BOTTOM - ((m - 1) / (maxMult - 1)) * (BOTTOM - TOP)
+  const toY = (m: number) => BOTTOM - ((m - 0.75) / (maxMult - 0.75)) * (BOTTOM - TOP)
 
   const steps = 100
   const pts: [number, number][] = []
@@ -149,7 +149,8 @@ function CrashCurve({
     outcome === 'win'  ? '#22c55e' :
     curMult >= 5       ? '#f97316' :
     curMult >= 3       ? '#eab308' :
-    curMult >= 2       ? '#4ade80' : '#a1a1aa'
+    curMult >= 2       ? '#4ade80' :
+    curMult >= 1       ? '#a1a1aa' : '#f87171'
 
   return (
     <svg viewBox="0 0 160 60" className="w-full h-full" preserveAspectRatio="none">
@@ -180,7 +181,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
   const { lock, unlock } = useBetGuard()
   const { cursed } = useCurse()
   const { blessed } = useBless()
-  const { crashZone, crashZoneLevel } = useSurvivalPerks('crash')
+  const { crashCushion, crashCushionLevel } = useSurvivalPerks('crash')
   const minBet = mode === 'survival' ? floorMinBet : 1
 
   const [round, setRound]         = useState<CrashState>(initCrash())
@@ -195,8 +196,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
   const isInProgress = round.stage === 'inProgress'
   const isSettled    = round.stage === 'settled'
   const canStart     = currentBet >= minBet && currentBet <= bankroll
-  const showCrashZone = mode === 'survival' && crashZone && isInProgress
-  const crashBand = showCrashZone ? crashZoneBand(round.crashAt, crashZoneLevel) : null
+  const hasCushion   = mode === 'survival' && crashCushion
 
   const handleNewRound = useCallback(() => {
     unlock()
@@ -220,18 +220,22 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
 
       if (m >= crashAt) {
         clearInterval(id)
+        const cushionPayout =
+          hasCushion && crashAt < 3.0
+            ? Math.round(betAmount * getCrashCushion(crashCushionLevel))
+            : 0
         setRound(prev => ({
           ...prev,
           stage: 'settled',
           currentMultiplier: crashAt,
-          payoutMultiplier: 0,
+          payoutMultiplier: cushionPayout / betAmount,
           outcome: 'loss',
           message: `Crashed at ${formatMultiplier(crashAt)}`,
         }))
         const resolved = resolveGame(onResolve, {
           outcome: 'loss',
           betAmount,
-          payout: 0,
+          payout: cushionPayout,
           multiplier: crashAt,
         })
         setPendingResult(
@@ -259,24 +263,25 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
 
   function handleCashOut() {
     if (!isInProgress) return
-    const m      = computeMultiplier(elapsedMs)
-    const payout = Math.round(round.betAmount * m)
+    const m       = computeMultiplier(elapsedMs)
+    const payout  = Math.round(round.betAmount * m)
+    const outcome = m >= 1.0 ? 'win' : 'loss'
     setRound(prev => ({
       ...prev,
       stage: 'settled',
       currentMultiplier: m,
       payoutMultiplier: m,
-      outcome: 'win',
+      outcome,
       message: `Cashed out at ${formatMultiplier(m)}`,
     }))
     const resolved = resolveGame(onResolve, {
-      outcome: 'win',
+      outcome,
       betAmount: round.betAmount,
       payout,
       multiplier: m,
     })
     setPendingResult(
-      crashPendingResult('win', round.betAmount, resolved.payout, resolved.multiplier ?? m, resolved.firstBetWasFree),
+      crashPendingResult(outcome, round.betAmount, resolved.payout, resolved.multiplier ?? m, resolved.firstBetWasFree),
     )
   }
 
@@ -296,7 +301,8 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
     isSettled && round.outcome === 'win'  ? 'text-green-400' :
     displayMult >= 5  ? 'text-orange-400' :
     displayMult >= 3  ? 'text-yellow-300' :
-    displayMult >= 2  ? 'text-green-400'  : 'text-zinc-200'
+    displayMult >= 2  ? 'text-green-400'  :
+    displayMult >= 1  ? 'text-zinc-200'   : 'text-red-300'
 
   return (
     <div className={GAME_CARD_SHELL}>
@@ -314,9 +320,9 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
         gameLabel="Crash"
       >
         <GameDockBackButton mode={mode} visible={isBetting} />
-        {showCrashZone && crashBand && (
+        {hasCushion && isBetting && (
           <PerkHint className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
-            Crash zone ~{crashBand.low}×–{crashBand.high}×
+            Crash Cushion: recover {Math.round(getCrashCushion(crashCushionLevel) * 100)}% on sub-3× crash
           </PerkHint>
         )}
         <GameActiveBetBadge betAmount={round.betAmount} visible={(isInProgress || isSettled) && round.betAmount > 0} />
@@ -326,7 +332,7 @@ export function CrashGame({ mode, bankroll, onBet, onResolve }: CrashGameProps) 
             {isBetting ? (
               <>
                 <p className="text-zinc-700 text-xs uppercase tracking-widest mb-2">Ready</p>
-                <p className="text-7xl sm:text-8xl font-black text-zinc-800 tabular-nums">1.00×</p>
+                <p className="text-7xl sm:text-8xl font-black text-zinc-800 tabular-nums">0.75×</p>
                 <p className="text-sm mt-2 invisible">{'\u00A0'}</p>
               </>
             ) : (
