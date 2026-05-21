@@ -67,8 +67,3 @@ export function loseGame(amount: number): CrashState {
     message: 'Multiplier is climbing — cash out before it crashes!',
   }
 }
-
-export function getCrashPayout(state: CrashState): number {
-  if (state.outcome === 'win') return Math.round(state.betAmount * state.payoutMultiplier)
-  return 0
-}

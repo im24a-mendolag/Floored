@@ -7,11 +7,11 @@
 
 ## What this project is
 
-**Floored** is a Next.js 14 (App Router) gambling-simulation platform with freeplay and
+**Floored** is a Next.js 15 (App Router) gambling-simulation platform with freeplay and
 survival modes. Players start with a bankroll and play casino-style games. There is no real
 money — it's a frontend-only project.
 
-Tech: Next.js 14 App Router · TypeScript · Tailwind CSS (JIT) · Zustand stores · `'use client'` components throughout.
+Tech: Next.js 15 App Router · TypeScript · Tailwind CSS (JIT) · Zustand stores · `'use client'` components throughout.
 
 ---
 
@@ -33,8 +33,8 @@ Tech: Next.js 14 App Router · TypeScript · Tailwind CSS (JIT) · Zustand store
 | `lib/survival/survival-perks.ts` | Perk helpers — `hasEffect`, `computePayoutMultiplier`, game-specific perk accessors. |
 | `lib/survival/upgrades-catalog.ts` | `UPGRADES_CATALOG` + helpers to query/validate upgrade purchases. |
 | `lib/survival/upgrade-levels.ts` | Level costs and per-level values for all upgrade tracks. |
-| `hooks/use-floor-timer.ts` | `useFloorTimer()` effect + `useFloorTimeRemainingMs()` + `formatFloorTime(ms)`. |
 | `hooks/use-survival-perks.ts` | `useSurvivalPerks(game)` — all perk booleans + `boostedPotential()`. |
+| `lib/game-registry.tsx` | `GAME_REGISTRY` — maps every `GameName` to its React component. The only file that imports all 18 game components. |
 
 ---
 
@@ -42,26 +42,28 @@ Tech: Next.js 14 App Router · TypeScript · Tailwind CSS (JIT) · Zustand store
 
 All 18 games are available in both freeplay and survival.
 
+Game components live at `components/games/<name>/game.tsx`. Each game can have sub-components in the same folder (e.g. `components/games/blackjack/card.tsx`).
+
 | Game | Engine | Component | Lobby accent |
 |---|---|---|---|
-| Blackjack | `games/blackjack/` | `components/blackjack-game.tsx` | red |
-| Crash | `games/crash/` | `components/crash-game.tsx` | teal |
-| Plinko | `games/plinko/` | `components/plinko-game.tsx` | amber |
-| Over-Under | `games/over-under/` | `components/over-under-game.tsx` | indigo |
-| Fortune Wheel | `games/wheel/` | `components/wheel-game.tsx` | lime |
-| Run Dice | `games/run-dice/` | `components/run-dice-game.tsx` | violet |
-| Mines | `games/mines/` | `components/mines-game.tsx` | orange |
-| Chicken Road | `games/chicken-road/` | `components/chicken-road-game.tsx` | sky |
-| Slots | `games/slots/` | `components/slots-game.tsx` | rose |
-| Roulette | `games/roulette/` | `components/roulette-game.tsx` | emerald |
-| Dragon Tower | `games/dragon-tower/` | `components/dragon-tower-game.tsx` | fuchsia |
-| Chicken Race | `games/chicken-race/` | `components/chicken-race-game.tsx` | slate |
-| Street Cups | `games/street-cups/` | `components/street-cups-game.tsx` | stone |
-| Case Battles | `games/case-battles/` | `components/case-battles-game.tsx` | cyan |
-| 1P Poker | `games/poker-1p/` | `components/poker-1p-game.tsx` | green |
-| HiLo | `games/hilo/` | `components/hilo-game.tsx` | purple |
-| Keno | `games/keno/` | `components/keno-game.tsx` | pink |
-| Coin Flip | `games/coin-flip/` | `components/coin-flip-game.tsx` | yellow |
+| Blackjack | `games/blackjack/` | `components/games/blackjack/game.tsx` | red |
+| Crash | `games/crash/` | `components/games/crash/game.tsx` | teal |
+| Plinko | `games/plinko/` | `components/games/plinko/game.tsx` | amber |
+| Over-Under | `games/over-under/` | `components/games/over-under/game.tsx` | indigo |
+| Fortune Wheel | `games/wheel/` | `components/games/wheel/game.tsx` | lime |
+| Run Dice | `games/run-dice/` | `components/games/run-dice/game.tsx` | violet |
+| Mines | `games/mines/` | `components/games/mines/game.tsx` | orange |
+| Chicken Road | `games/chicken-road/` | `components/games/chicken-road/game.tsx` | sky |
+| Slots | `games/slots/` | `components/games/slots/game.tsx` | rose |
+| Roulette | `games/roulette/` | `components/games/roulette/game.tsx` | emerald |
+| Dragon Tower | `games/dragon-tower/` | `components/games/dragon-tower/game.tsx` | fuchsia |
+| Chicken Race | `games/chicken-race/` | `components/games/chicken-race/game.tsx` | slate |
+| Street Cups | `games/street-cups/` | `components/games/street-cups/game.tsx` | stone |
+| Case Battles | `games/case-battles/` | `components/games/case-battles/game.tsx` | cyan |
+| 1P Poker | `games/poker-1p/` | `components/games/poker-1p/game.tsx` | green |
+| HiLo | `games/hilo/` | `components/games/hilo/game.tsx` | purple |
+| Keno | `games/keno/` | `components/games/keno/game.tsx` | pink |
+| Coin Flip | `games/coin-flip/` | `components/games/coin-flip/game.tsx` | yellow |
 
 ---
 
@@ -71,7 +73,7 @@ All 18 games are available in both freeplay and survival.
 **Board arena:** Playfield and surrounding UI must not shift between game-loop phases (betting /
 playing / settled). Use a fixed-height stack in the board (stats, selectors, playfield, hints)
 with `invisible pointer-events-none` instead of conditional mount. Anchor with `justify-start`
-on the arena. See `GAME_TEMPLATE.txt` section 6 and `components/mines-game.tsx`.
+on the arena. See `GAME_TEMPLATE.txt` section 6 and `components/games/mines/game.tsx`.
 
 **Control dock:** The dock must never resize when transitioning between phases.
 The rule: **never conditionally render elements that have height in the control zone.**
@@ -83,7 +85,7 @@ Instead use two techniques:
   phase. Never three separate conditionally-rendered buttons.
 
 See section 7 of `GAME_TEMPLATE.txt` for the exact DOM structure.
-Reference: `components/chicken-race-game.tsx` and `components/dragon-tower-game.tsx`.
+Reference: `components/games/chicken-race/game.tsx` and `components/games/dragon-tower/game.tsx`.
 
 ### Tailwind JIT + data objects
 Tailwind JIT only scans `.tsx`/`.ts` files for class names at build time. If a color class
@@ -108,7 +110,7 @@ Always gate the start action on `canAct`, not just `currentBet > 0`.
 Min-bets per floor live in `utils/math.ts`:
 ```ts
 FLOOR_MIN_BETS = { 1: 20, 2: 50, 3: 100, 4: 200, 5: 500,
-                   6: 1000, 7: 2000, 8: 5000, 9: 7500, 10: 10000 }
+                   6: 1000, 7: 2000, 8: 4000, 9: 7000, 10: 10000 }
 // endless floors 11+: 10000 × 1.8^(floor-10)
 ```
 
@@ -127,11 +129,8 @@ Picked in `components/difficulty-dialog.tsx` at run start; stored as `difficulty
 - Sparks: `calcFloorSparksEarned` in `lib/survival/sparks-economy.ts`; missions add bonus sparks via `applyMissionResults`.
 - Player loop: quota met → `FloorCompleteModal` (summary → shop) → `advanceFloor` or victory `endRun`.
 
-### Floor timer
-Each floor has a **5-minute countdown** (`FLOOR_DURATION_MS = 5 * 60 * 1000`).
-- `useFloorTimer()` ticks the store every second and calls `completeFloorFromTimer()` on expiry.
-- `useFloorTimeRemainingMs()` computes live remaining time accounting for when it was last synced.
-- The navbar shows MM:SS and a pause button while a run is active.
+### Floor progression
+Each floor ends after **`FLOOR_BET_LIMIT` bets** (defined in `lib/survival/balance.ts`). The timer-based system was removed.
 
 ### Survival perks & upgrades system
 Upgrades are purchased from the shop between floors using sparks.
@@ -158,9 +157,11 @@ The hook exposes named booleans for every known perk — prefer these over raw `
 **Opening tickets** (`firstBetInsurance`): per-floor free-first-bet if opening-ticket upgrade owned.
 
 ### onResolve contract
-The page (`app/freeplay/<game>/page.tsx`) owns bankroll math. The component never reads or
+The page (`app/freeplay/[game]/page.tsx`) owns bankroll math. The component never reads or
 writes the bankroll store directly — it only calls `onResolve({ outcome, betAmount, payout, multiplier })`.
 Page then does `newBankroll = bankroll - betAmount + payout`.
+
+Both freeplay and survival use a single dynamic route (`app/freeplay/[game]/page.tsx` and `app/survival/[game]/page.tsx`) backed by `lib/game-registry.tsx`. There are no individual per-game page files.
 
 ### Match history
 History entries are staged in `pendingResult` state and pushed to `matchHistory` on the
@@ -222,9 +223,6 @@ Unlocked by entering `"geek"` in the settings panel.
 - Grant all upgrades / Clear upgrades buttons
 - Curse overlay: full-screen "YOU HAVE BEEN CURSED" message, 60s timeout
 
-> **Gotcha:** `GRANT_ALL_UPGRADES = true` is currently set in `lib/survival/balance.ts`.
-> This grants every upgrade at run start in dev mode. Set to `false` before shipping.
-
 ---
 
 ## Roulette specifics
@@ -258,7 +256,7 @@ Unlocked by entering `"geek"` in the settings panel.
 
 ## Game UI rollout — all complete
 
-All 18 games conform to `GAME_TEMPLATE.txt` sections 6–7 and `components/mines-game.tsx`.
+All 18 games conform to `GAME_TEMPLATE.txt` sections 6–7 and `components/games/mines/game.tsx`.
 
 **Per-game requirements (quick reference)**
 
@@ -285,6 +283,5 @@ All 18 games conform to `GAME_TEMPLATE.txt` sections 6–7 and `components/mines
 2. `games/<name>/engine.ts` — pure init/start/action/settle functions
 3. Add `'<name>'` to `GameName` union in `store/types.ts`
 4. Add entry to `GAMES[]` in `components/lobby.tsx` (pick an unused accent color)
-5. `components/<name>-game.tsx` — follow `GAME_TEMPLATE.txt` exactly
-6. `app/freeplay/<name>/page.tsx` — freeplay page (see template section 2)
-7. `app/survival/<name>/page.tsx` — survival page (only if `availableSurvival: true`)
+5. `components/games/<name>/game.tsx` — follow `GAME_TEMPLATE.txt` exactly; add sub-components alongside as needed
+6. Add `'<name>': YourGame` to `GAME_REGISTRY` in `lib/game-registry.tsx` — **no individual page files needed**
