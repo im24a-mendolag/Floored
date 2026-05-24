@@ -12,6 +12,8 @@ interface SettingsStore {
   setShowAllGames: (v: boolean) => void
   devModeUnlocked: boolean
   setDevModeUnlocked: (v: boolean) => void
+  devInfiniteBets: boolean
+  setDevInfiniteBets: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -25,6 +27,8 @@ export const useSettingsStore = create<SettingsStore>()(
       setShowAllGames: (v) => set({ showAllGames: v }),
       devModeUnlocked: false,
       setDevModeUnlocked: (v) => set({ devModeUnlocked: v }),
+      devInfiniteBets: false,
+      setDevInfiniteBets: (v) => set({ devInfiniteBets: v }),
     }),
     { name: 'floored-settings' }
   )

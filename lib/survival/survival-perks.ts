@@ -4,7 +4,7 @@ import { getCatalogItem, normalizeUpgradeId } from './upgrades-catalog'
 import { RAW_PAYOUT_MULT_CAP } from './balance'
 import {
   COIN_BIAS_CHANCE_BY_LEVEL,
-  CRASH_ZONE_THRESHOLD_BY_LEVEL,
+  CRASH_CUSHION_BY_LEVEL,
   OPENING_TICKET_CAP_BY_LEVEL,
 } from './upgrade-levels'
 import { getMaxOwnedLevelForEffect } from './upgrades-catalog'
@@ -121,9 +121,9 @@ export function pickChickenScoutEliminate(winnerId: number, chickenCount = 4): n
   return others[Math.floor(Math.random() * others.length)]!
 }
 
-/** Crash Zone push threshold for a perk level (×). */
-export function getCrashZoneThreshold(level: number): number {
-  return CRASH_ZONE_THRESHOLD_BY_LEVEL[Math.max(1, Math.min(5, level))] ?? 1
+/** Returns the fraction of the bet recovered when crash happens below 3×. */
+export function getCrashCushion(level = 1): number {
+  return CRASH_CUSHION_BY_LEVEL[Math.max(1, Math.min(5, level)) - 1] ?? 0.25
 }
 
 export function findFirstSafeMineTile(tiles: { id: number; hasMine: boolean; revealed: boolean }[]): number | null {
