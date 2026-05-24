@@ -25,7 +25,7 @@ const CHIP_SUFFIXES: [number, string][] = [
 export function formatChips(n: number): string {
   if (n < 0) return `-${formatChips(-n)}`
   for (const [threshold, suffix] of CHIP_SUFFIXES) {
-    if (n >= threshold) return `${(n / threshold).toFixed(1)}${suffix}`
+    if (n >= threshold) return `${(Math.floor(n / threshold * 10) / 10).toFixed(1)}${suffix}`
   }
   return n.toString()
 }

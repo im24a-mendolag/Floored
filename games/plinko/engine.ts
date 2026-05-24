@@ -79,12 +79,12 @@ export function loseGamePath(risk: PlinkoRisk = 'medium'): PlinkoPath {
 
 /**
  * Resolve a path into a payout.
- * Payout is rounded to the nearest whole chip.
+ * Payout is floored to the nearest whole chip.
  */
 export function computePayout(betAmount: number, path: PlinkoPath, risk: PlinkoRisk = 'medium'): PlinkoPayoutResult {
   const multiplier = MULTIPLIERS[risk][path.slotIndex] ?? 0
-  const payout = Math.round(betAmount * multiplier)
-  const outcome = payout >= betAmount ? 'win' : 'loss'
+  const payout = Math.floor(betAmount * multiplier)
+  const outcome = payout > betAmount ? 'win' : payout === betAmount ? 'push' : 'loss'
   return { multiplier, payout, outcome }
 }
 
