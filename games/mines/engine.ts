@@ -200,3 +200,8 @@ export function loseGame(state: MinesState, tileId: number): MinesState {
     message: 'Boom! You hit a mine.',
   }
 }
+
+export function findFirstSafeMineTile(tiles: { id: number; hasMine: boolean; revealed: boolean }[]): number | null {
+  const safe = tiles.find((t) => !t.hasMine && !t.revealed)
+  return safe?.id ?? null
+}
